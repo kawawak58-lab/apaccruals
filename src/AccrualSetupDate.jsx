@@ -16,7 +16,7 @@ export default function AccrualSetupDate() {
   useEffect(() => {
     async function fetchSetupDates() {
       try {
-        const res = await fetch("api/setupdates");
+        const res = await fetch("/api/setupdates");
         const data = await res.json();
         setDates({ startDate: data.startDate, cutoffDate: data.cutoffDate });
       } catch (err) {

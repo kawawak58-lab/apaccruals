@@ -9,7 +9,7 @@ export default function App() {
   useEffect(() => {
     async function fetchSetupDates() {
       try {
-        const res = await fetch("http://localhost:5000/api/setupdates");
+        const res = await fetch("/api/setupdates");
         const data = await res.json();
         setSetupDates({ startDate: data.startDate, cutoffDate: data.cutoffDate });
       } catch (err) {

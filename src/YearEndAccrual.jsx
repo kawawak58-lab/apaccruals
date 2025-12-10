@@ -50,12 +50,12 @@ export default function YearEndAccrualForm() {
 
   // ---------- Fetch static lists ----------
   useEffect(() => {
-    fetch("http://localhost:5000/api/company")
+    fetch("/api/company")
       .then((res) => res.json())
       .then((data) => setCompanies(data.columnA.slice(1).map((row) => row[0])))
       .catch((err) => console.error("Failed to fetch companies", err));
 
-    fetch("http://localhost:5000/api/suppliers")
+    fetch("/api/suppliers")
       .then((res) => res.json())
       .then((data) =>
         setSuppliers(
@@ -64,19 +64,19 @@ export default function YearEndAccrualForm() {
       )
       .catch((err) => console.error("Failed to fetch suppliers", err));
 
-    fetch("http://localhost:5000/api/transaction")
+    fetch("/api/transaction")
       .then((res) => res.json())
       .then((data) =>
         setTransactionTypes(data.columnA.slice(1).map((row) => row[0]))
       )
       .catch((err) => console.error("Failed to fetch transaction types", err));
 
-    fetch("http://localhost:5000/api/taxcode")
+    fetch("/api/taxcode")
       .then((res) => res.json())
       .then((data) => setTaxCodes(data.columnA.slice(1).map((row) => row[0])))
       .catch((err) => console.error("Failed to fetch tax codes", err));
 
-    fetch("http://localhost:5000/api/glaccount")
+    fetch("/api/glaccount")
       .then((res) => res.json())
       .then((data) =>
         setGlAccounts(
@@ -85,7 +85,7 @@ export default function YearEndAccrualForm() {
       )
       .catch((err) => console.error("Failed to fetch GL accounts", err));
 
-    fetch("http://localhost:5000/api/profitcenter")
+    fetch("/api/profitcenter")
       .then((res) => res.json())
       .then((data) =>
         setProfitCenters(
@@ -204,7 +204,7 @@ export default function YearEndAccrualForm() {
     ]);
 
     try {
-      const response = await fetch("http://localhost:5000/api/submitform", {
+      const response = await fetch("/api/submitform", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows }),
