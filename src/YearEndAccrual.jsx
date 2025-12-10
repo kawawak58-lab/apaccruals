@@ -232,7 +232,7 @@ export default function YearEndAccrualForm() {
         <div className="formHeader">
           <h1 className="h1">Year-End Accrual Template</h1>
           <p className="headerText">
-            Bounty D454545ay everyone!<br/><br/>
+            Bounty Day everyone!<br/><br/>
             As the end of the year approaches, please remember to submit all 2025 invoices together with the approved RFP (single/multiple RFP, Reimbursement, Liquidation) / GRPO & CPO to the AP Team until Monday, December 15, 2025.<br/><br/>
             If you're unable to submit the physical RFP/GRPO by December 15, please complete this form. The information provided will be used in Accrual Templates for recording and withholding tax purposes. Please note that non-recording of transactions may result in discrepancies during BIR Third-party checking Audits, which could lead to fines and penalties. This deadline also applies to any transactions that may affect tax compliance, such as invoice cancellations, price adjustments, and purchase returns.<br/><br/>
             In addition, we kindly request your cooperation in gradually submitting the physical RFPs and GRPOs, along with the receipts, to the AP Teams so we can begin processing payments.<br/><br/>
