@@ -20,11 +20,15 @@ const GLACCOUNT_RANGE = "GL Account!A:B";
 const PROFITCENTER_RANGE = "Profit Center!A:B";
 
 // Create Google Auth client once
+// const auth = new google.auth.GoogleAuth({
+//   keyFile: path.join(__dirname, "keys/service_account.json"),
+//   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+// });
+
 const auth = new google.auth.GoogleAuth({
-  keyFile: path.join(__dirname, "keys/service_account.json"),
+  credentials: JSON.parse(process.env.SERVICE_ACCOUNT_JSON),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
-
 // Get sheets client once
 let sheetsClient;
 async function getSheetsClient() {
