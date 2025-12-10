@@ -24,3 +24,6 @@ yarn-error.log*
 keys/service_account.json
 /backend/keys/service_account.json
 backend/keys/
+
+.vercel
+.env*.local
