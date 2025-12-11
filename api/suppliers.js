@@ -1,4 +1,4 @@
-const { getTable } = require("../../../lib/sheets");
+import { getTable } from "../lib/sheets.js";
 
 const handler = async (req, res) => {
   try {
