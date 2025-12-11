@@ -1,9 +1,12 @@
-const { getTable } = require("../lib/sheets");
+const { getTable } = require("../../../lib/sheets");
 
 const handler = async (req, res) => {
   try {
     const search = (req.query.q || "").toLowerCase();
-    const company = (req.query.companyParam || req.query.company || req.params.company || "").trim().toLowerCase();
+
+    // Get company from URL, e.g., /api/suppliers/Bounty Farms Inc.
+    const params = req.query.params || [];
+    const company = params[0] ? params[0].trim().toLowerCase() : "";
 
     const values = await getTable("Supplier Data!A:C");
 
@@ -27,9 +30,9 @@ const handler = async (req, res) => {
 
     res.status(200).json({ suppliers: filtered.slice(0, 50) });
   } catch (err) {
-    console.error("ERROR in /api/supplier:", err);
+    console.error("ERROR in /api/suppliers:", err);
     res.status(500).json({ error: "Failed to read sheet" });
   }
 };
 
-module.exports = handler;
+export default handler;
