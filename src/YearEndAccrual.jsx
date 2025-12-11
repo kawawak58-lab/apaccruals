@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from "react";
 import "./YearEndAccrualForm.css";
-import AccrualSetupDate from "./AccrualSetupDate";
+import { apiFetch } from "./api";
 
 
 export default function YearEndAccrualForm() {
   // ---------- Header ----------
   const [headerInfo, setHeaderInfo] = useState({
     email: "",
+    expenseclass: "",
     company: "",
     supplier: "",
     supplierName: "",
     invoiceNo: "",
-    remarks: "",
   });
 
   // ---------- Line Items ----------
@@ -29,9 +29,13 @@ export default function YearEndAccrualForm() {
     profitcenterName: "",
     profitSearch: "",
     showProfitDropdown: false,
+    remarks: "",
   });
 
+  const [headerErrors, setHeaderErrors] = useState({});
+
   const [lineItems, setLineItems] = useState([createEmptyLineItem(1)]);
+  const [lineItemErrors, setLineItemErrors] = useState([{}]);
   const [lineItemCounter, setLineItemCounter] = useState(1);
 
   // ---------- Modal ----------
@@ -40,6 +44,7 @@ export default function YearEndAccrualForm() {
 
   // ---------- Dropdown data ----------
   const [companies, setCompanies] = useState([]);
+  const [expenseClass, setExpenseClass] = useState([]);
   const [transactionTypes, setTransactionTypes] = useState([]);
   const [taxCodes, setTaxCodes] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
@@ -50,33 +55,44 @@ export default function YearEndAccrualForm() {
 
   // ---------- Fetch static lists ----------
   useEffect(() => {
-    fetch("/api/company")
+    apiFetch("/api/company")
       .then((res) => res.json())
       .then((data) => setCompanies(data.columnA.slice(1).map((row) => row[0])))
       .catch((err) => console.error("Failed to fetch companies", err));
 
-    fetch("/api/suppliers")
+    apiFetch("/api/expenseclass")
       .then((res) => res.json())
-      .then((data) =>
-        setSuppliers(
-          data.suppliers.map((s) => ({ supplier: s.supplierNo, name: s.supplierName }))
-        )
-      )
-      .catch((err) => console.error("Failed to fetch suppliers", err));
+      .then((data) => setExpenseClass(data.columnA.slice(1).map((row) => row[0])))
+      .catch((err) => console.error("Failed to fetch expenseclass", err));
 
-    fetch("/api/transaction")
+    // apiFetch(`/api/suppliers/${headerInfo.company}`)
+    // .then((res) => res.json())
+    // .then((data) => {
+    //   console.log(data); // log the API response
+    //   setSuppliers(
+    //     data.suppliers.map((s) => ({
+    //       supplier: s.supplierNo,
+    //       name: s.supplierName,
+    //       suppcompany: s.supplierCompany
+    //     }))
+    //   );
+    // })
+    // .catch((err) => console.error("Failed to fetch suppliers", err));
+
+
+    apiFetch("/api/transaction")
       .then((res) => res.json())
       .then((data) =>
         setTransactionTypes(data.columnA.slice(1).map((row) => row[0]))
       )
       .catch((err) => console.error("Failed to fetch transaction types", err));
 
-    fetch("/api/taxcode")
+    apiFetch("/api/taxcode")
       .then((res) => res.json())
       .then((data) => setTaxCodes(data.columnA.slice(1).map((row) => row[0])))
       .catch((err) => console.error("Failed to fetch tax codes", err));
 
-    fetch("/api/glaccount")
+    apiFetch("/api/glaccount")
       .then((res) => res.json())
       .then((data) =>
         setGlAccounts(
@@ -85,7 +101,7 @@ export default function YearEndAccrualForm() {
       )
       .catch((err) => console.error("Failed to fetch GL accounts", err));
 
-    fetch("/api/profitcenter")
+    apiFetch("/api/profitcenter")
       .then((res) => res.json())
       .then((data) =>
         setProfitCenters(
@@ -98,6 +114,22 @@ export default function YearEndAccrualForm() {
       .catch((err) => console.error("Failed to fetch profit centers", err));
   }, []);
 
+  
+useEffect(() => {
+    if (!headerInfo.company) return;
+    apiFetch(`/api/suppliers/${headerInfo.company}`)
+      .then((res) => res.json())
+      .then((data) => {
+        setSuppliers(
+          data.suppliers.map((s) => ({
+            supplier: s.supplierNo,
+            name: s.supplierName,
+            suppcompany: s.supplierCompany
+          }))
+        );
+      })
+      .catch((err) => console.error("Failed to fetch suppliers", err));
+  }, [headerInfo.company]);
   // ---------- Line item helpers ----------
   const addLineItem = () => {
     const newId = lineItemCounter + 1;
@@ -161,26 +193,143 @@ export default function YearEndAccrualForm() {
   };
 
   // ---------- Submit ----------
-  const handleSubmit = async () => {
-    // Validate header
-    if (
-      !headerInfo.email ||
-      !headerInfo.company ||
-      !headerInfo.supplier ||
-      !headerInfo.invoiceNo ||
-      !headerInfo.remarks
-    ) {
-      alert("⚠️ Please fill in all required header fields.");
-      return;
+  // const handleSubmit = async () => {
+  //   const errors = {};
+
+  //   // Header validations
+  //   if (!headerInfo.email) errors.email = true;
+  //   if (!headerInfo.expenseclass) errors.expenseclass = true;
+  //   if (!headerInfo.company) errors.company = true;
+  //   if (!headerInfo.supplier) errors.supplier = true;
+  //   if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)" && !headerInfo.invoiceNo)
+  //     errors.invoiceNo = true;
+  //   if (!headerInfo.remarks) errors.remarks = true;
+
+  //   setHeaderErrors(errors);
+
+  //   if (Object.keys(errors).length > 0) return;
+
+  //   const newLineItemErrors = lineItems.map((item) => {
+  //     const errors = {};
+  //     if (!item.grossAmount) errors.grossAmount = true;
+  //     if (!item.transType) errors.transType = true;
+  //     if (!item.glaccount) errors.glaccount = true;
+  //     if (!item.profitcenter) errors.profitcenter = true;
+  //     if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)") {
+  //       if (!item.vat) errors.vat = true;
+  //       if (!item.taxCode) errors.taxCode = true;
+  //     }
+  //     return errors;
+  //   });
+
+  //   setLineItemErrors(newLineItemErrors);
+
+  //   // Check if any errors exist
+  //   // if (
+  //   //   Object.keys(headerErrs).length > 0 ||
+  //   //   newLineItemErrors.some(err => Object.keys(err).length > 0)
+  //   // ) {
+  //   //   alert("⚠️ Please fill in all required fields.");
+  //   //   return;
+  //   // }
+
+
+  //   // Validate line items
+  //   // for (let i = 0; i < lineItems.length; i++) {
+  //   //   const item = lineItems[i];
+  //   //   if (!item.grossAmount || !item.transType || !item.vat || !item.taxCode) {
+  //   //     alert(`⚠️ Please fill in all required fields for Line Item #${i + 1}.`);
+  //   //     return;
+  //   //   }
+  //   // }
+
+  //   // Build rows
+  //   const timestamp = new Date().toLocaleString();
+  //   const rows = lineItems.map((item) => [
+  //     timestamp,
+  //     headerInfo.email,
+  //     headerInfo.expenseclass,
+  //     headerInfo.company,
+  //     headerInfo.supplier,
+  //     headerInfo.supplierName,
+  //     headerInfo.invoiceNo,
+  //     item.grossAmount,
+  //     item.glaccount,
+  //     item.glaccountName,
+  //     item.profitcenter,
+  //     item.profitcenterName,
+  //     item.transType,
+  //     item.vat,
+  //     item.taxCode,
+  //     headerInfo.remarks,
+  //   ]);
+
+  //   try {
+  //     const response = await apiFetch("/api/submitform", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({ rows }),
+  //     });
+  //     if (!response.ok) throw new Error("Failed to submit form");
+
+  //     setModalMessage(`Form submitted successfully!`);
+  //     setShowModal(true);
+
+  //     // Reset form
+  //     setHeaderInfo({ email: "", expenseclass:"", company: "", supplier: "", supplierName: "", invoiceNo: "", remarks: "" });
+  //     setSupplierSearch("");
+  //     setLineItems([createEmptyLineItem(1)]);
+  //     setLineItemCounter(1);
+  //   } catch (error) {
+  //     console.error("Submission error:", error);
+  //     alert("❌ Submission failed. Please try again.");
+  //   }
+  // };
+
+  const isValidEmail = (email) => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+   const handleSubmit = async () => {
+    const headerErrs = {};
+
+    if (!headerInfo.email || !isValidEmail(headerInfo.email)) {
+      headerErrs.email = true;
     }
+    if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
+    if (!headerInfo.company) headerErrs.company = true;
+    if (!headerInfo.supplier) headerErrs.supplier = true;
+    if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)" && !headerInfo.invoiceNo)
+      headerErrs.invoiceNo = true;
+    // if (!headerInfo.remarks) headerErrs.remarks = true;
+
+    setHeaderErrors(headerErrs);
 
     // Validate line items
-    for (let i = 0; i < lineItems.length; i++) {
-      const item = lineItems[i];
-      if (!item.grossAmount || !item.transType || !item.vat || !item.taxCode) {
-        alert(`⚠️ Please fill in all required fields for Line Item #${i + 1}.`);
-        return;
+    const newLineItemErrors = lineItems.map((item) => {
+      const errors = {};
+      if (!item.grossAmount) errors.grossAmount = true;
+      if (!item.transType) errors.transType = true;
+      if (!item.glaccount) errors.glaccount = true;
+      if (!item.remarks) errors.remarks = true;
+      if (!item.profitcenter) errors.profitcenter = true;
+      if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)") {
+        if (!item.vat) errors.vat = true;
+        if (!item.taxCode) errors.taxCode = true;
       }
+      return errors;
+    });
+
+    setLineItemErrors(newLineItemErrors);
+
+    // Check if any errors exist
+    if (
+      Object.keys(headerErrs).length > 0 ||
+      newLineItemErrors.some(err => Object.keys(err).length > 0)
+    ) {
+      alert("⚠️ Please fill in all required fields.");
+      return;
     }
 
     // Build rows
@@ -188,6 +337,7 @@ export default function YearEndAccrualForm() {
     const rows = lineItems.map((item) => [
       timestamp,
       headerInfo.email,
+      headerInfo.expenseclass,
       headerInfo.company,
       headerInfo.supplier,
       headerInfo.supplierName,
@@ -200,11 +350,11 @@ export default function YearEndAccrualForm() {
       item.transType,
       item.vat,
       item.taxCode,
-      headerInfo.remarks,
+      item.remarks,
     ]);
 
     try {
-      const response = await fetch("/api/submitform", {
+      const response = await apiFetch("/api/submitform", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rows }),
@@ -215,15 +365,27 @@ export default function YearEndAccrualForm() {
       setShowModal(true);
 
       // Reset form
-      setHeaderInfo({ email: "", company: "", supplier: "", supplierName: "", invoiceNo: "", remarks: "" });
+      setHeaderInfo({
+        email: "",
+        expenseclass: "",
+        company: "",
+        supplier: "",
+        supplierName: "",
+        invoiceNo: "",
+      });
+      setHeaderErrors({});
       setSupplierSearch("");
       setLineItems([createEmptyLineItem(1)]);
+      setLineItemErrors([{}]);
       setLineItemCounter(1);
     } catch (error) {
       console.error("Submission error:", error);
       alert("❌ Submission failed. Please try again.");
     }
   };
+
+  // ---------- Disable logic ----------
+  const isDisabled = !headerInfo.email || !headerInfo.expenseclass;
 
   // ---------- Render ----------
   return (
@@ -233,8 +395,8 @@ export default function YearEndAccrualForm() {
           <h1 className="h1">Year-End Accrual Template</h1>
           <p className="headerText">
             Bounty Day everyone!<br/><br/>
-            As the end of the year approaches, please remember to submit all 2025 invoices together with the approved RFP (single/multiple RFP, Reimbursement, Liquidation) / GRPO & CPO to the AP Team until Monday, December 15, 2025.<br/><br/>
-            If you're unable to submit the physical RFP/GRPO by December 15, please complete this form. The information provided will be used in Accrual Templates for recording and withholding tax purposes. Please note that non-recording of transactions may result in discrepancies during BIR Third-party checking Audits, which could lead to fines and penalties. This deadline also applies to any transactions that may affect tax compliance, such as invoice cancellations, price adjustments, and purchase returns.<br/><br/>
+            As the end of the year approaches, please remember to submit all 2025 invoices together with the approved RFP (single/multiple RFP, Reimbursement, Liquidation) / GRPO & CPO to the AP Team until <b style={{ color: "black" }}> Monday, January 05, 2026</b>.<br/><br/>
+            If you're unable to submit the physical RFP/GRPO by <b style={{ color: "black" }}>January 05</b>, please complete this form. The information provided will be used in Accrual Templates for recording and withholding tax purposes. Please note that non-recording of transactions may result in discrepancies during BIR Third-party checking Audits, which could lead to fines and penalties. This deadline also applies to any transactions that may affect tax compliance, such as invoice cancellations, price adjustments, and purchase returns. <b style={{ color: "black" }}> This form will automatically close on January 07, 2026</b>.<br/><br/>
             In addition, we kindly request your cooperation in gradually submitting the physical RFPs and GRPOs, along with the receipts, to the AP Teams so we can begin processing payments.<br/><br/>
             Thank you for your continued support and cooperation.
           </p>
@@ -246,25 +408,67 @@ export default function YearEndAccrualForm() {
             <label className="label"> Email <span className="required">*</span> </label>
             <input
               type="email"
-              className="input"
+              className={`input ${headerErrors.email ? "inputError" : ""}`}
               placeholder="Your email"
               value={headerInfo.email}
-              onChange={(e) => setHeaderInfo({ ...headerInfo, email: e.target.value })}
+              onChange={(e) => {
+                const value = e.target.value;
+                setHeaderInfo({ ...headerInfo, email: value });
+                setHeaderErrors((prev) => ({
+                  ...prev,
+                  email: !isValidEmail(value) // mark error if invalid
+                }));
+              }}
             />
+            {headerErrors.email && <div className="errorText">Please enter a valid email</div>}
+          </div>
+
+           <div className="formGroup">
+            <label className="label"> Expense Classifications <span className="required">*</span> </label>
+            <select
+              className={`select ${headerErrors.expenseclass ? "inputError" : ""}`}
+              value={headerInfo.expenseclass}
+              // onChange={(e) => setHeaderInfo({ ...headerInfo, : e.target.value })}
+              onChange={(e) => {
+                setHeaderInfo({ ...headerInfo, expenseclass: e.target.value });
+                setHeaderErrors((prev) => ({ ...prev, expenseclass: false }));
+              }}
+            >
+              <option value="">Choose</option>
+              {expenseClass.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+            {headerErrors.expenseclass && <div className="errorText">Expense Classification is Required</div>}
           </div>
 
           <div className="formGroup">
             <label className="label"> Company Charging <span className="required">*</span> </label>
             <select
-              className="select"
+              className={`select ${headerErrors.company ? "inputError" : ""}`}
+              disabled={isDisabled}
               value={headerInfo.company}
-              onChange={(e) => setHeaderInfo({ ...headerInfo, company: e.target.value })}
+              // onChange={(e) => setHeaderInfo({ ...headerInfo, company: e.target.value })}
+               onChange={(e) => {
+                const newCompany = e.target.value;
+                setHeaderInfo({
+                  ...headerInfo,
+                  company: newCompany,
+                  supplier: "",
+                  supplierName: "",
+                });
+                setSupplierSearch("");  
+                setSuppliers([]); 
+                setHeaderErrors((prev) => ({ ...prev, company: false }));
+              }}
             >
               <option value="">Choose</option>
               {companies.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
+              
             </select>
+            {headerErrors.company && <div className="errorText">Company Charging is Required</div>}
           </div>
         </div>
 
@@ -276,16 +480,18 @@ export default function YearEndAccrualForm() {
             </label>
             <input
                 type="text"
-                className="input"
-                placeholder="Type to search supplier (min 2 characters)..."
+                className={`input ${headerErrors.supplier ? "inputError" : ""}`}
+                placeholder="Type to search supplier."
                 value={supplierSearch}
                 onChange={(e) => {
                 setSupplierSearch(e.target.value);
                 setShowSupplierDropdown(e.target.value.length >= 2);
+                setHeaderErrors((prev) => ({ ...prev, supplier: false }));
                 }}
                 onFocus={() => setShowSupplierDropdown(supplierSearch.length >= 2)}
+                disabled={isDisabled}
             />
-
+            {headerErrors.supplier && <div className="errorText">Supplier is Required.</div>}
             {showSupplierDropdown && supplierSearch.length >= 2 && (
                 <div
                 style={{
@@ -305,9 +511,14 @@ export default function YearEndAccrualForm() {
                 >
                 {suppliers
                     .filter(
+                    // (s) =>
+                    //     s.supplier.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+                    //     s.name.toLowerCase().includes(supplierSearch.toLowerCase())
+                    // )
                     (s) =>
-                        s.supplier.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-                        s.name.toLowerCase().includes(supplierSearch.toLowerCase())
+                        s.suppcompany === headerInfo.company && // Only suppliers for selected company
+                        (s.supplier.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+                        s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
                     )
                     .slice(0, 50)
                     .map((s) => (
@@ -359,18 +570,23 @@ export default function YearEndAccrualForm() {
             <label className="label"> Invoice No. <span className="required">*</span> </label>
             <input
               type="text"
-              className="input"
+              className={`input ${headerErrors.invoiceNo ? "inputError" : ""}`}
+              disabled={isDisabled}
               placeholder="Enter invoice number"
               value={headerInfo.invoiceNo}
-              onChange={(e) => setHeaderInfo({ ...headerInfo, invoiceNo: e.target.value })}
+               onChange={(e) => {
+                  setHeaderInfo({ ...headerInfo, invoiceNo: e.target.value });
+                  setHeaderErrors((prev) => ({ ...prev, invoiceNo: false }));
+                }}
             />
+            {headerErrors.invoiceNo && <div className="errorText">Required</div>}
           </div>
         </div>
 
         {/* Line Items */}
         <div className="formSection">
           <div className="lineItemsHeader">
-            <button type="button" className="addBtn" onClick={addLineItem}> + Add Line Item </button>
+            <button type="button" className="addBtn" onClick={addLineItem} disabled={isDisabled} > + Add Line Item </button>
           </div>
 
           {lineItems.map((item, index) => {
@@ -393,23 +609,26 @@ export default function YearEndAccrualForm() {
 
                 <div className="lineItemGrid">
                   {/* Gross Amount */}
-                  <div className="formGroup">
+                  <div className="formGroup1">
                     <label className="label"> Gross Amount <span className="required">*</span> </label>
-                    <input type="number" step="0.01" className="input" placeholder="0.00"
+                    <input type="number" step="0.01" className={`input ${lineItemErrors[index]?.grossAmount ? "inputError" : ""}`} placeholder="0.00"
                       value={item.grossAmount}
+                      disabled={isDisabled}
                       onChange={(e) => updateLineItem(item.id, "grossAmount", e.target.value)}
                     />
+                    {lineItemErrors[index]?.grossAmount && <div className="errorText">Gross Amount is required</div>}
                   </div>
 
                  {/* GL Account */}
-                <div className="formGroup" style={{ position: "relative" }}>
+                <div className="formGroup1" style={{ position: "relative" }}>
                 <label className="label">
                     GL Account <span className="required">*</span>
                 </label>
                 <input
                     type="text"
-                    className="inputItem"
-                    placeholder="Type to search GL Account..."
+                    className={`inputItem ${lineItemErrors[index]?.glaccount ? "inputError" : ""}`}
+                    disabled={isDisabled}
+                    placeholder="Type to search GL Account."
                     value={item.glSearch}
                     onChange={(e) => {
                     const value = e.target.value;
@@ -420,6 +639,7 @@ export default function YearEndAccrualForm() {
                             : li
                         )
                     );
+                    setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, glaccount: false } : err));
                     }}
                     onFocus={() =>
                     setLineItems(prev =>
@@ -431,7 +651,7 @@ export default function YearEndAccrualForm() {
                     )
                     }
                 />
-
+                {lineItemErrors[index]?.glaccount && <div className="errorText">GL Account is required</div>}
                 {/* Dropdown list */}
                 {item.showGLDropdown && filteredGL.length > 0 && (
                     <div
@@ -493,20 +713,21 @@ export default function YearEndAccrualForm() {
                 </div>
 
 
-                  <div className="formGroup">
+                  <div className="formGroup1">
                     <label className="label">GL Account Name</label>
                     <input type="text" className="inputItemDisabled" value={item.glaccountName} disabled />
                   </div>
 
                   {/* PROFIT CENTER (per-line) */}
-                    <div className="formGroup" style={{ position: "relative" }}>
+                    <div className="formGroup1" style={{ position: "relative" }}>
                     <label className="label">
                         Profit Center Code <span className="required">*</span>
                     </label>
                     <input
                         type="text"
-                        className="inputItem"
-                        placeholder="Type to search Profit Center Code (min 2 characters)..."
+                        disabled={isDisabled}
+                        className={`inputItem ${lineItemErrors[index]?.profitcenter ? "inputError" : ""}`}
+                        placeholder="Type to search Profit Center Code."
                         value={item.profitSearch}
                         onChange={(e) => {
                         const value = e.target.value;
@@ -517,6 +738,7 @@ export default function YearEndAccrualForm() {
                                 : li
                             )
                         );
+                        setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, profitcenter: false } : err));
                         }}
                         onFocus={() =>
                         setLineItems(prev =>
@@ -528,7 +750,7 @@ export default function YearEndAccrualForm() {
                         )
                         }
                     />
-
+                  {lineItemErrors[index]?.profitcenter && <div className="errorText">Profit Center is required</div>}
                     {/* Dropdown list */}
                     {item.showProfitDropdown && filteredProfit.length > 0 && (
                         <div
@@ -590,55 +812,103 @@ export default function YearEndAccrualForm() {
                     </div>
 
 
-                  <div className="formGroup">
+                  <div className="formGroup1">
                     <label className="label">Profit Center Name</label>
                     <input type="text" className="inputItemDisabled" value={item.profitcenterName} disabled />
                   </div>
 
                   {/* Transaction Type */}
-                  <div className="formGroup">
+                  <div className="formGroup1">
                     <label className="label"> Transaction Type <span className="required">*</span> </label>
-                    <select className="select" value={item.transType} onChange={(e) => updateLineItem(item.id, "transType", e.target.value)}>
+                    <select className={`select ${lineItemErrors[index]?.transType ? "inputError" : ""}`} 
+                    value={item.transType} 
+                    disabled={isDisabled}
+                    onChange={(e) => {
+                        updateLineItem(item.id, "transType", e.target.value);
+                        setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, transType: false } : err));
+                      }}
+                    >
                       <option value="">Choose</option>
                       {transactionTypes.map((t) => <option key={t} value={t}>{t}</option>)}
                     </select>
+                    {lineItemErrors[index]?.transType && <div className="errorText">Transaction Type is required</div>}
                   </div>
-
+                  
+                  
                   {/* VAT */}
-                  <div className="formGroup">
+                  {/* <div className="formGroup">
                     <label className="label"> VAT <span className="required">*</span> </label>
                     <select className="select" value={item.vat} onChange={(e) => updateLineItem(item.id, "vat", e.target.value)}>
                       <option value="">Choose</option>
                       <option value="Vatable">Vatable</option>
                       <option value="Non-Vatable">Non-Vatable</option>
                     </select>
-                  </div>
+                  </div> */}
 
                   {/* Tax Code */}
-                  <div className="formGroup">
+                  {/* <div className="formGroup">
                     <label className="label"> Tax Code <span className="required">*</span> </label>
                     <select className="select" value={item.taxCode} onChange={(e) => updateLineItem(item.id, "taxCode", e.target.value)}>
                       <option value="">Choose</option>
                       {taxCodes.map((tc) => <option key={tc} value={tc}>{tc}</option>)}
                     </select>
+                  </div> */}
+
+                  {headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)" && (
+                    <>
+                      {/* VAT */}
+                      <div className="formGroup1">
+                        <label className="label"> VAT <span className="required">*</span> </label>
+                        <select className={`select ${lineItemErrors[index]?.vat ? "inputError" : ""}`}
+                         value={item.vat} 
+                         disabled={isDisabled}
+                          onChange={(e) => {
+                          updateLineItem(item.id, "vat", e.target.value);
+                          setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, vat: false } : err));
+                        }}
+                         >
+                          <option value="">Choose</option>
+                          <option value="Vatable">Vatable</option>
+                          <option value="Non-Vatable">Non-Vatable</option>
+                        </select>
+                        {lineItemErrors[index]?.vat && <div className="errorText">VAT is required</div>}
+                      </div>
+
+                      {/* Tax Code */}
+                      <div className="formGroup1">
+                        <label className="label"> Tax Code <span className="required">*</span> </label>
+                        <select className={`select ${lineItemErrors[index]?.taxCode ? "inputError" : ""}`} 
+                        value={item.taxCode}
+                        disabled={isDisabled}
+                        onChange={(e) => {
+                          updateLineItem(item.id, "taxCode", e.target.value);
+                          setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, taxCode: false } : err));
+                        }}
+                        >
+                          <option value="">Choose</option>
+                          {taxCodes.map((tc) => <option key={tc} value={tc}>{tc}</option>)}
+                        </select>
+                         {lineItemErrors[index]?.taxCode && <div className="errorText">Tax Code is required</div>}
+                      </div>
+                    </>
+                  )}
+
+
+                  <div className="formGroup1">
+                    <label className="label">Remarks <span className="required">*</span> </label>
+                    <textarea
+                      className={`input ${lineItemErrors[index]?.remarks ? "inputError" : ""}`}
+                      rows={2}
+                      disabled={isDisabled}
+                      value={item.remarks}
+                      onChange={(e) => updateLineItem(item.id, "remarks", e.target.value)}
+                    ></textarea>
+                    {lineItemErrors[index]?.remarks && <div className="errorText">Remarks are required</div>}
                   </div>
                 </div>
               </div>
             );
           })}
-        </div>
-
-        {/* Remarks */}
-        <div className="formSection">
-          <div className="formGroup">
-            <label className="label">Remarks <span className="required">*</span> </label>
-            <textarea
-              className="input"
-              rows={3}
-              value={headerInfo.remarks}
-              onChange={(e) => setHeaderInfo({ ...headerInfo, remarks: e.target.value })}
-            ></textarea>
-          </div>
         </div>
 
         <div className="formFooter">

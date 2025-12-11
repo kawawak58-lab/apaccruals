@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import AccrualSetupDate from "./AccrualSetupDate";
 import YearEndAccrual from "./YearEndAccrual";
+import { apiFetch } from "./api";
 
 export default function App() {
   const [setupDates, setSetupDates] = useState({ startDate: null, cutoffDate: null });
@@ -9,7 +10,7 @@ export default function App() {
   useEffect(() => {
     async function fetchSetupDates() {
       try {
-        const res = await fetch("/api/setupdates");
+        const res = await apiFetch("/api/setupdates");
         const data = await res.json();
         setSetupDates({ startDate: data.startDate, cutoffDate: data.cutoffDate });
       } catch (err) {

@@ -13,22 +13,23 @@ app.use(express.json());
 // GOOGLE SHEET DETAILS
 const SPREADSHEET_ID = "1g9gm_c0_JtztF0Ta-C6A1BAG86RlFQUieCpdy_Tu1QI";
 const COMPANY_RANGE = "Company!A:A"; // Column A only
-const SUPPLIER_RANGE = "Supplier Data!A:B";
+const SUPPLIER_RANGE = "Supplier Data!A:C";
 const TRANSACTION_RANGE = "Transaction Type!A:A";
 const TAXCODE_RANGE = "TAXCODE!A:A";
 const GLACCOUNT_RANGE = "GL Account!A:B";
 const PROFITCENTER_RANGE = "Profit Center!A:B";
+const EXPENSECLASS_RANGE = "Expense Classification!A:A";
 
 // Create Google Auth client once
-// const auth = new google.auth.GoogleAuth({
-//   keyFile: path.join(__dirname, "keys/service_account.json"),
-//   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-// });
-
 const auth = new google.auth.GoogleAuth({
-  credentials: JSON.parse(process.env.SERVICE_ACCOUNT_JSON),
+  keyFile: path.join(__dirname, "keys/service_account.json"),
   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
 });
+
+// const auth = new google.auth.GoogleAuth({
+//   credentials: JSON.parse(process.env.SERVICE_ACCOUNT_JSON),
+//   scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+// });
 // Get sheets client once
 let sheetsClient;
 async function getSheetsClient() {
@@ -62,9 +63,10 @@ async function getSuppliers() {
   // Skip header row and map columns A and B
   const suppliers = values.slice(1).map(row => ({
     supplierNo: row[0] || "",
-    supplierName: row[1] || ""
+    supplierName: row[1] || "",
+    supplierCompany: row[2] || ""
   }));
-
+  // console.log(suppliers);
   return suppliers;
 }
 
@@ -138,6 +140,16 @@ async function getSetupDates() {
   };
 }
 
+
+async function getExpenseClass() {
+  const sheets = await getSheetsClient();
+  const response = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: EXPENSECLASS_RANGE,
+  });
+  return response.data.values || [];
+}
+
 // API endpoints
 app.get("/api/company", async (req, res) => {
   try {
@@ -149,23 +161,48 @@ app.get("/api/company", async (req, res) => {
   }
 });
 
-app.get("/api/suppliers", async (req, res) => {
-  try {
-    const search = (req.query.q || "").toLowerCase();
-    const allSuppliers = await getSuppliers();
+// app.get("/api/suppliers", async (req, res) => {
+//   try {
+//     const search = (req.query.q || "").toLowerCase();
+//     const allSuppliers = await getSuppliers();
     
-    // Filter suppliers by supplierNo or supplierName
-    const filtered = allSuppliers.filter(s => 
-      s.supplierNo.toLowerCase().includes(search) ||
-      s.supplierName.toLowerCase().includes(search)
+//     // Filter suppliers by supplierNo or supplierName
+//     const filtered = allSuppliers.filter(s => 
+//       s.supplierNo.toLowerCase().includes(search) ||
+//       s.supplierName.toLowerCase().includes(search) ||
+//       s.supplierCompany.toLowerCase().includes(search)
+//     );
+
+//     res.json({ suppliers: filtered.slice(0, 50) }); // Limit to 50 results
+//   } catch (error) {
+//     console.error("Error reading sheet:", error);
+//     res.status(500).json({ error: "Failed to read sheet" });
+//   }
+// });
+
+// Get suppliers by company (company as URL parameter)
+app.get("/api/suppliers/:company", async (req, res) => {
+  try {
+    const company = (req.params.company || "").trim().toLowerCase();
+
+    if (!company) {
+      return res.status(400).json({ error: "Company parameter is required" });
+    }
+
+    const allSuppliers = await getSuppliers();
+
+    // Filter suppliers by company
+    const filtered = allSuppliers.filter(
+      (s) => s.supplierCompany.toLowerCase() === company
     );
 
-    res.json({ suppliers: filtered.slice(0, 50) }); // Limit to 50 results
+    res.json({ suppliers: filtered });
   } catch (error) {
     console.error("Error reading sheet:", error);
     res.status(500).json({ error: "Failed to read sheet" });
   }
 });
+
 
 app.get("/api/transaction", async (req, res) => {
   try {
@@ -254,6 +291,17 @@ app.get("/api/setupdates", async (req, res) => {
   } catch (error) {
     console.error("Error reading setup dates:", error);
     res.status(500).json({ error: "Failed to read setup dates" });
+  }
+});
+
+
+app.get("/api/expenseclass", async (req, res) => {
+  try {
+    const data = await getExpenseClass();
+    res.json({ sheet: "Expense Classification", columnA: data });
+  } catch (error) {
+    console.error("Error reading sheet:", error);
+    res.status(500).json({ error: "Failed to read sheet" });
   }
 });
 
