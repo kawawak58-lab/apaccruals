@@ -181,20 +181,20 @@ app.get("/api/company", async (req, res) => {
 // });
 
 // Get suppliers by company (company as URL parameter)
-app.get("/api/suppliers/:company", async (req, res) => {
+app.get("/api/suppliers/:company?", async (req, res) => {
   try {
-    const company = (req.params.company || "").trim().toLowerCase();
-
-    if (!company) {
-      return res.status(400).json({ error: "Company parameter is required" });
-    }
+    // Read company from either path param or query string
+    const company =
+      (req.params.company || req.query.company || "").trim().toLowerCase();
 
     const allSuppliers = await getSuppliers();
 
-    // Filter suppliers by company
-    const filtered = allSuppliers.filter(
-      (s) => s.supplierCompany.toLowerCase() === company
-    );
+    // If company is provided, filter; otherwise return all
+    const filtered = company
+      ? allSuppliers.filter(
+          (s) => s.supplierCompany.toLowerCase() === company
+        )
+      : allSuppliers;
 
     res.json({ suppliers: filtered });
   } catch (error) {
@@ -202,6 +202,7 @@ app.get("/api/suppliers/:company", async (req, res) => {
     res.status(500).json({ error: "Failed to read sheet" });
   }
 });
+
 
 
 app.get("/api/transaction", async (req, res) => {

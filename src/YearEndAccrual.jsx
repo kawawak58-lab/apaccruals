@@ -117,7 +117,7 @@ export default function YearEndAccrualForm() {
   
 useEffect(() => {
     if (!headerInfo.company) return;
-    apiFetch(`/api/suppliers/${headerInfo.company}`)
+    apiFetch(`/api/suppliers?company=${encodeURIComponent(headerInfo.company)}`)
       .then((res) => res.json())
       .then((data) => {
         setSuppliers(
