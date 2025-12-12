@@ -147,11 +147,18 @@ useEffect(() => {
       const res = await apiFetch(`/api/suppliers?${query}`);
       const data = await res.json();
 
-      // If page === 1, replace; otherwise append
-      setSuppliers(prev =>
-        supplierPage === 1
-          ? data.suppliers
-          : [...prev, ...data.suppliers]
+      setSuppliers(prevSuppliers => 
+        supplierPage === 1 
+          ? data.suppliers.map(s => ({
+              supplier: s.supplierNo,
+              name: s.supplierName,
+              suppcompany: s.supplierCompany,
+            }))
+          : [...prevSuppliers, ...data.suppliers.map(s => ({
+              supplier: s.supplierNo,
+              name: s.supplierName,
+              suppcompany: s.supplierCompany,
+            }))]
       );
 
       setSupplierTotal(data.total);
