@@ -2,34 +2,52 @@ import { getTable } from "../lib/sheets.js";
 
 const handler = async (req, res) => {
   try {
-    const search = (req.query.q || "").toLowerCase();
     const company = (req.query.company || "").trim().toLowerCase();
+    const search = (req.query.search || "").trim().toLowerCase();
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
 
-    const values = await getTable("Supplier Data!A:C");
+    // Get all supplier data
+    const values = await getTable("Supplier Data!A:C"); // [supplierNo, supplierName, supplierCompany]
 
-    const suppliers = values.map(row => ({
+    // Map to objects
+    const suppliers = values.map((row) => ({
       supplierNo: row[0] || "",
       supplierName: row[1] || "",
       supplierCompany: row[2] || "",
     }));
 
-    const filtered = suppliers.filter(s => {
-      const matchesSearch =
-        s.supplierNo.toLowerCase().includes(search) ||
-        s.supplierName.toLowerCase().includes(search);
+    // Filter by company
+    const filteredByCompany = company
+      ? suppliers.filter(
+          (s) => s.supplierCompany.toLowerCase() === company
+        )
+      : suppliers;
 
-      const matchesCompany = company
-        ? s.supplierCompany.toLowerCase() === company
-        : true;
+    // Filter by search term
+    const filtered = search
+      ? filteredByCompany.filter(
+          (s) =>
+            s.supplierNo.toLowerCase().includes(search) ||
+            s.supplierName.toLowerCase().includes(search)
+        )
+      : filteredByCompany;
 
-      return matchesSearch && matchesCompany;
+    // Paginate
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const paginated = filtered.slice(start, end);
+
+    res.status(200).json({
+      suppliers: paginated,
+      total: filtered.length,
+      page,
+      pages: Math.ceil(filtered.length / limit),
     });
-
-    res.status(200).json({ suppliers: filtered.slice(0, 50) });
   } catch (err) {
+    console.error("ERROR in /api/suppliers:", err);
     res.status(500).json({ error: "Failed to read sheet" });
   }
 };
 
 export default handler;
-

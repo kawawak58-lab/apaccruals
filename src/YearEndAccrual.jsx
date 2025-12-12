@@ -47,9 +47,16 @@ export default function YearEndAccrualForm() {
   const [expenseClass, setExpenseClass] = useState([]);
   const [transactionTypes, setTransactionTypes] = useState([]);
   const [taxCodes, setTaxCodes] = useState([]);
+
+
   const [suppliers, setSuppliers] = useState([]);
   const [supplierSearch, setSupplierSearch] = useState("");
+  const [supplierPage, setSupplierPage] = useState(1);
+  const [supplierTotal, setSupplierTotal] = useState(0);
+  const supplierLimit = 50; 
   const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
+
+
   const [glAccounts, setGlAccounts] = useState([]);
   const [profitCenters, setProfitCenters] = useState([]);
 
@@ -64,21 +71,6 @@ export default function YearEndAccrualForm() {
       .then((res) => res.json())
       .then((data) => setExpenseClass(data.columnA.slice(1).map((row) => row[0])))
       .catch((err) => console.error("Failed to fetch expenseclass", err));
-
-    // apiFetch(`/api/suppliers/${headerInfo.company}`)
-    // .then((res) => res.json())
-    // .then((data) => {
-    //   console.log(data); // log the API response
-    //   setSuppliers(
-    //     data.suppliers.map((s) => ({
-    //       supplier: s.supplierNo,
-    //       name: s.supplierName,
-    //       suppcompany: s.supplierCompany
-    //     }))
-    //   );
-    // })
-    // .catch((err) => console.error("Failed to fetch suppliers", err));
-
 
     apiFetch("/api/transaction")
       .then((res) => res.json())
@@ -115,27 +107,64 @@ export default function YearEndAccrualForm() {
   }, []);
 
   
-useEffect(() => {
+// useEffect(() => {
   
-    if (!headerInfo.company) return;
-    apiFetch(`/api/suppliers?company=${encodeURIComponent(headerInfo.company)}`)
+//     if (!headerInfo.company || supplierSearch.length < 2) return;
+//     apiFetch(`/api/suppliers?company=${encodeURIComponent(headerInfo.company)}`)
     
-      .then((res) => res.json())
-      .then((data) => {
-        setSuppliers(
-          data.suppliers.map((s) => ({
-            supplier: s.supplierNo,
-            name: s.supplierName,
-            suppcompany: s.supplierCompany
-          }))
+//       .then((res) => res.json())
+//       .then((data) => {
+//         setSuppliers(
+//           data.suppliers.map((s) => ({
+//             supplier: s.supplierNo,
+//             name: s.supplierName,
+//             suppcompany: s.supplierCompany
+//           }))
 
           
-        );
-        console.log(data);
-      })
-      .catch((err) => console.error("Failed to fetch suppliers", err));
-  }, [headerInfo.company]);
+//         );
+//         console.log(data);
+//       })
+//       .catch((err) => console.error("Failed to fetch suppliers", err));
+//   }, [headerInfo.company]);
+
+
+
   // ---------- Line item helpers ----------
+  
+useEffect(() => {
+  if (!headerInfo.company || supplierSearch.length < 2) return;
+
+  const fetchSuppliers = async () => {
+    try {
+      const query = new URLSearchParams({
+        company: headerInfo.company,
+        search: supplierSearch,
+        page: supplierPage,
+        limit: supplierLimit,
+      }).toString();
+
+      const res = await apiFetch(`/api/suppliers?${query}`);
+      const data = await res.json();
+
+      // If page === 1, replace; otherwise append
+      setSuppliers(prev =>
+        supplierPage === 1
+          ? data.suppliers
+          : [...prev, ...data.suppliers]
+      );
+
+      setSupplierTotal(data.total);
+    } catch (err) {
+      console.error("Failed to fetch suppliers", err);
+    }
+  };
+
+  fetchSuppliers();
+}, [headerInfo.company, supplierSearch, supplierPage]);
+
+
+
   const addLineItem = () => {
     const newId = lineItemCounter + 1;
     setLineItemCounter(newId);
@@ -498,69 +527,80 @@ useEffect(() => {
             />
             {headerErrors.supplier && <div className="errorText">Supplier is Required.</div>}
             {showSupplierDropdown && supplierSearch.length >= 2 && (
-                <div
-                style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    maxHeight: 200,
-                    overflowY: "auto",
-                    backgroundColor: "white",
-                    border: "1px solid #ddd",
-                    borderRadius: 4,
-                    marginTop: 4,
-                    zIndex: 1000,
-                    boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-                }}
-                >
-                {suppliers
-                    .filter(
-                    // (s) =>
-                    //     s.supplier.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-                    //     s.name.toLowerCase().includes(supplierSearch.toLowerCase())
-                    // )
-                    (s) =>
-                        s.suppcompany === headerInfo.company && // Only suppliers for selected company
-                        (s.supplier.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-                        s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
-                    )
-                    .slice(0, 50)
-                    .map((s) => (
-                    <div
-                        key={s.supplier}
-                        onClick={() => selectSupplier(s)}
-                        style={{
-                        padding: "8px 12px",
-                        cursor: "pointer",
-                        borderBottom: "1px solid #f0f0f0",
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
-                    >
-                        {s.supplier} - {s.name}
-                    </div>
-                    ))}
+  <div
+    style={{
+      position: "absolute",
+      top: "100%",
+      left: 0,
+      right: 0,
+      maxHeight: 200,
+      overflowY: "auto",
+      backgroundColor: "white",
+      border: "1px solid #ddd",
+      borderRadius: 4,
+      marginTop: 4,
+      zIndex: 1000,
+      boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+    }}
+  >
+    {suppliers
+      .filter(
+        (s) =>
+          s.suppcompany === headerInfo.company &&
+          (s.supplier.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+            s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
+      )
+      .map((s) => (
+        <div
+          key={s.supplier}
+          onClick={() => selectSupplier(s)}
+          style={{
+            padding: "8px 12px",
+            cursor: "pointer",
+            borderBottom: "1px solid #f0f0f0",
+          }}
+          onMouseEnter={(e) =>
+            (e.currentTarget.style.backgroundColor = "#f5f5f5")
+          }
+          onMouseLeave={(e) =>
+            (e.currentTarget.style.backgroundColor = "white")
+          }
+        >
+          {s.supplier} - {s.name}
+        </div>
+      ))}
 
-                {/* No match label */}
-                {suppliers.filter(
-                    (s) =>
-                    s.supplier.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-                    s.name.toLowerCase().includes(supplierSearch.toLowerCase())
-                ).length === 0 && (
-                    <div
-                    style={{
-                        padding: "12px",
-                        color: "#666",
-                        fontSize: 14,
-                        fontStyle: "italic",
-                    }}
-                    >
-                    No supplier found matching "{supplierSearch}"
-                    </div>
-                )}
-                </div>
-            )}
+    {/* Load more button */}
+    {suppliers.length < supplierTotal && (
+      <div
+        style={{
+          padding: "8px",
+          textAlign: "center",
+          cursor: "pointer",
+          fontWeight: "500",
+          color: "#007bff",
+        }}
+        onClick={() => setSupplierPage((prev) => prev + 1)}
+      >
+        Load more...
+      </div>
+    )}
+
+    {/* No match */}
+    {suppliers.length === 0 && (
+      <div
+        style={{
+          padding: "12px",
+          color: "#666",
+          fontSize: 14,
+          fontStyle: "italic",
+        }}
+      >
+        No supplier found matching "{supplierSearch}"
+      </div>
+    )}
+  </div>
+)}
            </div>
 
           <div className="formGroup">
