@@ -75,6 +75,10 @@ export default function YearEndAccrualForm() {
   const profitLimit = 50;
   const [profitTotal, setProfitTotal] = useState(0);
 
+  const [emailSuggestions, setEmailSuggestions] = useState([]);
+  const commonDomains = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "bounty.com.ph"];
+
+
   // ---------- Fetch static lists ----------
   useEffect(() => {
     apiFetch("/api/company")
@@ -425,6 +429,25 @@ const loadMoreProfitCenters = (lineId) => {
     return emailRegex.test(email);
   };
 
+  const handleEmailChange = (value) => {
+  setHeaderInfo({ ...headerInfo, email: value });
+  setHeaderErrors((prev) => ({ ...prev, email: !isValidEmail(value) }));
+
+  // generate suggestions
+  if (value && !value.includes("@")) {
+    setEmailSuggestions(commonDomains.map((domain) => `${value}@${domain}`));
+  } else {
+    setEmailSuggestions([]);
+  }
+};
+
+const selectEmailSuggestion = (suggestion) => {
+  setHeaderInfo({ ...headerInfo, email: suggestion });
+  // validate selected email
+  setHeaderErrors((prev) => ({ ...prev, email: !isValidEmail(suggestion) }));
+  setEmailSuggestions([]);
+};
+
    const handleSubmit = async () => {
     const headerErrs = {};
 
@@ -545,16 +568,38 @@ const loadMoreProfitCenters = (lineId) => {
               className={`input ${headerErrors.email ? "inputError" : ""}`}
               placeholder="Your email"
               value={headerInfo.email}
-              onChange={(e) => {
-                const value = e.target.value;
-                setHeaderInfo({ ...headerInfo, email: value });
-                setHeaderErrors((prev) => ({
-                  ...prev,
-                  email: !isValidEmail(value) // mark error if invalid
-                }));
+              onChange={(e) => handleEmailChange(e.target.value)}
+              onFocus={() => {
+                if (emailSuggestions.length > 0) setEmailSuggestions(emailSuggestions);
               }}
             />
             {headerErrors.email && <div className="errorText">Please enter a valid email</div>}
+            {emailSuggestions.length > 0 && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  backgroundColor: "white",
+                  border: "1px solid #ddd",
+                  borderRadius: 4,
+                  zIndex: 1000,
+                }}
+              >
+                {emailSuggestions.map((sugg) => (
+                  <div
+                    key={sugg}
+                    style={{ padding: "8px 12px", cursor: "pointer" }}
+                    onClick={() => selectEmailSuggestion(sugg)}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
+                  >
+                    {sugg}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
            <div className="formGroup">
