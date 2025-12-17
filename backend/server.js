@@ -16,8 +16,8 @@ const COMPANY_RANGE = "Company!A:A"; // Column A only
 const SUPPLIER_RANGE = "Supplier Data!A:C";
 const TRANSACTION_RANGE = "Transaction Type!A:A";
 const TAXCODE_RANGE = "TAXCODE!A:A";
-const GLACCOUNT_RANGE = "GL Account!A:B";
-const PROFITCENTER_RANGE = "Profit Center!A:B";
+const GLACCOUNT_RANGE = "GL Account!A:C";
+const PROFITCENTER_RANGE = "Profit Center!A:C";
 const EXPENSECLASS_RANGE = "Expense Classification!A:A";
 
 // Create Google Auth client once
@@ -101,7 +101,8 @@ async function getGLAccount() {
   // Skip header row and map columns A and B
   const glaccount = values.slice(1).map(row => ({
     glaccountNo: row[0] || "",
-    glaccountName: row[1] || ""
+    glaccountName: row[1] || "",
+    glaccountCompany: row[2] || ""
   }));
 
   return glaccount;
@@ -119,7 +120,8 @@ async function getProfitCenter() {
   // Skip header row and map columns A and B
   const profitcenter = values.slice(1).map(row => ({
     profitcenterNo: row[0] || "",
-    profitcenterName: row[1] || ""
+    profitcenterName: row[1] || "",
+    profitcenterCompany: row[2] || ""
   }));
 
   return profitcenter;
@@ -161,48 +163,82 @@ app.get("/api/company", async (req, res) => {
   }
 });
 
-// app.get("/api/suppliers", async (req, res) => {
 //   try {
-//     const search = (req.query.q || "").toLowerCase();
-//     const allSuppliers = await getSuppliers();
-    
-//     // Filter suppliers by supplierNo or supplierName
-//     const filtered = allSuppliers.filter(s => 
-//       s.supplierNo.toLowerCase().includes(search) ||
-//       s.supplierName.toLowerCase().includes(search) ||
-//       s.supplierCompany.toLowerCase().includes(search)
-//     );
+//     const company = (req.query.company || "").trim().toLowerCase();
+//     const page = parseInt(req.query.page, 10) || 1;
+//     const limit = parseInt(req.query.limit, 10) || 20;
 
-//     res.json({ suppliers: filtered.slice(0, 50) }); // Limit to 50 results
+//     const allSuppliers = await getSuppliers();
+
+//     // Filter by company if provided
+//     const filtered = company
+//       ? allSuppliers.filter(
+//           s => s.supplierCompany.toLowerCase() === company
+//         )
+//       : allSuppliers;
+
+//     const total = filtered.length;
+//     const start = (page - 1) * limit;
+//     const end = start + limit;
+
+//     const paginated = filtered.slice(start, end);
+
+//     res.json({
+//       suppliers: paginated,
+//       pagination: {
+//         total,
+//         page,
+//         limit,
+//         totalPages: Math.ceil(total / limit)
+//       }
+//     });
 //   } catch (error) {
 //     console.error("Error reading sheet:", error);
 //     res.status(500).json({ error: "Failed to read sheet" });
 //   }
 // });
-
-// Get suppliers by company (company as URL parameter)
-app.get("/api/suppliers/:company?", async (req, res) => {
+app.get("/api/suppliers", async (req, res) => {
   try {
-    // Read company from either path param or query string
-    const company =
-      (req.params.company || req.query.company || "").trim().toLowerCase();
+    const company = (req.query.company || "").trim().toLowerCase();
+    const search = (req.query.search || "").trim().toLowerCase();
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 20;
 
     const allSuppliers = await getSuppliers();
 
-    // If company is provided, filter; otherwise return all
-    const filtered = company
-      ? allSuppliers.filter(
-          (s) => s.supplierCompany.toLowerCase() === company
-        )
-      : allSuppliers;
+    // Filter by company AND search if provided
+    const filtered = allSuppliers.filter(supplier => {
+      const matchesCompany = company
+        ? supplier.supplierCompany.toLowerCase() === company
+        : true;
 
-    res.json({ suppliers: filtered });
+      const matchesSearch = search
+        ? supplier.supplierNo.toLowerCase().includes(search) ||
+          supplier.supplierName.toLowerCase().includes(search)
+        : true;
+
+      return matchesCompany && matchesSearch;
+    });
+
+    const total = filtered.length;
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const paginated = filtered.slice(start, end);
+
+    res.json({
+      suppliers: paginated,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     console.error("Error reading sheet:", error);
     res.status(500).json({ error: "Failed to read sheet" });
   }
 });
-
 
 
 app.get("/api/transaction", async (req, res) => {
@@ -226,40 +262,112 @@ app.get("/api/taxcode", async (req, res) => {
   }
 });
 
-
 app.get("/api/glaccount", async (req, res) => {
   try {
-    const search = (req.query.q || "").toLowerCase();
-    const allGLaccount = await getGLAccount();
-    
-    const filtered = allGLaccount.filter(s => 
-      s.glaccountNo.toLowerCase().includes(search) ||
-      s.glaccountName.toLowerCase().includes(search)
-    );
+    const company = (req.query.company || "").trim().toLowerCase();
+    const search = (req.query.search || "").trim().toLowerCase();
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 20;
 
-    res.json({ glaccount: filtered.slice(0, 50) }); // Limit to 50 results
+    const allGLaccount = await getGLAccount();
+
+    // Filter by company AND search if provided
+    const filtered = allGLaccount.filter(gl => {
+      const matchesCompany = company
+        ? gl.glaccountCompany.toLowerCase() === company
+        : true;
+
+      const matchesSearch = search
+        ? gl.glaccountNo.toLowerCase().includes(search) ||
+          gl.glaccountName.toLowerCase().includes(search)
+        : true;
+
+      return matchesCompany && matchesSearch;
+    });
+
+    const total = filtered.length;
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const paginated = filtered.slice(start, end);
+
+    res.json({
+      glaccount: paginated,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     console.error("Error reading sheet:", error);
     res.status(500).json({ error: "Failed to read sheet" });
   }
 });
+
+
+// app.get("/api/profitcenter", async (req, res) => {
+//   try {
+//     const search = (req.query.q || "").toLowerCase();
+//     const allProfitCenter = await getProfitCenter();
+    
+//     const filtered = allProfitCenter.filter(s => 
+//       s.profitcenterNo.toLowerCase().includes(search) ||
+//       s.profitcenterName.toLowerCase().includes(search)
+//     );
+
+//     res.json({ profitcenter: filtered.slice(0, 50) }); // Limit to 50 results
+//   } catch (error) {
+//     console.error("Error reading sheet:", error);
+//     res.status(500).json({ error: "Failed to read sheet" });
+//   }
+// });
+
 
 app.get("/api/profitcenter", async (req, res) => {
   try {
-    const search = (req.query.q || "").toLowerCase();
-    const allProfitCenter = await getProfitCenter();
-    
-    const filtered = allProfitCenter.filter(s => 
-      s.profitcenterNo.toLowerCase().includes(search) ||
-      s.profitcenterName.toLowerCase().includes(search)
-    );
+    const company = (req.query.company || "").trim().toLowerCase();
+    const search = (req.query.search || "").trim().toLowerCase();
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 20;
 
-    res.json({ profitcenter: filtered.slice(0, 50) }); // Limit to 50 results
+    const allProfitCenter = await getProfitCenter();
+
+    // Filter by company AND search if provided
+    const filtered = allProfitCenter.filter(pc => {
+      const matchesCompany = company
+        ? pc.profitcenterCompany.toLowerCase() === company
+        : true;
+
+      const matchesSearch = search
+        ? pc.profitcenterNo.toLowerCase().includes(search) ||
+          pc.profitcenterName.toLowerCase().includes(search)
+        : true;
+
+      return matchesCompany && matchesSearch;
+    });
+
+    const total = filtered.length;
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const paginated = filtered.slice(start, end);
+
+    res.json({
+      profitcenter: paginated,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     console.error("Error reading sheet:", error);
     res.status(500).json({ error: "Failed to read sheet" });
   }
 });
+
+
 
 app.post("/api/submitform", async (req, res) => {
   try {

@@ -24,10 +24,16 @@ export default function YearEndAccrualForm() {
     glaccount: "",
     glaccountName: "",
     glSearch: "",
+    glAccounts: [],
+    glPage: 1,
+    glTotal: 0,
     showGLDropdown: false,
     profitcenter: "",
     profitcenterName: "",
     profitSearch: "",
+    profitCenters: [],
+    profitPage: 1,
+    profitTotal: 0,
     showProfitDropdown: false,
     remarks: "",
   });
@@ -58,14 +64,16 @@ export default function YearEndAccrualForm() {
 
 
   const [glAccounts, setGlAccounts] = useState([]);
-  const [glAccountsSearch, setGlAccountsSearch] = useState("");
-  const [glAccountsPage, setGlAccountsPage] = useState(1);
-  const [glAccountsTotal, setGlAccountsTotal] = useState(0);
-  const glAccountsLimit = 50; 
-  const [showglAccountsDropdown, setShowGlAccountsDropdown] = useState(false);
+  const [glPage, setGlPage] = useState(1);
+  const [glTotal, setGlTotal] = useState(0);
+  const glLimit = 50;
+
 
 
   const [profitCenters, setProfitCenters] = useState([]);
+  const [profitPage, setProfitPage] = useState(1);
+  const profitLimit = 50;
+  const [profitTotal, setProfitTotal] = useState(0);
 
   // ---------- Fetch static lists ----------
   useEffect(() => {
@@ -91,26 +99,6 @@ export default function YearEndAccrualForm() {
       .then((data) => setTaxCodes(data.columnA.slice(1).map((row) => row[0])))
       .catch((err) => console.error("Failed to fetch tax codes", err));
 
-    apiFetch("/api/glaccount")
-      .then((res) => res.json())
-      .then((data) =>
-        setGlAccounts(
-          data.glaccount.map((g) => ({ glaccount: g.glaccountNo, name: g.glaccountName }))
-        )
-      )
-      .catch((err) => console.error("Failed to fetch GL accounts", err));
-
-    apiFetch("/api/profitcenter")
-      .then((res) => res.json())
-      .then((data) =>
-        setProfitCenters(
-          data.profitcenter.map((p) => ({
-            profitcenter: p.profitcenterNo,
-            name: p.profitcenterName,
-          }))
-        )
-      )
-      .catch((err) => console.error("Failed to fetch profit centers", err));
   }, []);
 
 
@@ -128,7 +116,7 @@ useEffect(() => {
 
       const res = await apiFetch(`/api/suppliers?${query}`);
       const data = await res.json();
-
+      // console.log(data);
       setSuppliers(prevSuppliers => 
         supplierPage === 1 
           ? data.suppliers.map(s => ({
@@ -142,8 +130,7 @@ useEffect(() => {
               suppcompany: s.supplierCompany,
             }))]
       );
-
-      setSupplierTotal(data.total);
+      setSupplierTotal(data.pagination.total);
     } catch (err) {
       console.error("Failed to fetch suppliers", err);
     }
@@ -152,6 +139,224 @@ useEffect(() => {
   fetchSuppliers();
 }, [headerInfo.company, supplierSearch, supplierPage]);
 
+  // ---------- GL Account & Profit Center per line ----------
+  const handleGLSearchChange = (lineId, value) => {
+    setLineItems(prev =>
+      prev.map(li =>
+        li.id === lineId
+          ? { ...li, glSearch: value, glPage: 1, showGLDropdown: value.length >= 2 }
+          : li
+      )
+    );
+
+    if (value.length >= 2 && headerInfo.company) {
+      const fetchGlAccounts = async () => {
+        try {
+          const query = new URLSearchParams({
+            company: headerInfo.company,
+            search: value,
+            page: 1,
+            limit: glLimit,
+          }).toString();
+
+          const res = await apiFetch(`/api/glaccount?${query}`);
+          const data = await res.json();
+
+          setLineItems(prev =>
+            prev.map(li =>
+              li.id === lineId
+                ? {
+                    ...li,
+                    glAccounts: data?.glaccount?.map(g => ({
+                      glaccount: g.glaccountNo,
+                      name: g.glaccountName,
+                    })) || [],
+                  }
+                : li
+            )
+          );
+          setGlTotal(data.pagination.total);
+        } catch (err) {
+          console.error("Failed to fetch GL Accounts", err);
+        }
+      };
+      fetchGlAccounts();
+    }
+  };
+
+  const handleProfitSearchChange = (lineId, value) => {
+    setLineItems(prev =>
+      prev.map(li =>
+        li.id === lineId
+          ? { ...li, profitSearch: value, showProfitDropdown: value.length >= 2 }
+          : li
+      )
+    );
+
+    if (value.length >= 2 && headerInfo.company) {
+      const fetchProfitCenters = async () => {
+        try {
+          const query = new URLSearchParams({
+            company: headerInfo.company,
+            search: value,
+            page: 1,
+            limit: profitLimit,
+          }).toString();
+
+          const res = await apiFetch(`/api/profitcenter?${query}`);
+          const data = await res.json();
+
+          setLineItems(prev =>
+            prev.map(li =>
+              li.id === lineId
+                ? {
+                    ...li,
+                    profitCenters: data?.profitcenter?.map(p => ({
+                      profitcenter: p.profitcenterNo,
+                      name: p.profitcenterName,
+                    })) || [],
+                  }
+                : li
+            )
+          );
+          setProfitTotal(data.pagination.total);
+        } catch (err) {
+          console.error("Failed to fetch Profit Centers", err);
+        }
+      };
+      fetchProfitCenters();
+    }
+  };
+  
+//   const loadMoreGLAccounts = (lineId) => {
+//   setLineItems(prev =>
+//     prev.map(li =>
+//       li.id === lineId
+//         ? { ...li, glPage: li.glPage + 1 }
+//         : li
+//     )
+//   );
+
+//   const li = lineItems.find(li => li.id === lineId);
+//   if (!li || !headerInfo.company) return;
+
+//   const fetchNextPage = async () => {
+//     try {
+//       const query = new URLSearchParams({
+//         company: headerInfo.company,
+//         search: li.glSearch,
+//         page: li.glPage + 1, // next page
+//         limit: glLimit,
+//       }).toString();
+
+//       const res = await apiFetch(`/api/glaccount?${query}`);
+//       const data = await res.json();
+
+//       setLineItems(prev =>
+//         prev.map(li =>
+//           li.id === lineId
+//             ? {
+//                 ...li,
+//                 glAccounts: [...li.glAccounts, ...(data.glaccount?.map(g => ({
+//                   glaccount: g.glaccountNo,
+//                   name: g.glaccountName,
+//                 })) || [])],
+//                 glTotal: data.pagination.total,
+//               }
+//             : li
+//         )
+//       );
+//     } catch (err) {
+//       console.error("Failed to load more GL Accounts", err);
+//     }
+//   };
+
+//   fetchNextPage();
+// };
+
+const loadMoreGLAccounts = (lineId) => {
+  const li = lineItems.find(li => li.id === lineId);
+  if (!li || !headerInfo.company) return;
+
+  const nextPage = li.glPage + 1; // next page
+
+  const fetchNextPage = async () => {
+    try {
+      const query = new URLSearchParams({
+        company: headerInfo.company,
+        search: li.glSearch,
+        page: nextPage,
+        limit: glLimit,
+      }).toString();
+
+      const res = await apiFetch(`/api/glaccount?${query}`);
+      const data = await res.json();
+
+      setLineItems(prev =>
+        prev.map(li =>
+          li.id === lineId
+            ? {
+                ...li,
+                glAccounts: data.glaccount?.map(g => ({
+                  glaccount: g.glaccountNo,
+                  name: g.glaccountName,
+                })) || [],
+                glTotal: data.pagination.total,
+                glPage: nextPage, // update page
+              }
+            : li
+        )
+      );
+    } catch (err) {
+      console.error("Failed to load GL Accounts", err);
+    }
+  };
+
+  fetchNextPage();
+};
+
+
+const loadMoreProfitCenters = (lineId) => {
+  // Find the line item
+  const li = lineItems.find(li => li.id === lineId);
+  if (!li || !headerInfo.company) return;
+
+  const nextPage = li.profitPage + 1; // increment page
+
+  const fetchNextPage = async () => {
+    try {
+      const query = new URLSearchParams({
+        company: headerInfo.company,
+        search: li.profitSearch,
+        page: nextPage,
+        limit: profitLimit,
+      }).toString();
+
+      const res = await apiFetch(`/api/profitcenter?${query}`);
+      const data = await res.json();
+
+      setLineItems(prev =>
+        prev.map(li =>
+          li.id === lineId
+            ? {
+                ...li,
+                profitCenters: data.profitcenter?.map(p => ({
+                  profitcenter: p.profitcenterNo,
+                  name: p.profitcenterName,
+                })) || [],
+                profitTotal: data.pagination.total,
+                profitPage: nextPage, // update page
+              }
+            : li
+        )
+      );
+    } catch (err) {
+      console.error("Failed to load Profit Centers", err);
+    }
+  };
+
+  fetchNextPage();
+};
 
 
   const addLineItem = () => {
@@ -214,100 +419,6 @@ useEffect(() => {
     setSupplierSearch(supplier.supplier);
     setShowSupplierDropdown(false);
   };
-
-  // ---------- Submit ----------
-  // const handleSubmit = async () => {
-  //   const errors = {};
-
-  //   // Header validations
-  //   if (!headerInfo.email) errors.email = true;
-  //   if (!headerInfo.expenseclass) errors.expenseclass = true;
-  //   if (!headerInfo.company) errors.company = true;
-  //   if (!headerInfo.supplier) errors.supplier = true;
-  //   if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)" && !headerInfo.invoiceNo)
-  //     errors.invoiceNo = true;
-  //   if (!headerInfo.remarks) errors.remarks = true;
-
-  //   setHeaderErrors(errors);
-
-  //   if (Object.keys(errors).length > 0) return;
-
-  //   const newLineItemErrors = lineItems.map((item) => {
-  //     const errors = {};
-  //     if (!item.grossAmount) errors.grossAmount = true;
-  //     if (!item.transType) errors.transType = true;
-  //     if (!item.glaccount) errors.glaccount = true;
-  //     if (!item.profitcenter) errors.profitcenter = true;
-  //     if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)") {
-  //       if (!item.vat) errors.vat = true;
-  //       if (!item.taxCode) errors.taxCode = true;
-  //     }
-  //     return errors;
-  //   });
-
-  //   setLineItemErrors(newLineItemErrors);
-
-  //   // Check if any errors exist
-  //   // if (
-  //   //   Object.keys(headerErrs).length > 0 ||
-  //   //   newLineItemErrors.some(err => Object.keys(err).length > 0)
-  //   // ) {
-  //   //   alert("⚠️ Please fill in all required fields.");
-  //   //   return;
-  //   // }
-
-
-  //   // Validate line items
-  //   // for (let i = 0; i < lineItems.length; i++) {
-  //   //   const item = lineItems[i];
-  //   //   if (!item.grossAmount || !item.transType || !item.vat || !item.taxCode) {
-  //   //     alert(`⚠️ Please fill in all required fields for Line Item #${i + 1}.`);
-  //   //     return;
-  //   //   }
-  //   // }
-
-  //   // Build rows
-  //   const timestamp = new Date().toLocaleString();
-  //   const rows = lineItems.map((item) => [
-  //     timestamp,
-  //     headerInfo.email,
-  //     headerInfo.expenseclass,
-  //     headerInfo.company,
-  //     headerInfo.supplier,
-  //     headerInfo.supplierName,
-  //     headerInfo.invoiceNo,
-  //     item.grossAmount,
-  //     item.glaccount,
-  //     item.glaccountName,
-  //     item.profitcenter,
-  //     item.profitcenterName,
-  //     item.transType,
-  //     item.vat,
-  //     item.taxCode,
-  //     headerInfo.remarks,
-  //   ]);
-
-  //   try {
-  //     const response = await apiFetch("/api/submitform", {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ rows }),
-  //     });
-  //     if (!response.ok) throw new Error("Failed to submit form");
-
-  //     setModalMessage(`Form submitted successfully!`);
-  //     setShowModal(true);
-
-  //     // Reset form
-  //     setHeaderInfo({ email: "", expenseclass:"", company: "", supplier: "", supplierName: "", invoiceNo: "", remarks: "" });
-  //     setSupplierSearch("");
-  //     setLineItems([createEmptyLineItem(1)]);
-  //     setLineItemCounter(1);
-  //   } catch (error) {
-  //     console.error("Submission error:", error);
-  //     alert("❌ Submission failed. Please try again.");
-  //   }
-  // };
 
   const isValidEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -516,80 +627,80 @@ useEffect(() => {
             />
             {headerErrors.supplier && <div className="errorText">Supplier is Required.</div>}
             {showSupplierDropdown && supplierSearch.length >= 2 && (
-  <div
-    style={{
-      position: "absolute",
-      top: "100%",
-      left: 0,
-      right: 0,
-      maxHeight: 200,
-      overflowY: "auto",
-      backgroundColor: "white",
-      border: "1px solid #ddd",
-      borderRadius: 4,
-      marginTop: 4,
-      zIndex: 1000,
-      boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-    }}
-  >
-    {suppliers
-      .filter(
-        (s) =>
-          s.suppcompany === headerInfo.company &&
-          (s.supplier.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-            s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
-      )
-      .map((s) => (
-        <div
-          key={s.supplier}
-          onClick={() => selectSupplier(s)}
-          style={{
-            padding: "8px 12px",
-            cursor: "pointer",
-            borderBottom: "1px solid #f0f0f0",
-          }}
-          onMouseEnter={(e) =>
-            (e.currentTarget.style.backgroundColor = "#f5f5f5")
-          }
-          onMouseLeave={(e) =>
-            (e.currentTarget.style.backgroundColor = "white")
-          }
-        >
-          {s.supplier} - {s.name}
-        </div>
-      ))}
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  left: 0,
+                  right: 0,
+                  maxHeight: 200,
+                  overflowY: "auto",
+                  backgroundColor: "white",
+                  border: "1px solid #ddd",
+                  borderRadius: 4,
+                  marginTop: 4,
+                  zIndex: 1000,
+                  boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+                }}
+              >
+                {suppliers
+                  .filter(
+                    (s) =>
+                      s.suppcompany === headerInfo.company &&
+                      (s.supplier.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+                        s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
+                  )
+                  .map((s) => (
+                    <div
+                      key={s.supplier}
+                      onClick={() => selectSupplier(s)}
+                      style={{
+                        padding: "8px 12px",
+                        cursor: "pointer",
+                        borderBottom: "1px solid #f0f0f0",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.backgroundColor = "#f5f5f5")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.backgroundColor = "white")
+                      }
+                    >
+                      {s.supplier} - {s.name}
+                    </div>
+                  ))}
 
-    {/* Load more button */}
-    {suppliers.length < supplierTotal && (
-      <div
-        style={{
-          padding: "8px",
-          textAlign: "center",
-          cursor: "pointer",
-          fontWeight: "500",
-          color: "#007bff",
-        }}
-        onClick={() => setSupplierPage((prev) => prev + 1)}
-      >
-        Load more...
-      </div>
-    )}
+                {/* Load more button */}
+                {suppliers.length < supplierTotal && (
+                  <div
+                    style={{
+                      padding: "8px",
+                      textAlign: "center",
+                      cursor: "pointer",
+                      fontWeight: "500",
+                      color: "#007bff",
+                    }}
+                    onClick={() => setSupplierPage((prev) => prev + 1)}
+                  >
+                    Load more...
+                  </div>
+                )}
 
-    {/* No match */}
-    {suppliers.length === 0 && (
-      <div
-        style={{
-          padding: "12px",
-          color: "#666",
-          fontSize: 14,
-          fontStyle: "italic",
-        }}
-      >
-        No supplier found matching "{supplierSearch}"
-      </div>
-    )}
-  </div>
-)}
+                {/* No match */}
+                {suppliers.length === 0 && (
+                  <div
+                    style={{
+                      padding: "12px",
+                      color: "#666",
+                      fontSize: 14,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    No supplier found matching "{supplierSearch}"
+                  </div>
+                )}
+              </div>
+            )}
            </div>
 
           <div className="formGroup">
@@ -624,12 +735,22 @@ useEffect(() => {
           </div>
 
           {lineItems.map((item, index) => {
-            const filteredGL = item.glSearch && item.glSearch.length >= 2
-              ? glAccounts.filter(g => g.glaccount.toLowerCase().includes(item.glSearch.toLowerCase()) || g.name.toLowerCase().includes(item.glSearch.toLowerCase())).slice(0, 50)
+            const filteredGL =
+            item.glSearch && item.glSearch.length >= 2
+              ? item.glAccounts.filter(
+                  (g) =>
+                    g.glaccount.toLowerCase().includes(item.glSearch.toLowerCase()) ||
+                    g.name.toLowerCase().includes(item.glSearch.toLowerCase())
+                ).slice(0, 50)
               : [];
-
-            const filteredProfit = item.profitSearch && item.profitSearch.length >= 2
-              ? profitCenters.filter(p => p.profitcenter.toLowerCase().includes(item.profitSearch.toLowerCase()) || p.name.toLowerCase().includes(item.profitSearch.toLowerCase())).slice(0, 50)
+            
+            const filteredProfit =
+            item.profitSearch && item.profitSearch.length >= 2
+              ? item.profitCenters.filter(
+                  (g) =>
+                    g.profitcenter.toLowerCase().includes(item.profitSearch.toLowerCase()) ||
+                    g.name.toLowerCase().includes(item.profitSearch.toLowerCase())
+                ).slice(0, 50)
               : [];
 
             return (
@@ -664,17 +785,7 @@ useEffect(() => {
                     disabled={isDisabled}
                     placeholder="Type to search GL Account."
                     value={item.glSearch}
-                    onChange={(e) => {
-                    const value = e.target.value;
-                    setLineItems(prev =>
-                        prev.map(li =>
-                        li.id === item.id
-                            ? { ...li, glSearch: value, showGLDropdown: value.length >= 2 }
-                            : li
-                        )
-                    );
-                    setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, glaccount: false } : err));
-                    }}
+                    onChange={(e) => handleGLSearchChange(item.id, e.target.value)}
                     onFocus={() =>
                     setLineItems(prev =>
                         prev.map(li =>
@@ -687,62 +798,56 @@ useEffect(() => {
                 />
                 {lineItemErrors[index]?.glaccount && <div className="errorText">GL Account is required</div>}
                 {/* Dropdown list */}
-                {item.showGLDropdown && filteredGL.length > 0 && (
-                    <div
+                {item.showGLDropdown && (
+                  <div
                     style={{
-                        position: "absolute",
-                        top: "100%",
-                        left: 0,
-                        right: 0,
-                        maxHeight: 200,
-                        overflowY: "auto",
-                        backgroundColor: "white",
-                        border: "1px solid #ddd",
-                        borderRadius: 4,
-                        marginTop: 4,
-                        zIndex: 1000,
-                        boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      maxHeight: 200,
+                      overflowY: "auto",
+                      backgroundColor: "white",
+                      border: "1px solid #ddd",
+                      borderRadius: 4,
+                      marginTop: 4,
+                      zIndex: 1000,
+                      boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
                     }}
-                    >
-                    {filteredGL.map((g) => (
+                  >
+                    {filteredGL.length > 0 ? (
+                      filteredGL.map((g) => (
                         <div
-                        key={g.glaccount}
-                        onClick={() => selectGLAccount(item.id, g)}
-                        style={{
-                            padding: "8px 12px",
-                            cursor: "pointer",
-                            borderBottom: "1px solid #f0f0f0",
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
+                          key={g.glaccount}
+                          onClick={() => selectGLAccount(item.id, g)}
+                          style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
                         >
-                        {g.glaccount} - {g.name}
+                          {g.glaccount} - {g.name}
                         </div>
-                    ))}
-                    </div>
-                )}
+                      ))
+                    ) : (
+                      <div style={{ padding: 12, color: "#666", fontSize: 14, fontStyle: "italic" }}>
+                        No GL accounts found matching "{item.glSearch}"
+                      </div>
+                    )}
 
-                {/* No match label */}
-                {item.showGLDropdown && item.glSearch.length >= 2 && filteredGL.length === 0 && (
-                    <div
-                    style={{
-                        position: "absolute",
-                        top: "100%",
-                        left: 0,
-                        right: 0,
-                        backgroundColor: "white",
-                        border: "1px solid #ddd",
-                        borderRadius: 4,
-                        marginTop: 4,
-                        padding: 12,
-                        color: "#666",
-                        fontSize: 14,
-                        zIndex: 2000,
-                        boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-                    }}
-                    >
-                    No GL accounts found matching "{item.glSearch}"
-                    </div>
+                    {glAccounts.length < glTotal && (
+                      <div
+                        style={{
+                          padding: "8px",
+                          textAlign: "center",
+                          cursor: "pointer",
+                          fontWeight: "500",
+                          color: "#007bff",
+                        }}
+                        onClick={() => loadMoreGLAccounts(item.id)}
+                      >
+                        Load more...
+                      </div>
+                    )}
+                  </div>
                 )}
                 </div>
 
@@ -763,17 +868,7 @@ useEffect(() => {
                         className={`inputItem ${lineItemErrors[index]?.profitcenter ? "inputError" : ""}`}
                         placeholder="Type to search Profit Center Code."
                         value={item.profitSearch}
-                        onChange={(e) => {
-                        const value = e.target.value;
-                        setLineItems(prev =>
-                            prev.map(li =>
-                            li.id === item.id
-                                ? { ...li, profitSearch: value, showProfitDropdown: value.length >= 2 }
-                                : li
-                            )
-                        );
-                        setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, profitcenter: false } : err));
-                        }}
+                        onChange={(e) => handleProfitSearchChange(item.id, e.target.value)}
                         onFocus={() =>
                         setLineItems(prev =>
                             prev.map(li =>
@@ -786,62 +881,60 @@ useEffect(() => {
                     />
                   {lineItemErrors[index]?.profitcenter && <div className="errorText">Profit Center is required</div>}
                     {/* Dropdown list */}
-                    {item.showProfitDropdown && filteredProfit.length > 0 && (
-                        <div
+                    {item.showProfitDropdown && (
+                      <div
                         style={{
-                            position: "absolute",
-                            top: "100%",
-                            left: 0,
-                            right: 0,
-                            maxHeight: 200,
-                            overflowY: "auto",
-                            backgroundColor: "white",
-                            border: "1px solid #ddd",
-                            borderRadius: 4,
-                            marginTop: 4,
-                            zIndex: 1000,
-                            boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+                          position: "absolute",
+                          top: "100%",
+                          left: 0,
+                          right: 0,
+                          maxHeight: 200,
+                          overflowY: "auto",
+                          backgroundColor: "white",
+                          border: "1px solid #ddd",
+                          borderRadius: 4,
+                          marginTop: 4,
+                          zIndex: 1000,
+                          boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
                         }}
-                        >
-                        {filteredProfit.map((p) => (
+                      >
+                        {filteredProfit.length > 0 ? (
+                          filteredProfit.map((p) => (
                             <div
-                            key={p.profitcenter}
-                            onClick={() => selectProfitCenter(item.id, p)}
-                            style={{
+                              key={p.profitcenter}
+                              onClick={() => selectProfitCenter(item.id, p)}
+                              style={{
                                 padding: "8px 12px",
                                 cursor: "pointer",
                                 borderBottom: "1px solid #f0f0f0",
-                            }}
-                            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
-                            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
+                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
                             >
-                            {p.profitcenter} - {p.name}
+                              {p.profitcenter} - {p.name}
                             </div>
-                        ))}
-                        </div>
-                    )}
+                          ))
+                        ) : (
+                          <div style={{ padding: 12, color: "#666", fontSize: 14, fontStyle: "italic" }}>
+                            No Profit Center found matching "{item.profitSearch}"
+                          </div>
+                        )}
 
-                    {/* No match label */}
-                    {item.showProfitDropdown && item.profitSearch.length >= 2 && filteredProfit.length === 0 && (
-                        <div
-                        style={{
-                            position: "absolute",
-                            top: "100%",
-                            left: 0,
-                            right: 0,
-                            backgroundColor: "white",
-                            border: "1px solid #ddd",
-                            borderRadius: 4,
-                            marginTop: 4,
-                            padding: 12,
-                            color: "#666",
-                            fontSize: 14,
-                            zIndex: 2000,
-                            boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-                        }}
-                        >
-                        No Profit Center found matching "{item.profitSearch}"
-                        </div>
+                        {profitCenters.length < profitTotal && (
+                          <div
+                            style={{
+                              padding: "8px",
+                              textAlign: "center",
+                              cursor: "pointer",
+                              fontWeight: "500",
+                              color: "#007bff",
+                            }}
+                            onClick={() => loadMoreProfitCenters(item.id)}
+                          >
+                            Load more...
+                          </div>
+                        )}
+                      </div>
                     )}
                     </div>
 

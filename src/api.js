@@ -4,5 +4,7 @@ const API_BASE =
     : "";
 
 export function apiFetch(path, options) {
+   const url = `${API_BASE}${path}`;
+  //  alert(url);
   return fetch(`${API_BASE}${path}`, options);
 }

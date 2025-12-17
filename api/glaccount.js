@@ -68,7 +68,8 @@ const handler = async (req, res) => {
       glaccount: paginated,
       total: filtered.length,
       page,
-      pages: Math.ceil(filtered.length / limit),
+      totalPages: Math.ceil(filtered.length / limit), // total pages
+      limit, 
     });
   } catch (err) {
     console.error("ERROR in /api/glaccount:", err);
