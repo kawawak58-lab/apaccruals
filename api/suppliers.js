@@ -41,10 +41,12 @@ const handler = async (req, res) => {
     // Return suppliers + pagination info
     res.status(200).json({
       suppliers: paginated,
-      total: filtered.length,              // total matching suppliers
-      page,                                // current page
-      totalPages: Math.ceil(filtered.length / limit), // total pages
-      limit,                               // page limit
+       pagination: {
+        total: filtered.length,
+        page,
+        limit,
+        totalPages: Math.ceil(filtered.length / limit),
+      },
     });
   } catch (err) {
     console.error("ERROR in /api/suppliers:", err);

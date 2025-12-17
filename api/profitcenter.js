@@ -40,10 +40,12 @@ const handler = async (req, res) => {
 
     res.status(200).json({
       profitcenter: paginated,
-      total: filtered.length,
-      page,
-      totalPages: Math.ceil(filtered.length / limit),
-      limit,
+     pagination: {
+        total: filtered.length,
+        page,
+        limit,
+        totalPages: Math.ceil(filtered.length / limit),
+      },
     });
   } catch (err) {
     console.error("ERROR in /api/profitcenter:", err);
