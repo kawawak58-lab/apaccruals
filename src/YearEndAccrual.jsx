@@ -536,6 +536,7 @@ export default function YearEndAccrualForm() {
       item.vat,
       item.taxCode,
       item.remarks,
+      0
     ]);
 
     try {
