@@ -18,7 +18,7 @@ const handler = async (req, res) => {
 
     // Step 1: Read current control number from SETUP!B4
     const values = await getColumn("SETUP!B4");
-    const currentControl = values[0] ? values[0][0] : "ACT000000";
+    const currentControl = values[0] ? values[0][0] : "ACT00000";
 
     // Step 2: Increment numeric part
     const prefix = currentControl.match(/[A-Z]+/)?.[0] || "ACT";
