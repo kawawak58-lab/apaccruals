@@ -1,7 +1,23 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./YearEndAccrualForm.css";
 import { apiFetch } from "./api";
 
+// Debounce hook to prevent excessive API calls
+function useDebounce(value, delay) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
 
 export default function YearEndAccrualForm() {
   // ---------- Header ----------
@@ -39,7 +55,6 @@ export default function YearEndAccrualForm() {
   });
 
   const [headerErrors, setHeaderErrors] = useState({});
-
   const [lineItems, setLineItems] = useState([createEmptyLineItem(1)]);
   const [lineItemErrors, setLineItemErrors] = useState([{}]);
   const [lineItemCounter, setLineItemCounter] = useState(1);
@@ -48,103 +63,125 @@ export default function YearEndAccrualForm() {
   const [showModal, setShowModal] = useState(false);
   const [modalMessage, setModalMessage] = useState("");
 
-  // ---------- Dropdown data ----------
+  // ---------- Dropdown data with caching ----------
   const [companies, setCompanies] = useState([]);
   const [expenseClass, setExpenseClass] = useState([]);
   const [transactionTypes, setTransactionTypes] = useState([]);
   const [taxCodes, setTaxCodes] = useState([]);
 
-
   const [suppliers, setSuppliers] = useState([]);
   const [supplierSearch, setSupplierSearch] = useState("");
   const [supplierPage, setSupplierPage] = useState(1);
   const [supplierTotal, setSupplierTotal] = useState(0);
-  const supplierLimit = 50; 
+  const supplierLimit = 50;
   const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
-
-
-  const [glAccounts, setGlAccounts] = useState([]);
-  const [glPage, setGlPage] = useState(1);
-  const [glTotal, setGlTotal] = useState(0);
-  const glLimit = 50;
-
-
-
-  const [profitCenters, setProfitCenters] = useState([]);
-  const [profitPage, setProfitPage] = useState(1);
-  const profitLimit = 50;
-  const [profitTotal, setProfitTotal] = useState(0);
 
   const [emailSuggestions, setEmailSuggestions] = useState([]);
   const commonDomains = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "bounty.com.ph"];
 
+  // Cache for API responses
+  const cacheRef = useRef({
+    companies: null,
+    expenseClass: null,
+    transactionTypes: null,
+    taxCodes: null,
+  });
 
-  // ---------- Fetch static lists ----------
+  // Debounce supplier search
+  const debouncedSupplierSearch = useDebounce(supplierSearch, 500);
+
+  // ---------- Fetch static lists with caching ----------
   useEffect(() => {
-    apiFetch("/api/company")
-      .then((res) => res.json())
-      .then((data) => setCompanies(data.columnA.slice(1).map((row) => row[0])))
-      .catch((err) => console.error("Failed to fetch companies", err));
+    const fetchStaticData = async () => {
+      try {
+        // Only fetch if not cached
+        if (!cacheRef.current.companies) {
+          const [companiesRes, expenseRes, transactionRes, taxRes] = await Promise.all([
+            apiFetch("/api/company"),
+            apiFetch("/api/expenseclass"),
+            apiFetch("/api/transaction"),
+            apiFetch("/api/taxcode"),
+          ]);
 
-    apiFetch("/api/expenseclass")
-      .then((res) => res.json())
-      .then((data) => setExpenseClass(data.columnA.slice(1).map((row) => row[0])))
-      .catch((err) => console.error("Failed to fetch expenseclass", err));
+          const [companiesData, expenseData, transactionData, taxData] = await Promise.all([
+            companiesRes.json(),
+            expenseRes.json(),
+            transactionRes.json(),
+            taxRes.json(),
+          ]);
 
-    apiFetch("/api/transaction")
-      .then((res) => res.json())
-      .then((data) =>
-        setTransactionTypes(data.columnA.slice(1).map((row) => row[0]))
-      )
-      .catch((err) => console.error("Failed to fetch transaction types", err));
+          const companiesList = companiesData.columnA.slice(1).map((row) => row[0]);
+          const expenseList = expenseData.columnA.slice(1).map((row) => row[0]);
+          const transactionList = transactionData.columnA.slice(1).map((row) => row[0]);
+          const taxList = taxData.columnA.slice(1).map((row) => row[0]);
 
-    apiFetch("/api/taxcode")
-      .then((res) => res.json())
-      .then((data) => setTaxCodes(data.columnA.slice(1).map((row) => row[0])))
-      .catch((err) => console.error("Failed to fetch tax codes", err));
+          // Cache the results
+          cacheRef.current = {
+            companies: companiesList,
+            expenseClass: expenseList,
+            transactionTypes: transactionList,
+            taxCodes: taxList,
+          };
 
+          setCompanies(companiesList);
+          setExpenseClass(expenseList);
+          setTransactionTypes(transactionList);
+          setTaxCodes(taxList);
+        } else {
+          // Use cached data
+          setCompanies(cacheRef.current.companies);
+          setExpenseClass(cacheRef.current.expenseClass);
+          setTransactionTypes(cacheRef.current.transactionTypes);
+          setTaxCodes(cacheRef.current.taxCodes);
+        }
+      } catch (err) {
+        console.error("Failed to fetch static data", err);
+      }
+    };
+
+    fetchStaticData();
   }, []);
 
+  // Debounced supplier fetch
+  useEffect(() => {
+    if (!headerInfo.company || debouncedSupplierSearch.length < 2) return;
 
-useEffect(() => {
-  if (!headerInfo.company || supplierSearch.length < 2) return;
+    const fetchSuppliers = async () => {
+      try {
+        const query = new URLSearchParams({
+          company: headerInfo.company,
+          search: debouncedSupplierSearch,
+          page: supplierPage,
+          limit: supplierLimit,
+        }).toString();
 
-  const fetchSuppliers = async () => {
-    try {
-      const query = new URLSearchParams({
-        company: headerInfo.company,
-        search: supplierSearch,
-        page: supplierPage,
-        limit: supplierLimit,
-      }).toString();
+        const res = await apiFetch(`/api/suppliers?${query}`);
+        const data = await res.json();
+        
+        setSuppliers(prevSuppliers =>
+          supplierPage === 1
+            ? data.suppliers.map(s => ({
+                supplier: s.supplierNo,
+                name: s.supplierName,
+                suppcompany: s.supplierCompany,
+              }))
+            : [...prevSuppliers, ...data.suppliers.map(s => ({
+                supplier: s.supplierNo,
+                name: s.supplierName,
+                suppcompany: s.supplierCompany,
+              }))]
+        );
+        setSupplierTotal(data.pagination.total);
+      } catch (err) {
+        console.error("Failed to fetch suppliers", err);
+      }
+    };
 
-      const res = await apiFetch(`/api/suppliers?${query}`);
-      const data = await res.json();
-      // console.log(data);
-      setSuppliers(prevSuppliers => 
-        supplierPage === 1 
-          ? data.suppliers.map(s => ({
-              supplier: s.supplierNo,
-              name: s.supplierName,
-              suppcompany: s.supplierCompany,
-            }))
-          : [...prevSuppliers, ...data.suppliers.map(s => ({
-              supplier: s.supplierNo,
-              name: s.supplierName,
-              suppcompany: s.supplierCompany,
-            }))]
-      );
-      setSupplierTotal(data.pagination.total);
-    } catch (err) {
-      console.error("Failed to fetch suppliers", err);
-    }
-  };
+    fetchSuppliers();
+  }, [headerInfo.company, debouncedSupplierSearch, supplierPage]);
 
-  fetchSuppliers();
-}, [headerInfo.company, supplierSearch, supplierPage]);
-
-  // ---------- GL Account & Profit Center per line ----------
-  const handleGLSearchChange = (lineId, value) => {
+  // Debounced GL Account search per line
+  const handleGLSearchChange = useCallback((lineId, value) => {
     setLineItems(prev =>
       prev.map(li =>
         li.id === lineId
@@ -152,15 +189,26 @@ useEffect(() => {
           : li
       )
     );
+  }, []);
 
-    if (value.length >= 2 && headerInfo.company) {
-      const fetchGlAccounts = async () => {
+  // Fetch GL accounts with debouncing
+  useEffect(() => {
+    const fetchGLForLines = async () => {
+      if (!headerInfo.company) return;
+
+      const linesToFetch = lineItems.filter(
+        li => li.glSearch && li.glSearch.length >= 2
+      );
+
+      if (linesToFetch.length === 0) return;
+
+      for (const line of linesToFetch) {
         try {
           const query = new URLSearchParams({
             company: headerInfo.company,
-            search: value,
-            page: 1,
-            limit: glLimit,
+            search: line.glSearch,
+            page: line.glPage,
+            limit: 50,
           }).toString();
 
           const res = await apiFetch(`/api/glaccount?${query}`);
@@ -168,43 +216,60 @@ useEffect(() => {
 
           setLineItems(prev =>
             prev.map(li =>
-              li.id === lineId
+              li.id === line.id
                 ? {
                     ...li,
                     glAccounts: data?.glaccount?.map(g => ({
                       glaccount: g.glaccountNo,
                       name: g.glaccountName,
                     })) || [],
+                    glTotal: data.pagination.total,
                   }
                 : li
             )
           );
-          setGlTotal(data.pagination.total);
         } catch (err) {
           console.error("Failed to fetch GL Accounts", err);
         }
-      };
-      fetchGlAccounts();
-    }
-  };
 
-  const handleProfitSearchChange = (lineId, value) => {
+        // Add small delay between requests
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    };
+
+    const debounceTimer = setTimeout(fetchGLForLines, 500);
+    return () => clearTimeout(debounceTimer);
+  }, [lineItems.map(li => `${li.id}-${li.glSearch}`).join(','), headerInfo.company]);
+
+  // Debounced Profit Center search
+  const handleProfitSearchChange = useCallback((lineId, value) => {
     setLineItems(prev =>
       prev.map(li =>
         li.id === lineId
-          ? { ...li, profitSearch: value, showProfitDropdown: value.length >= 2 }
+          ? { ...li, profitSearch: value, profitPage: 1, showProfitDropdown: value.length >= 2 }
           : li
       )
     );
+  }, []);
 
-    if (value.length >= 2 && headerInfo.company) {
-      const fetchProfitCenters = async () => {
+  // Fetch Profit Centers with debouncing
+  useEffect(() => {
+    const fetchProfitForLines = async () => {
+      if (!headerInfo.company) return;
+
+      const linesToFetch = lineItems.filter(
+        li => li.profitSearch && li.profitSearch.length >= 2
+      );
+
+      if (linesToFetch.length === 0) return;
+
+      for (const line of linesToFetch) {
         try {
           const query = new URLSearchParams({
             company: headerInfo.company,
-            search: value,
-            page: 1,
-            limit: profitLimit,
+            search: line.profitSearch,
+            page: line.profitPage,
+            limit: 50,
           }).toString();
 
           const res = await apiFetch(`/api/profitcenter?${query}`);
@@ -212,166 +277,124 @@ useEffect(() => {
 
           setLineItems(prev =>
             prev.map(li =>
-              li.id === lineId
+              li.id === line.id
                 ? {
                     ...li,
                     profitCenters: data?.profitcenter?.map(p => ({
                       profitcenter: p.profitcenterNo,
                       name: p.profitcenterName,
                     })) || [],
+                    profitTotal: data.pagination.total,
                   }
                 : li
             )
           );
-          setProfitTotal(data.pagination.total);
         } catch (err) {
           console.error("Failed to fetch Profit Centers", err);
         }
-      };
-      fetchProfitCenters();
-    }
-  };
-  
-//   const loadMoreGLAccounts = (lineId) => {
-//   setLineItems(prev =>
-//     prev.map(li =>
-//       li.id === lineId
-//         ? { ...li, glPage: li.glPage + 1 }
-//         : li
-//     )
-//   );
 
-//   const li = lineItems.find(li => li.id === lineId);
-//   if (!li || !headerInfo.company) return;
+        // Add small delay between requests
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    };
 
-//   const fetchNextPage = async () => {
-//     try {
-//       const query = new URLSearchParams({
-//         company: headerInfo.company,
-//         search: li.glSearch,
-//         page: li.glPage + 1, // next page
-//         limit: glLimit,
-//       }).toString();
+    const debounceTimer = setTimeout(fetchProfitForLines, 500);
+    return () => clearTimeout(debounceTimer);
+  }, [lineItems.map(li => `${li.id}-${li.profitSearch}`).join(','), headerInfo.company]);
 
-//       const res = await apiFetch(`/api/glaccount?${query}`);
-//       const data = await res.json();
+  const loadMoreGLAccounts = (lineId) => {
+    const li = lineItems.find(li => li.id === lineId);
+    if (!li || !headerInfo.company) return;
 
-//       setLineItems(prev =>
-//         prev.map(li =>
-//           li.id === lineId
-//             ? {
-//                 ...li,
-//                 glAccounts: [...li.glAccounts, ...(data.glaccount?.map(g => ({
-//                   glaccount: g.glaccountNo,
-//                   name: g.glaccountName,
-//                 })) || [])],
-//                 glTotal: data.pagination.total,
-//               }
-//             : li
-//         )
-//       );
-//     } catch (err) {
-//       console.error("Failed to load more GL Accounts", err);
-//     }
-//   };
+    const nextPage = li.glPage + 1;
 
-//   fetchNextPage();
-// };
+    const fetchNextPage = async () => {
+      try {
+        const query = new URLSearchParams({
+          company: headerInfo.company,
+          search: li.glSearch,
+          page: nextPage,
+          limit: 50,
+        }).toString();
 
-const loadMoreGLAccounts = (lineId) => {
-  const li = lineItems.find(li => li.id === lineId);
-  if (!li || !headerInfo.company) return;
+        const res = await apiFetch(`/api/glaccount?${query}`);
+        const data = await res.json();
 
-  const nextPage = li.glPage + 1; // next page
+        setLineItems(prev =>
+          prev.map(li =>
+            li.id === lineId
+              ? {
+                  ...li,
+                  glAccounts: data.glaccount?.map(g => ({
+                    glaccount: g.glaccountNo,
+                    name: g.glaccountName,
+                  })) || [],
+                  glTotal: data.pagination.total,
+                  glPage: nextPage,
+                }
+              : li
+          )
+        );
+      } catch (err) {
+        console.error("Failed to load GL Accounts", err);
+      }
+    };
 
-  const fetchNextPage = async () => {
-    try {
-      const query = new URLSearchParams({
-        company: headerInfo.company,
-        search: li.glSearch,
-        page: nextPage,
-        limit: glLimit,
-      }).toString();
-
-      const res = await apiFetch(`/api/glaccount?${query}`);
-      const data = await res.json();
-
-      setLineItems(prev =>
-        prev.map(li =>
-          li.id === lineId
-            ? {
-                ...li,
-                glAccounts: data.glaccount?.map(g => ({
-                  glaccount: g.glaccountNo,
-                  name: g.glaccountName,
-                })) || [],
-                glTotal: data.pagination.total,
-                glPage: nextPage, // update page
-              }
-            : li
-        )
-      );
-    } catch (err) {
-      console.error("Failed to load GL Accounts", err);
-    }
+    fetchNextPage();
   };
 
-  fetchNextPage();
-};
+  const loadMoreProfitCenters = (lineId) => {
+    const li = lineItems.find(li => li.id === lineId);
+    if (!li || !headerInfo.company) return;
 
+    const nextPage = li.profitPage + 1;
 
-const loadMoreProfitCenters = (lineId) => {
-  // Find the line item
-  const li = lineItems.find(li => li.id === lineId);
-  if (!li || !headerInfo.company) return;
+    const fetchNextPage = async () => {
+      try {
+        const query = new URLSearchParams({
+          company: headerInfo.company,
+          search: li.profitSearch,
+          page: nextPage,
+          limit: 50,
+        }).toString();
 
-  const nextPage = li.profitPage + 1; // increment page
+        const res = await apiFetch(`/api/profitcenter?${query}`);
+        const data = await res.json();
 
-  const fetchNextPage = async () => {
-    try {
-      const query = new URLSearchParams({
-        company: headerInfo.company,
-        search: li.profitSearch,
-        page: nextPage,
-        limit: profitLimit,
-      }).toString();
+        setLineItems(prev =>
+          prev.map(li =>
+            li.id === lineId
+              ? {
+                  ...li,
+                  profitCenters: data.profitcenter?.map(p => ({
+                    profitcenter: p.profitcenterNo,
+                    name: p.profitcenterName,
+                  })) || [],
+                  profitTotal: data.pagination.total,
+                  profitPage: nextPage,
+                }
+              : li
+          )
+        );
+      } catch (err) {
+        console.error("Failed to load Profit Centers", err);
+      }
+    };
 
-      const res = await apiFetch(`/api/profitcenter?${query}`);
-      const data = await res.json();
-
-      setLineItems(prev =>
-        prev.map(li =>
-          li.id === lineId
-            ? {
-                ...li,
-                profitCenters: data.profitcenter?.map(p => ({
-                  profitcenter: p.profitcenterNo,
-                  name: p.profitcenterName,
-                })) || [],
-                profitTotal: data.pagination.total,
-                profitPage: nextPage, // update page
-              }
-            : li
-        )
-      );
-    } catch (err) {
-      console.error("Failed to load Profit Centers", err);
-    }
+    fetchNextPage();
   };
-
-  fetchNextPage();
-};
-
 
   const addLineItem = () => {
     const newId = lineItemCounter + 1;
     setLineItemCounter(newId);
     setLineItems((prev) => [...prev, createEmptyLineItem(newId)]);
+    setLineItemErrors((prev) => [...prev, {}]);
   };
 
   const removeLineItem = (id) => {
     if (lineItems.length > 1) {
       setLineItems((prev) => prev.filter((item) => item.id !== id));
+      setLineItemErrors((prev) => prev.slice(0, -1));
     }
   };
 
@@ -413,7 +436,6 @@ const loadMoreProfitCenters = (lineId) => {
     );
   };
 
-  // ---------- Supplier ----------
   const selectSupplier = (supplier) => {
     setHeaderInfo({
       ...headerInfo,
@@ -430,27 +452,31 @@ const loadMoreProfitCenters = (lineId) => {
   };
 
   const handleEmailChange = (value) => {
-  setHeaderInfo({ ...headerInfo, email: value });
-  setHeaderErrors((prev) => ({ ...prev, email: !isValidEmail(value) }));
+    setHeaderInfo({ ...headerInfo, email: value });
+    setHeaderErrors((prev) => ({ ...prev, email: !isValidEmail(value) }));
 
-  // generate suggestions
-  if (value && !value.includes("@")) {
-    setEmailSuggestions(commonDomains.map((domain) => `${value}@${domain}`));
-  } else {
+    if (value && !value.includes("@")) {
+      setEmailSuggestions(commonDomains.map((domain) => `${value}@${domain}`));
+    } else {
+      setEmailSuggestions([]);
+    }
+  };
+
+  const selectEmailSuggestion = (suggestion) => {
+    setHeaderInfo({ ...headerInfo, email: suggestion });
+    setHeaderErrors((prev) => ({ ...prev, email: !isValidEmail(suggestion) }));
     setEmailSuggestions([]);
-  }
-};
+  };
 
-const selectEmailSuggestion = (suggestion) => {
-  setHeaderInfo({ ...headerInfo, email: suggestion });
-  // validate selected email
-  setHeaderErrors((prev) => ({ ...prev, email: !isValidEmail(suggestion) }));
-  setEmailSuggestions([]);
-};
+  const handleIncrement = async () => {
+    const res = await apiFetch("/api/incrementcontrol", { method: "POST" });
+    const data = await res.json();
+    console.log("New Control Number:", data.newControlNumber);
+  };
 
-   const handleSubmit = async () => {
+  const handleSubmit = async () => {
     const headerErrs = {};
-
+    
     if (!headerInfo.email || !isValidEmail(headerInfo.email)) {
       headerErrs.email = true;
     }
@@ -459,11 +485,9 @@ const selectEmailSuggestion = (suggestion) => {
     if (!headerInfo.supplier) headerErrs.supplier = true;
     if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)" && !headerInfo.invoiceNo)
       headerErrs.invoiceNo = true;
-    // if (!headerInfo.remarks) headerErrs.remarks = true;
 
     setHeaderErrors(headerErrs);
 
-    // Validate line items
     const newLineItemErrors = lineItems.map((item) => {
       const errors = {};
       if (!item.grossAmount) errors.grossAmount = true;
@@ -480,7 +504,6 @@ const selectEmailSuggestion = (suggestion) => {
 
     setLineItemErrors(newLineItemErrors);
 
-    // Check if any errors exist
     if (
       Object.keys(headerErrs).length > 0 ||
       newLineItemErrors.some(err => Object.keys(err).length > 0)
@@ -489,9 +512,14 @@ const selectEmailSuggestion = (suggestion) => {
       return;
     }
 
-    // Build rows
+    // Get control number before submission
+    const controlRes = await apiFetch("/api/currentcontrol");
+    const controlData = await controlRes.json();
+    const controlNumber = controlData?.currentControlNumber || "";
+
     const timestamp = new Date().toLocaleString();
     const rows = lineItems.map((item) => [
+      controlNumber,
       timestamp,
       headerInfo.email,
       headerInfo.expenseclass,
@@ -517,11 +545,13 @@ const selectEmailSuggestion = (suggestion) => {
         body: JSON.stringify({ rows }),
       });
       if (!response.ok) throw new Error("Failed to submit form");
-
-      setModalMessage(`Form submitted successfully!`);
+      
+      // Increment control number after successful submission
+      await handleIncrement();
+      
+      setModalMessage(controlNumber);
       setShowModal(true);
 
-      // Reset form
       setHeaderInfo({
         email: "",
         expenseclass: "",
@@ -541,10 +571,8 @@ const selectEmailSuggestion = (suggestion) => {
     }
   };
 
-  // ---------- Disable logic ----------
   const isDisabled = !headerInfo.email || !headerInfo.expenseclass;
 
-  // ---------- Render ----------
   return (
     <div className="body">
       <div className="formWrapper">
@@ -602,12 +630,11 @@ const selectEmailSuggestion = (suggestion) => {
             )}
           </div>
 
-           <div className="formGroup">
+          <div className="formGroup">
             <label className="label"> Expense Classifications <span className="required">*</span> </label>
             <select
               className={`select ${headerErrors.expenseclass ? "inputError" : ""}`}
               value={headerInfo.expenseclass}
-              // onChange={(e) => setHeaderInfo({ ...headerInfo, : e.target.value })}
               onChange={(e) => {
                 setHeaderInfo({ ...headerInfo, expenseclass: e.target.value });
                 setHeaderErrors((prev) => ({ ...prev, expenseclass: false }));
@@ -627,8 +654,7 @@ const selectEmailSuggestion = (suggestion) => {
               className={`select ${headerErrors.company ? "inputError" : ""}`}
               disabled={isDisabled}
               value={headerInfo.company}
-              // onChange={(e) => setHeaderInfo({ ...headerInfo, company: e.target.value })}
-               onChange={(e) => {
+              onChange={(e) => {
                 const newCompany = e.target.value;
                 setHeaderInfo({
                   ...headerInfo,
@@ -638,6 +664,7 @@ const selectEmailSuggestion = (suggestion) => {
                 });
                 setSupplierSearch("");  
                 setSuppliers([]); 
+                setSupplierPage(1);
                 setHeaderErrors((prev) => ({ ...prev, company: false }));
               }}
             >
@@ -645,7 +672,6 @@ const selectEmailSuggestion = (suggestion) => {
               {companies.map((c) => (
                 <option key={c} value={c}>{c}</option>
               ))}
-              
             </select>
             {headerErrors.company && <div className="errorText">Company Charging is Required</div>}
           </div>
@@ -655,20 +681,21 @@ const selectEmailSuggestion = (suggestion) => {
         <div className="formSection">
           <div className="formGroup" style={{ position: "relative" }}>
             <label className="label">
-                Supplier <span className="required">*</span>
+              Supplier <span className="required">*</span>
             </label>
             <input
-                type="text"
-                className={`input ${headerErrors.supplier ? "inputError" : ""}`}
-                placeholder="Type to search supplier."
-                value={supplierSearch}
-                onChange={(e) => {
+              type="text"
+              className={`input ${headerErrors.supplier ? "inputError" : ""}`}
+              placeholder="Type to search supplier."
+              value={supplierSearch}
+              onChange={(e) => {
                 setSupplierSearch(e.target.value);
+                setSupplierPage(1);
                 setShowSupplierDropdown(e.target.value.length >= 2);
                 setHeaderErrors((prev) => ({ ...prev, supplier: false }));
-                }}
-                onFocus={() => setShowSupplierDropdown(supplierSearch.length >= 2)}
-                disabled={isDisabled}
+              }}
+              onFocus={() => setShowSupplierDropdown(supplierSearch.length >= 2)}
+              disabled={isDisabled}
             />
             {headerErrors.supplier && <div className="errorText">Supplier is Required.</div>}
             {showSupplierDropdown && supplierSearch.length >= 2 && (
@@ -715,7 +742,6 @@ const selectEmailSuggestion = (suggestion) => {
                     </div>
                   ))}
 
-                {/* Load more button */}
                 {suppliers.length < supplierTotal && (
                   <div
                     style={{
@@ -731,7 +757,6 @@ const selectEmailSuggestion = (suggestion) => {
                   </div>
                 )}
 
-                {/* No match */}
                 {suppliers.length === 0 && (
                   <div
                     style={{
@@ -746,7 +771,7 @@ const selectEmailSuggestion = (suggestion) => {
                 )}
               </div>
             )}
-           </div>
+          </div>
 
           <div className="formGroup">
             <label className="label">Supplier Name</label>
@@ -764,10 +789,10 @@ const selectEmailSuggestion = (suggestion) => {
               disabled={isDisabled}
               placeholder="Enter invoice number"
               value={headerInfo.invoiceNo}
-               onChange={(e) => {
-                  setHeaderInfo({ ...headerInfo, invoiceNo: e.target.value });
-                  setHeaderErrors((prev) => ({ ...prev, invoiceNo: false }));
-                }}
+              onChange={(e) => {
+                setHeaderInfo({ ...headerInfo, invoiceNo: e.target.value });
+                setHeaderErrors((prev) => ({ ...prev, invoiceNo: false }));
+              }}
             />
             {headerErrors.invoiceNo && <div className="errorText">Required</div>}
           </div>
@@ -776,34 +801,38 @@ const selectEmailSuggestion = (suggestion) => {
         {/* Line Items */}
         <div className="formSection">
           <div className="lineItemsHeader">
-            <button type="button" className="addBtn" onClick={addLineItem} disabled={isDisabled} > + Add Line Item </button>
+            <button type="button" className="addBtn" onClick={addLineItem} disabled={isDisabled}>
+              + Add Line Item
+            </button>
           </div>
 
           {lineItems.map((item, index) => {
             const filteredGL =
-            item.glSearch && item.glSearch.length >= 2
-              ? item.glAccounts.filter(
-                  (g) =>
-                    g.glaccount.toLowerCase().includes(item.glSearch.toLowerCase()) ||
-                    g.name.toLowerCase().includes(item.glSearch.toLowerCase())
-                ).slice(0, 50)
-              : [];
+              item.glSearch && item.glSearch.length >= 2
+                ? item.glAccounts.filter(
+                    (g) =>
+                      g.glaccount.toLowerCase().includes(item.glSearch.toLowerCase()) ||
+                      g.name.toLowerCase().includes(item.glSearch.toLowerCase())
+                  ).slice(0, 50)
+                : [];
             
             const filteredProfit =
-            item.profitSearch && item.profitSearch.length >= 2
-              ? item.profitCenters.filter(
-                  (g) =>
-                    g.profitcenter.toLowerCase().includes(item.profitSearch.toLowerCase()) ||
-                    g.name.toLowerCase().includes(item.profitSearch.toLowerCase())
-                ).slice(0, 50)
-              : [];
+              item.profitSearch && item.profitSearch.length >= 2
+                ? item.profitCenters.filter(
+                    (g) =>
+                      g.profitcenter.toLowerCase().includes(item.profitSearch.toLowerCase()) ||
+                      g.name.toLowerCase().includes(item.profitSearch.toLowerCase())
+                  ).slice(0, 50)
+                : [];
 
             return (
               <div key={item.id} className="lineItemCard">
                 <div className="lineItemHeader">
                   <div className="lineItemTitle">Line Item #{index + 1}</div>
                   {lineItems.length > 1 && (
-                    <button type="button" className="removeBtn" onClick={() => removeLineItem(item.id)}>✕ Remove</button>
+                    <button type="button" className="removeBtn" onClick={() => removeLineItem(item.id)}>
+                      ✕ Remove
+                    </button>
                   )}
                 </div>
 
@@ -811,7 +840,11 @@ const selectEmailSuggestion = (suggestion) => {
                   {/* Gross Amount */}
                   <div className="formGroup1">
                     <label className="label"> Gross Amount <span className="required">*</span> </label>
-                    <input type="number" step="0.01" className={`input ${lineItemErrors[index]?.grossAmount ? "inputError" : ""}`} placeholder="0.00"
+                    <input
+                      type="number"
+                      step="0.01"
+                      className={`input ${lineItemErrors[index]?.grossAmount ? "inputError" : ""}`}
+                      placeholder="0.00"
                       value={item.grossAmount}
                       disabled={isDisabled}
                       onChange={(e) => updateLineItem(item.id, "grossAmount", e.target.value)}
@@ -819,113 +852,110 @@ const selectEmailSuggestion = (suggestion) => {
                     {lineItemErrors[index]?.grossAmount && <div className="errorText">Gross Amount is required</div>}
                   </div>
 
-                 {/* GL Account */}
-                <div className="formGroup1" style={{ position: "relative" }}>
-                <label className="label">
-                    GL Account <span className="required">*</span>
-                </label>
-                <input
-                    type="text"
-                    className={`inputItem ${lineItemErrors[index]?.glaccount ? "inputError" : ""}`}
-                    disabled={isDisabled}
-                    placeholder="Type to search GL Account."
-                    value={item.glSearch}
-                    onChange={(e) => handleGLSearchChange(item.id, e.target.value)}
-                    onFocus={() =>
-                    setLineItems(prev =>
-                        prev.map(li =>
-                        li.id === item.id
-                            ? { ...li, showGLDropdown: (item.glSearch || "").length >= 2 }
-                            : li
+                  {/* GL Account */}
+                  <div className="formGroup1" style={{ position: "relative" }}>
+                    <label className="label">
+                      GL Account <span className="required">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      className={`inputItem ${lineItemErrors[index]?.glaccount ? "inputError" : ""}`}
+                      disabled={isDisabled}
+                      placeholder="Type to search GL Account."
+                      value={item.glSearch}
+                      onChange={(e) => handleGLSearchChange(item.id, e.target.value)}
+                      onFocus={() =>
+                        setLineItems(prev =>
+                          prev.map(li =>
+                            li.id === item.id
+                              ? { ...li, showGLDropdown: (item.glSearch || "").length >= 2 }
+                              : li
+                          )
                         )
-                    )
-                    }
-                />
-                {lineItemErrors[index]?.glaccount && <div className="errorText">GL Account is required</div>}
-                {/* Dropdown list */}
-                {item.showGLDropdown && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      right: 0,
-                      maxHeight: 200,
-                      overflowY: "auto",
-                      backgroundColor: "white",
-                      border: "1px solid #ddd",
-                      borderRadius: 4,
-                      marginTop: 4,
-                      zIndex: 1000,
-                      boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-                    }}
-                  >
-                    {filteredGL.length > 0 ? (
-                      filteredGL.map((g) => (
-                        <div
-                          key={g.glaccount}
-                          onClick={() => selectGLAccount(item.id, g)}
-                          style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
-                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
-                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
-                        >
-                          {g.glaccount} - {g.name}
-                        </div>
-                      ))
-                    ) : (
-                      <div style={{ padding: 12, color: "#666", fontSize: 14, fontStyle: "italic" }}>
-                        No GL accounts found matching "{item.glSearch}"
-                      </div>
-                    )}
-
-                    {glAccounts.length < glTotal && (
+                      }
+                    />
+                    {lineItemErrors[index]?.glaccount && <div className="errorText">GL Account is required</div>}
+                    {item.showGLDropdown && (
                       <div
                         style={{
-                          padding: "8px",
-                          textAlign: "center",
-                          cursor: "pointer",
-                          fontWeight: "500",
-                          color: "#007bff",
+                          position: "absolute",
+                          top: "100%",
+                          left: 0,
+                          right: 0,
+                          maxHeight: 200,
+                          overflowY: "auto",
+                          backgroundColor: "white",
+                          border: "1px solid #ddd",
+                          borderRadius: 4,
+                          marginTop: 4,
+                          zIndex: 1000,
+                          boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
                         }}
-                        onClick={() => loadMoreGLAccounts(item.id)}
                       >
-                        Load more...
+                        {filteredGL.length > 0 ? (
+                          filteredGL.map((g) => (
+                            <div
+                              key={g.glaccount}
+                              onClick={() => selectGLAccount(item.id, g)}
+                              style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
+                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
+                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
+                            >
+                              {g.glaccount} - {g.name}
+                            </div>
+                          ))
+                        ) : (
+                          <div style={{ padding: 12, color: "#666", fontSize: 14, fontStyle: "italic" }}>
+                            No GL accounts found matching "{item.glSearch}"
+                          </div>
+                        )}
+
+                        {item.glAccounts.length < item.glTotal && (
+                          <div
+                            style={{
+                              padding: "8px",
+                              textAlign: "center",
+                              cursor: "pointer",
+                              fontWeight: "500",
+                              color: "#007bff",
+                            }}
+                            onClick={() => loadMoreGLAccounts(item.id)}
+                          >
+                            Load more...
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                )}
-                </div>
-
 
                   <div className="formGroup1">
                     <label className="label">GL Account Name</label>
                     <input type="text" className="inputItemDisabled" value={item.glaccountName} disabled />
                   </div>
 
-                  {/* PROFIT CENTER (per-line) */}
-                    <div className="formGroup1" style={{ position: "relative" }}>
+                  {/* PROFIT CENTER */}
+                  <div className="formGroup1" style={{ position: "relative" }}>
                     <label className="label">
-                        Profit Center Code <span className="required">*</span>
+                      Profit Center Code <span className="required">*</span>
                     </label>
                     <input
-                        type="text"
-                        disabled={isDisabled}
-                        className={`inputItem ${lineItemErrors[index]?.profitcenter ? "inputError" : ""}`}
-                        placeholder="Type to search Profit Center Code."
-                        value={item.profitSearch}
-                        onChange={(e) => handleProfitSearchChange(item.id, e.target.value)}
-                        onFocus={() =>
+                      type="text"
+                      disabled={isDisabled}
+                      className={`inputItem ${lineItemErrors[index]?.profitcenter ? "inputError" : ""}`}
+                      placeholder="Type to search Profit Center Code."
+                      value={item.profitSearch}
+                      onChange={(e) => handleProfitSearchChange(item.id, e.target.value)}
+                      onFocus={() =>
                         setLineItems(prev =>
-                            prev.map(li =>
+                          prev.map(li =>
                             li.id === item.id
-                                ? { ...li, showProfitDropdown: (item.profitSearch || "").length >= 2 }
-                                : li
-                            )
+                              ? { ...li, showProfitDropdown: (item.profitSearch || "").length >= 2 }
+                              : li
+                          )
                         )
-                        }
+                      }
                     />
-                  {lineItemErrors[index]?.profitcenter && <div className="errorText">Profit Center is required</div>}
-                    {/* Dropdown list */}
+                    {lineItemErrors[index]?.profitcenter && <div className="errorText">Profit Center is required</div>}
                     {item.showProfitDropdown && (
                       <div
                         style={{
@@ -965,7 +995,7 @@ const selectEmailSuggestion = (suggestion) => {
                           </div>
                         )}
 
-                        {profitCenters.length < profitTotal && (
+                        {item.profitCenters.length < item.profitTotal && (
                           <div
                             style={{
                               padding: "8px",
@@ -981,8 +1011,7 @@ const selectEmailSuggestion = (suggestion) => {
                         )}
                       </div>
                     )}
-                    </div>
-
+                  </div>
 
                   <div className="formGroup1">
                     <label className="label">Profit Center Name</label>
@@ -992,10 +1021,11 @@ const selectEmailSuggestion = (suggestion) => {
                   {/* Transaction Type */}
                   <div className="formGroup1">
                     <label className="label"> Transaction Type <span className="required">*</span> </label>
-                    <select className={`select ${lineItemErrors[index]?.transType ? "inputError" : ""}`} 
-                    value={item.transType} 
-                    disabled={isDisabled}
-                    onChange={(e) => {
+                    <select
+                      className={`select ${lineItemErrors[index]?.transType ? "inputError" : ""}`}
+                      value={item.transType}
+                      disabled={isDisabled}
+                      onChange={(e) => {
                         updateLineItem(item.id, "transType", e.target.value);
                         setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, transType: false } : err));
                       }}
@@ -1005,40 +1035,21 @@ const selectEmailSuggestion = (suggestion) => {
                     </select>
                     {lineItemErrors[index]?.transType && <div className="errorText">Transaction Type is required</div>}
                   </div>
-                  
-                  
-                  {/* VAT */}
-                  {/* <div className="formGroup">
-                    <label className="label"> VAT <span className="required">*</span> </label>
-                    <select className="select" value={item.vat} onChange={(e) => updateLineItem(item.id, "vat", e.target.value)}>
-                      <option value="">Choose</option>
-                      <option value="Vatable">Vatable</option>
-                      <option value="Non-Vatable">Non-Vatable</option>
-                    </select>
-                  </div> */}
-
-                  {/* Tax Code */}
-                  {/* <div className="formGroup">
-                    <label className="label"> Tax Code <span className="required">*</span> </label>
-                    <select className="select" value={item.taxCode} onChange={(e) => updateLineItem(item.id, "taxCode", e.target.value)}>
-                      <option value="">Choose</option>
-                      {taxCodes.map((tc) => <option key={tc} value={tc}>{tc}</option>)}
-                    </select>
-                  </div> */}
 
                   {headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)" && (
                     <>
                       {/* VAT */}
                       <div className="formGroup1">
                         <label className="label"> VAT <span className="required">*</span> </label>
-                        <select className={`select ${lineItemErrors[index]?.vat ? "inputError" : ""}`}
-                         value={item.vat} 
-                         disabled={isDisabled}
+                        <select
+                          className={`select ${lineItemErrors[index]?.vat ? "inputError" : ""}`}
+                          value={item.vat}
+                          disabled={isDisabled}
                           onChange={(e) => {
-                          updateLineItem(item.id, "vat", e.target.value);
-                          setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, vat: false } : err));
-                        }}
-                         >
+                            updateLineItem(item.id, "vat", e.target.value);
+                            setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, vat: false } : err));
+                          }}
+                        >
                           <option value="">Choose</option>
                           <option value="Vatable">Vatable</option>
                           <option value="Non-Vatable">Non-Vatable</option>
@@ -1049,22 +1060,22 @@ const selectEmailSuggestion = (suggestion) => {
                       {/* Tax Code */}
                       <div className="formGroup1">
                         <label className="label"> Tax Code <span className="required">*</span> </label>
-                        <select className={`select ${lineItemErrors[index]?.taxCode ? "inputError" : ""}`} 
-                        value={item.taxCode}
-                        disabled={isDisabled}
-                        onChange={(e) => {
-                          updateLineItem(item.id, "taxCode", e.target.value);
-                          setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, taxCode: false } : err));
-                        }}
+                        <select
+                          className={`select ${lineItemErrors[index]?.taxCode ? "inputError" : ""}`}
+                          value={item.taxCode}
+                          disabled={isDisabled}
+                          onChange={(e) => {
+                            updateLineItem(item.id, "taxCode", e.target.value);
+                            setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, taxCode: false } : err));
+                          }}
                         >
                           <option value="">Choose</option>
                           {taxCodes.map((tc) => <option key={tc} value={tc}>{tc}</option>)}
                         </select>
-                         {lineItemErrors[index]?.taxCode && <div className="errorText">Tax Code is required</div>}
+                        {lineItemErrors[index]?.taxCode && <div className="errorText">Tax Code is required</div>}
                       </div>
                     </>
                   )}
-
 
                   <div className="formGroup1">
                     <label className="label">Remarks <span className="required">*</span> </label>
@@ -1126,17 +1137,39 @@ const selectEmailSuggestion = (suggestion) => {
                   fontFamily: "'Google Sans', sans-serif",
                 }}
               >
-                {modalMessage}
+                Thank you for submitting!
               </h2>
               <p
                 style={{
-                  margin: "0 0 32px 0",
+                  margin: "0 0 8px 0",
                   fontSize: "14px",
                   color: "#5f6368",
                   lineHeight: "1.6",
                 }}
               >
-                Your form has been recorded and will be processed by the AP Team.
+                This is your Accrual Template control number:
+              </p>
+              <div
+                style={{
+                  fontSize: "36px",
+                  fontWeight: "bold",
+                  color: "#202124",
+                  margin: "16px 0 24px 0",
+                  fontFamily: "'Google Sans', sans-serif",
+                  letterSpacing: "2px",
+                }}
+              >
+                {modalMessage}
+              </div>
+              <p
+                style={{
+                  margin: "0 0 32px 0",
+                  fontSize: "13px",
+                  color: "#5f6368",
+                  lineHeight: "1.6",
+                }}
+              >
+                Kindly note it in the upper-right corner of your printed RFP/GRPO for easier tracking. Thank you!
               </p>
               <button
                 onClick={() => setShowModal(false)}
