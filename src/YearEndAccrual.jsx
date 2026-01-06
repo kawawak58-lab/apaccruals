@@ -637,142 +637,286 @@ export default function YearEndAccrualForm() {
     return false;
   };
 
-  const handleSubmit = async () => {
-    if (isSubmitting) return;
-    setIsSubmitting(true);
-    try {
-      const headerErrs = {};
+//   const handleSubmit = async () => {
+//     if (isSubmitting) return;
+//     setIsSubmitting(true);
+//     try {
+//       const headerErrs = {};
 
-      // ===== HEADER VALIDATION =====
-      if (!headerInfo.email || !isValidEmail(headerInfo.email))
-        headerErrs.email = true;
-      if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
-      if (!headerInfo.company) headerErrs.company = true;
-      if (!headerInfo.supplier) headerErrs.supplier = true;
+//       // ===== HEADER VALIDATION =====
+//       if (!headerInfo.email || !isValidEmail(headerInfo.email))
+//         headerErrs.email = true;
+//       if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
+//       if (!headerInfo.company) headerErrs.company = true;
+//       if (!headerInfo.supplier) headerErrs.supplier = true;
+
+//       if (
+//         headerInfo.expenseclass !==
+//           "Non-deductible expense (no valid receipt/invoice)" &&
+//         !headerInfo.invoiceNo
+//       ) {
+//         headerErrs.invoiceNo = true;
+//       }
+
+//       setHeaderErrors(headerErrs);
+
+//       // ===== LINE ITEM VALIDATION =====
+//       const newLineItemErrors = lineItems.map(item => {
+//         const errors = {};
+//         if (!item.grossAmount) errors.grossAmount = true;
+//         if (!item.transType) errors.transType = true;
+//         if (!item.glaccount) errors.glaccount = true;
+//         if (!item.remarks) errors.remarks = true;
+//         if (!item.profitcenter) errors.profitcenter = true;
+
+//         if (
+//           headerInfo.expenseclass !==
+//           "Non-deductible expense (no valid receipt/invoice)"
+//         ) {
+//           if (!item.vat) errors.vat = true;
+//           if (!item.taxCode) errors.taxCode = true;
+//         }
+//         return errors;
+//       });
+
+//       setLineItemErrors(newLineItemErrors);
+
+//       if (
+//         Object.keys(headerErrs).length > 0 ||
+//         newLineItemErrors.some(err => Object.keys(err).length > 0)
+//       ) {
+//         alert("⚠️ Please fill in all required fields.");
+//         return;
+//       }
+
+//       try {
+//         // ===== GET CONTROL NUMBER (RETRY SAFE) =====
+//         const controlNumber = await getControlNumberWithRetry(5, 1000);
+
+//         // ===== BUILD ROWS =====
+//         const timestamp = new Date().toLocaleString();
+//         const rows = lineItems.map(item => [
+//           controlNumber,
+//           timestamp,
+//           headerInfo.email,
+//           headerInfo.expenseclass,
+//           headerInfo.company,
+//           headerInfo.supplier,
+//           headerInfo.supplierName,
+//           headerInfo.invoiceNo,
+//           item.grossAmount,
+//           item.glaccount,
+//           item.glaccountName,
+//           item.profitcenter,
+//           item.profitcenterName,
+//           item.transType,
+//           item.vat,
+//           item.taxCode,
+//           item.remarks,
+//           0
+//         ]);
+
+//         // ===== SUBMIT FORM =====
+//         const response = await apiFetch("/api/submitform", {
+//           method: "POST",
+//           headers: { "Content-Type": "application/json" },
+//           body: JSON.stringify({ rows }),
+//         });
+
+//         if (!response.ok) {
+//           throw new Error("Submission failed");
+//         }
+
+//         // ===== INCREMENT CONTROL NUMBER =====
+//         const incrementSuccess = await handleIncrementWithRetry();
+
+//         if (!incrementSuccess) {
+//           alert("⚠️ Submitted but failed to update control number.");
+//           return;
+//         }
+
+//         // ===== SUCCESS =====
+//         setModalMessage(controlNumber);
+//         setShowModal(true);
+
+//         // ===== RESET FORM =====
+//         setHeaderInfo({
+//           email: "",
+//           expenseclass: "",
+//           company: "",
+//           supplier: "",
+//           supplierName: "",
+//           invoiceNo: "",
+//         });
+
+//         setHeaderErrors({});
+//         setSupplierSearch("");
+//         setLineItems([createEmptyLineItem(1)]);
+//         setLineItemErrors([{}]);
+//         setLineItemCounter(1);
+
+//         // Clear tracking refs
+//         prevSupplierSearchRef.current = "";
+//         prevGLSearchesRef.current = {};
+//         prevProfitSearchesRef.current = {};
+
+//       } catch (error) {
+//         console.error("Submission error:", error);
+//         alert("❌ Unable to submit. Please try again later.");
+//       }
+//     } catch (err) {
+//       console.error("Submission error:", err);
+//       alert("❌ Submission failed.");
+//     } finally {
+//       setIsSubmitting(false);
+//     }
+  
+// };
+
+const handleSubmit = async () => {
+  if (isSubmitting) return;
+  setIsSubmitting(true);
+
+  try {
+    const headerErrs = {};
+
+    // ===== HEADER VALIDATION =====
+    if (!headerInfo.email || !isValidEmail(headerInfo.email)) headerErrs.email = true;
+    if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
+    if (!headerInfo.company) headerErrs.company = true;
+    if (!headerInfo.supplier) headerErrs.supplier = true;
+
+    if (
+      headerInfo.expenseclass !==
+        "Non-deductible expense (no valid receipt/invoice)" &&
+      !headerInfo.invoiceNo
+    ) {
+      headerErrs.invoiceNo = true;
+    }
+
+    setHeaderErrors(headerErrs);
+
+    // ===== LINE ITEM VALIDATION =====
+    const newLineItemErrors = lineItems.map(item => {
+      const errors = {};
+      if (!item.grossAmount) errors.grossAmount = true;
+      if (!item.transType) errors.transType = true;
+      if (!item.glaccount) errors.glaccount = true;
+      if (!item.remarks) errors.remarks = true;
+      if (!item.profitcenter) errors.profitcenter = true;
 
       if (
         headerInfo.expenseclass !==
-          "Non-deductible expense (no valid receipt/invoice)" &&
-        !headerInfo.invoiceNo
+        "Non-deductible expense (no valid receipt/invoice)"
       ) {
-        headerErrs.invoiceNo = true;
+        if (!item.vat) errors.vat = true;
+        if (!item.taxCode) errors.taxCode = true;
       }
+      return errors;
+    });
 
-      setHeaderErrors(headerErrs);
+    setLineItemErrors(newLineItemErrors);
 
-      // ===== LINE ITEM VALIDATION =====
-      const newLineItemErrors = lineItems.map(item => {
-        const errors = {};
-        if (!item.grossAmount) errors.grossAmount = true;
-        if (!item.transType) errors.transType = true;
-        if (!item.glaccount) errors.glaccount = true;
-        if (!item.remarks) errors.remarks = true;
-        if (!item.profitcenter) errors.profitcenter = true;
-
-        if (
-          headerInfo.expenseclass !==
-          "Non-deductible expense (no valid receipt/invoice)"
-        ) {
-          if (!item.vat) errors.vat = true;
-          if (!item.taxCode) errors.taxCode = true;
-        }
-        return errors;
-      });
-
-      setLineItemErrors(newLineItemErrors);
-
-      if (
-        Object.keys(headerErrs).length > 0 ||
-        newLineItemErrors.some(err => Object.keys(err).length > 0)
-      ) {
-        alert("⚠️ Please fill in all required fields.");
-        return;
-      }
-
-      try {
-        // ===== GET CONTROL NUMBER (RETRY SAFE) =====
-        const controlNumber = await getControlNumberWithRetry(5, 1000);
-
-        // ===== BUILD ROWS =====
-        const timestamp = new Date().toLocaleString();
-        const rows = lineItems.map(item => [
-          controlNumber,
-          timestamp,
-          headerInfo.email,
-          headerInfo.expenseclass,
-          headerInfo.company,
-          headerInfo.supplier,
-          headerInfo.supplierName,
-          headerInfo.invoiceNo,
-          item.grossAmount,
-          item.glaccount,
-          item.glaccountName,
-          item.profitcenter,
-          item.profitcenterName,
-          item.transType,
-          item.vat,
-          item.taxCode,
-          item.remarks,
-          0
-        ]);
-
-        // ===== SUBMIT FORM =====
-        const response = await apiFetch("/api/submitform", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ rows }),
-        });
-
-        if (!response.ok) {
-          throw new Error("Submission failed");
-        }
-
-        // ===== INCREMENT CONTROL NUMBER =====
-        const incrementSuccess = await handleIncrementWithRetry();
-
-        if (!incrementSuccess) {
-          alert("⚠️ Submitted but failed to update control number.");
-          return;
-        }
-
-        // ===== SUCCESS =====
-        setModalMessage(controlNumber);
-        setShowModal(true);
-
-        // ===== RESET FORM =====
-        setHeaderInfo({
-          email: "",
-          expenseclass: "",
-          company: "",
-          supplier: "",
-          supplierName: "",
-          invoiceNo: "",
-        });
-
-        setHeaderErrors({});
-        setSupplierSearch("");
-        setLineItems([createEmptyLineItem(1)]);
-        setLineItemErrors([{}]);
-        setLineItemCounter(1);
-
-        // Clear tracking refs
-        prevSupplierSearchRef.current = "";
-        prevGLSearchesRef.current = {};
-        prevProfitSearchesRef.current = {};
-
-      } catch (error) {
-        console.error("Submission error:", error);
-        alert("❌ Unable to submit. Please try again later.");
-      }
-    } catch (err) {
-      console.error("Submission error:", err);
-      alert("❌ Submission failed.");
-    } finally {
-      setIsSubmitting(false);
+    // ===== CHECK FOR VALIDATION ERRORS =====
+    if (
+      Object.keys(headerErrs).length > 0 ||
+      newLineItemErrors.some(err => Object.keys(err).length > 0)
+    ) {
+      alert("⚠️ Please fill in all required fields.");
+      return; // STOP here, do not submit
     }
-  
-};
 
+    // ===== GET CONTROL NUMBER =====
+    const controlNumber = await getControlNumberWithRetry(5, 1000);
+    if (!controlNumber) {
+      alert("❌ Unable to get control number. Submission cancelled.");
+      return;
+    }
+
+    // ===== BUILD ROWS =====
+    const timestamp = new Date().toLocaleString();
+    const rows = lineItems.map(item => [
+      controlNumber,
+      timestamp,
+      headerInfo.email,
+      headerInfo.expenseclass,
+      headerInfo.company,
+      headerInfo.supplier,
+      headerInfo.supplierName,
+      headerInfo.invoiceNo,
+      item.grossAmount,
+      item.glaccount,
+      item.glaccountName,
+      item.profitcenter,
+      item.profitcenterName,
+      item.transType,
+      item.vat,
+      item.taxCode,
+      item.remarks,
+      0
+    ]);
+
+    // ===== SUBMIT FORM =====
+    const response = await apiFetch("/api/submitform", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows }),
+    });
+
+    if (!response.ok) {
+      alert("❌ Submission failed. Control number not incremented.");
+      return; 
+    }
+
+    // // ===== RETRY INCREMENT CONTROL NUMBER =====
+    // let incrementSuccess = false;
+    // const maxRetries = 5;
+    // const retryDelay = 1000; // 1 second
+
+    // for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    //   incrementSuccess = await handleIncrementWithRetry();
+    //   if (incrementSuccess) break;
+    //   await new Promise(res => setTimeout(res, retryDelay));
+    // }
+
+    // if (!incrementSuccess) {
+    //   alert(
+    //     `Submission succeeded but failed to increment control number after ${maxRetries} attempts.`
+    //   );
+    // }
+
+    // ===== SUCCESS =====
+    setModalMessage(controlNumber);
+    setShowModal(true);
+
+    // ===== RESET FORM =====
+    setHeaderInfo({
+      email: "",
+      expenseclass: "",
+      company: "",
+      supplier: "",
+      supplierName: "",
+      invoiceNo: "",
+    });
+
+    setHeaderErrors({});
+    setSupplierSearch("");
+    setLineItems([createEmptyLineItem(1)]);
+    setLineItemErrors([{}]);
+    setLineItemCounter(1);
+
+    // Clear tracking refs
+    prevSupplierSearchRef.current = "";
+    prevGLSearchesRef.current = {};
+    prevProfitSearchesRef.current = {};
+
+  } catch (error) {
+    console.error("Submission error:", error);
+    alert("❌ Unable to submit. Please try again later.");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const isDisabled = !headerInfo.email || !headerInfo.expenseclass || staticDataLoading;
 
