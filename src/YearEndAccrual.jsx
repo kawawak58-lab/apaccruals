@@ -89,6 +89,8 @@ export default function YearEndAccrualForm() {
 
   // Debounce supplier search
   const debouncedSupplierSearch = useDebounce(supplierSearch, 500);
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // ---------- Fetch static lists with caching ----------
   useEffect(() => {
@@ -143,42 +145,95 @@ export default function YearEndAccrualForm() {
   }, []);
 
   // Debounced supplier fetch
-  useEffect(() => {
-    if (!headerInfo.company || debouncedSupplierSearch.length < 2) return;
+  // useEffect(() => {
+  //   if (!headerInfo.company || debouncedSupplierSearch.length < 2) return;
 
-    const fetchSuppliers = async () => {
-      try {
-        const query = new URLSearchParams({
-          company: headerInfo.company,
-          search: debouncedSupplierSearch,
-          page: supplierPage,
-          limit: supplierLimit,
-        }).toString();
+  //   const fetchSuppliers = async () => {
+  //     try {
+  //       const query = new URLSearchParams({
+  //         company: headerInfo.company,
+  //         search: debouncedSupplierSearch,
+  //         page: supplierPage,
+  //         limit: supplierLimit,
+  //       }).toString();
 
-        const res = await apiFetch(`/api/suppliers?${query}`);
-        const data = await res.json();
+  //       const res = await apiFetch(`/api/suppliers?${query}`);
+  //       const data = await res.json();
         
-        setSuppliers(prevSuppliers =>
-          supplierPage === 1
-            ? data.suppliers.map(s => ({
-                supplier: s.supplierNo,
-                name: s.supplierName,
-                suppcompany: s.supplierCompany,
-              }))
-            : [...prevSuppliers, ...data.suppliers.map(s => ({
-                supplier: s.supplierNo,
-                name: s.supplierName,
-                suppcompany: s.supplierCompany,
-              }))]
-        );
-        setSupplierTotal(data.pagination.total);
-      } catch (err) {
-        console.error("Failed to fetch suppliers", err);
-      }
-    };
+  //       setSuppliers(prevSuppliers =>
+  //         supplierPage === 1
+  //           ? data.suppliers.map(s => ({
+  //               supplier: s.supplierNo,
+  //               name: s.supplierName,
+  //               suppcompany: s.supplierCompany,
+  //             }))
+  //           : [...prevSuppliers, ...data.suppliers.map(s => ({
+  //               supplier: s.supplierNo,
+  //               name: s.supplierName,
+  //               suppcompany: s.supplierCompany,
+  //             }))]
+  //       );
+  //       setSupplierTotal(data.pagination.total);
+  //     } catch (err) {
+  //       console.error("Failed to fetch suppliers", err);
+  //     }
+  //   };
 
-    fetchSuppliers();
-  }, [headerInfo.company, debouncedSupplierSearch, supplierPage]);
+  //   fetchSuppliers();
+  // }, [headerInfo.company, debouncedSupplierSearch, supplierPage]);
+
+  useEffect(() => {
+  if (!headerInfo.company || debouncedSupplierSearch.length < 2) return;
+
+  let cancelled = false;
+
+  const fetchSuppliers = async () => {
+    try {
+      const query = new URLSearchParams({
+        company: headerInfo.company,
+        search: debouncedSupplierSearch,
+        page: supplierPage,
+        limit: supplierLimit,
+      }).toString();
+
+      const res = await apiFetch(`/api/suppliers?${query}`);
+
+      if (!res.ok) return;
+
+      const data = await res.json();
+
+      if (!data?.suppliers || cancelled) return;
+
+      setSuppliers(prev =>
+        supplierPage === 1
+          ? data.suppliers.map(s => ({
+              supplier: s.supplierNo,
+              name: s.supplierName,
+              suppcompany: s.supplierCompany,
+            }))
+          : [
+              ...prev,
+              ...data.suppliers.map(s => ({
+                supplier: s.supplierNo,
+                name: s.supplierName,
+                suppcompany: s.supplierCompany,
+              })),
+            ]
+      );
+
+      setSupplierTotal(data.pagination?.total || 0);
+    } catch (err) {
+      console.warn("Supplier fetch failed (quota safe)", err);
+    }
+  };
+
+  fetchSuppliers();
+
+  return () => {
+    cancelled = true;
+  };
+}, [headerInfo.company, debouncedSupplierSearch, supplierPage]);
+
 
   // Debounced GL Account search per line
   const handleGLSearchChange = useCallback((lineId, value) => {
@@ -469,108 +524,307 @@ export default function YearEndAccrualForm() {
   };
 
   const handleIncrement = async () => {
+  try {
     const res = await apiFetch("/api/incrementcontrol", { method: "POST" });
+
+    if (!res.ok) throw new Error("Increment failed");
+
     const data = await res.json();
     console.log("New Control Number:", data.newControlNumber);
+
+    return true;
+  } catch (err) {
+    console.error("Increment error:", err);
+    return false; // ❌ failed
+  }
+};
+
+  const getControlNumberWithRetry = async (
+    maxRetries = 5,
+    initialDelay = 1000 // 1 second
+  ) => {
+    let attempt = 0;
+    let delay = initialDelay;
+
+    while (attempt < maxRetries) {
+      try {
+        const res = await apiFetch("/api/currentcontrol");
+
+        if (res.ok) {
+          const data = await res.json();
+          const controlNumber = data?.currentControlNumber?.trim();
+
+          if (controlNumber) {
+            return controlNumber; 
+          }
+        }
+      } catch (err) {
+        console.warn(`Control fetch attempt ${attempt + 1} failed`, err);
+      }
+
+      attempt++;
+      await sleep(delay);  
+      delay *= 2;    
+    }
+
+    throw new Error("Control number unavailable after retries");
+  };
+
+  const handleIncrementWithRetry = async (
+    maxRetries = 3,
+    initialDelay = 1000
+  ) => {
+    let attempt = 0;
+    let delay = initialDelay;
+
+    while (attempt < maxRetries) {
+      try {
+        const res = await apiFetch("/api/incrementcontrol", { method: "POST" });
+
+        if (res.ok) {
+          const data = await res.json();
+          console.log("New Control Number:", data.newControlNumber);
+          return true; 
+        }
+      } catch (err) {
+        console.warn(`Increment attempt ${attempt + 1} failed`, err);
+      }
+
+      attempt++;
+      await sleep(delay);
+      delay *= 2;
+    }
+
+    return false;
   };
 
   const handleSubmit = async () => {
-    const headerErrs = {};
-    
-    if (!headerInfo.email || !isValidEmail(headerInfo.email)) {
-      headerErrs.email = true;
-    }
-    if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
-    if (!headerInfo.company) headerErrs.company = true;
-    if (!headerInfo.supplier) headerErrs.supplier = true;
-    if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)" && !headerInfo.invoiceNo)
-      headerErrs.invoiceNo = true;
-
-    setHeaderErrors(headerErrs);
-
-    const newLineItemErrors = lineItems.map((item) => {
-      const errors = {};
-      if (!item.grossAmount) errors.grossAmount = true;
-      if (!item.transType) errors.transType = true;
-      if (!item.glaccount) errors.glaccount = true;
-      if (!item.remarks) errors.remarks = true;
-      if (!item.profitcenter) errors.profitcenter = true;
-      if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)") {
-        if (!item.vat) errors.vat = true;
-        if (!item.taxCode) errors.taxCode = true;
-      }
-      return errors;
-    });
-
-    setLineItemErrors(newLineItemErrors);
-
-    if (
-      Object.keys(headerErrs).length > 0 ||
-      newLineItemErrors.some(err => Object.keys(err).length > 0)
-    ) {
-      alert("⚠️ Please fill in all required fields.");
-      return;
-    }
-
-    // Get control number before submission
-    const controlRes = await apiFetch("/api/currentcontrol");
-    const controlData = await controlRes.json();
-    const controlNumber = controlData?.currentControlNumber || "";
-
-    const timestamp = new Date().toLocaleString();
-    const rows = lineItems.map((item) => [
-      controlNumber,
-      timestamp,
-      headerInfo.email,
-      headerInfo.expenseclass,
-      headerInfo.company,
-      headerInfo.supplier,
-      headerInfo.supplierName,
-      headerInfo.invoiceNo,
-      item.grossAmount,
-      item.glaccount,
-      item.glaccountName,
-      item.profitcenter,
-      item.profitcenterName,
-      item.transType,
-      item.vat,
-      item.taxCode,
-      item.remarks,
-      0
-    ]);
-
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     try {
-      const response = await apiFetch("/api/submitform", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows }),
-      });
-      if (!response.ok) throw new Error("Failed to submit form");
-      
-      // Increment control number after successful submission
-      await handleIncrement();
-      
-      setModalMessage(controlNumber);
-      setShowModal(true);
+      const headerErrs = {};
 
-      setHeaderInfo({
-        email: "",
-        expenseclass: "",
-        company: "",
-        supplier: "",
-        supplierName: "",
-        invoiceNo: "",
+      // ===== HEADER VALIDATION =====
+      if (!headerInfo.email || !isValidEmail(headerInfo.email))
+        headerErrs.email = true;
+      if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
+      if (!headerInfo.company) headerErrs.company = true;
+      if (!headerInfo.supplier) headerErrs.supplier = true;
+
+      if (
+        headerInfo.expenseclass !==
+          "Non-deductible expense (no valid receipt/invoice)" &&
+        !headerInfo.invoiceNo
+      ) {
+        headerErrs.invoiceNo = true;
+      }
+
+      setHeaderErrors(headerErrs);
+
+      // ===== LINE ITEM VALIDATION =====
+      const newLineItemErrors = lineItems.map(item => {
+        const errors = {};
+        if (!item.grossAmount) errors.grossAmount = true;
+        if (!item.transType) errors.transType = true;
+        if (!item.glaccount) errors.glaccount = true;
+        if (!item.remarks) errors.remarks = true;
+        if (!item.profitcenter) errors.profitcenter = true;
+
+        if (
+          headerInfo.expenseclass !==
+          "Non-deductible expense (no valid receipt/invoice)"
+        ) {
+          if (!item.vat) errors.vat = true;
+          if (!item.taxCode) errors.taxCode = true;
+        }
+        return errors;
       });
-      setHeaderErrors({});
-      setSupplierSearch("");
-      setLineItems([createEmptyLineItem(1)]);
-      setLineItemErrors([{}]);
-      setLineItemCounter(1);
-    } catch (error) {
-      console.error("Submission error:", error);
-      alert("❌ Submission failed. Please try again.");
+
+      setLineItemErrors(newLineItemErrors);
+
+      if (
+        Object.keys(headerErrs).length > 0 ||
+        newLineItemErrors.some(err => Object.keys(err).length > 0)
+      ) {
+        alert("⚠️ Please fill in all required fields.");
+        return;
+      }
+
+      try {
+        // ===== GET CONTROL NUMBER (RETRY SAFE) =====
+        const controlNumber = await getControlNumberWithRetry(5, 1000);
+
+        // ===== BUILD ROWS =====
+        const timestamp = new Date().toLocaleString();
+        const rows = lineItems.map(item => [
+          controlNumber,
+          timestamp,
+          headerInfo.email,
+          headerInfo.expenseclass,
+          headerInfo.company,
+          headerInfo.supplier,
+          headerInfo.supplierName,
+          headerInfo.invoiceNo,
+          item.grossAmount,
+          item.glaccount,
+          item.glaccountName,
+          item.profitcenter,
+          item.profitcenterName,
+          item.transType,
+          item.vat,
+          item.taxCode,
+          item.remarks,
+          0
+        ]);
+
+        // ===== SUBMIT FORM =====
+        const response = await apiFetch("/api/submitform", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Submission failed");
+        }
+
+        // ===== INCREMENT CONTROL NUMBER =====
+        const incrementSuccess = await handleIncrementWithRetry();
+
+        if (!incrementSuccess) {
+          alert("⚠️ Submitted but failed to update control number.");
+          return;
+        }
+
+        // ===== SUCCESS =====
+        setModalMessage(controlNumber);
+        setShowModal(true);
+
+        // ===== RESET FORM =====
+        setHeaderInfo({
+          email: "",
+          expenseclass: "",
+          company: "",
+          supplier: "",
+          supplierName: "",
+          invoiceNo: "",
+        });
+
+        setHeaderErrors({});
+        setSupplierSearch("");
+        setLineItems([createEmptyLineItem(1)]);
+        setLineItemErrors([{}]);
+        setLineItemCounter(1);
+
+      } catch (error) {
+        console.error("Submission error:", error);
+        alert("❌ Unable to submit. Please try again later.");
+      }
+    } catch (err) {
+      console.error("Submission error:", err);
+      alert("❌ Submission failed.");
+    } finally {
+      setIsSubmitting(false);
     }
-  };
+  
+};
+  // const handleSubmit = async () => {
+  //   const headerErrs = {};
+    
+  //   if (!headerInfo.email || !isValidEmail(headerInfo.email)) {
+  //     headerErrs.email = true;
+  //   }
+  //   if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
+  //   if (!headerInfo.company) headerErrs.company = true;
+  //   if (!headerInfo.supplier) headerErrs.supplier = true;
+  //   if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)" && !headerInfo.invoiceNo)
+  //     headerErrs.invoiceNo = true;
+
+  //   setHeaderErrors(headerErrs);
+
+  //   const newLineItemErrors = lineItems.map((item) => {
+  //     const errors = {};
+  //     if (!item.grossAmount) errors.grossAmount = true;
+  //     if (!item.transType) errors.transType = true;
+  //     if (!item.glaccount) errors.glaccount = true;
+  //     if (!item.remarks) errors.remarks = true;
+  //     if (!item.profitcenter) errors.profitcenter = true;
+  //     if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)") {
+  //       if (!item.vat) errors.vat = true;
+  //       if (!item.taxCode) errors.taxCode = true;
+  //     }
+  //     return errors;
+  //   });
+
+  //   setLineItemErrors(newLineItemErrors);
+
+  //   if (
+  //     Object.keys(headerErrs).length > 0 ||
+  //     newLineItemErrors.some(err => Object.keys(err).length > 0)
+  //   ) {
+  //     alert("⚠️ Please fill in all required fields.");
+  //     return;
+  //   }
+
+  //   // Get control number before submission
+  //   const controlRes = await apiFetch("/api/currentcontrol");
+  //   const controlData = await controlRes.json();
+  //   const controlNumber = controlData?.currentControlNumber || "";
+
+  //   const timestamp = new Date().toLocaleString();
+  //   const rows = lineItems.map((item) => [
+  //     controlNumber,
+  //     timestamp,
+  //     headerInfo.email,
+  //     headerInfo.expenseclass,
+  //     headerInfo.company,
+  //     headerInfo.supplier,
+  //     headerInfo.supplierName,
+  //     headerInfo.invoiceNo,
+  //     item.grossAmount,
+  //     item.glaccount,
+  //     item.glaccountName,
+  //     item.profitcenter,
+  //     item.profitcenterName,
+  //     item.transType,
+  //     item.vat,
+  //     item.taxCode,
+  //     item.remarks,
+  //     0
+  //   ]);
+
+  //   try {
+  //     const response = await apiFetch("/api/submitform", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify({ rows }),
+  //     });
+  //     if (!response.ok) throw new Error("Failed to submit form");
+      
+  //     // Increment control number after successful submission
+  //     await handleIncrement();
+      
+  //     setModalMessage(controlNumber);
+  //     setShowModal(true);
+
+  //     setHeaderInfo({
+  //       email: "",
+  //       expenseclass: "",
+  //       company: "",
+  //       supplier: "",
+  //       supplierName: "",
+  //       invoiceNo: "",
+  //     });
+  //     setHeaderErrors({});
+  //     setSupplierSearch("");
+  //     setLineItems([createEmptyLineItem(1)]);
+  //     setLineItemErrors([{}]);
+  //     setLineItemCounter(1);
+  //   } catch (error) {
+  //     console.error("Submission error:", error);
+  //     alert("❌ Submission failed. Please try again.");
+  //   }
+  // };
 
   const isDisabled = !headerInfo.email || !headerInfo.expenseclass;
 
@@ -1096,7 +1350,18 @@ export default function YearEndAccrualForm() {
         </div>
 
         <div className="formFooter">
-          <button type="button" className="submitBtn" onClick={handleSubmit}>Submit</button>
+          <button
+            type="button"
+            className="submitBtn"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            style={{
+              opacity: isSubmitting ? 0.6 : 1,
+              cursor: isSubmitting ? "not-allowed" : "pointer",
+            }}
+          >
+            {isSubmitting ? "Submitting..." : "Submit"}
+          </button>
         </div>
 
         {/* Modal */}

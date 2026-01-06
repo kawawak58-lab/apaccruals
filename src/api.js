@@ -3,8 +3,11 @@ const API_BASE =
     ? "http://localhost:5000"
     : "";
 
-export function apiFetch(path, options) {
-   const url = `${API_BASE}${path}`;
-  //  alert(url);
-  return fetch(`${API_BASE}${path}`, options);
+export async function apiFetch(path, options = {}) {
+  try {
+    return await fetch(`${API_BASE}${path}`, options);
+  } catch (err) {
+    console.error("apiFetch network error:", err);
+    return new Response(null, { status: 500 });
+  }
 }
