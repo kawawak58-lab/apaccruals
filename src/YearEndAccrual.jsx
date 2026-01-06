@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./YearEndAccrualForm.css";
 import { apiFetch } from "./api";
+import { getNextControlNumber } from "./lib/ControlNumber";
+import { getExpenseClassNames } from "./lib/ExpenseClasses";
+import { getTaxCodeNames } from "./lib/TaxCodes";
+import { getTransactionTypeNames } from "./lib/TransactionTypes";
+import { getCompanyNames } from "./lib/Companies";
 
 // Add CSS animation for spinner
 const spinnerStyle = document.createElement('style');
@@ -112,101 +117,101 @@ export default function YearEndAccrualForm() {
   const [staticDataError, setStaticDataError] = useState(false);
   const staticDataRetryRef = useRef(0);
   const maxStaticDataRetries = 5;
-
+  const [controlNumber, setControlNumber] = useState("");
+  const handleClick = async () => {
+    try {
+      const nextNumber = await getNextControlNumber();
+      setControlNumber(nextNumber);
+      alert(`Next Control Number: ${nextNumber}`);
+    } catch (err) {
+      console.error("Failed to get control number:", err);
+      alert("❌ Failed to get control number. Check console.");
+    }
+  };
   
   // ---------- Fetch static lists with caching and retry ----------
-  useEffect(() => {
-    const fetchStaticDataWithRetry = async () => {
-      // If already cached, use cache immediately
-      if (cacheRef.current.companies) {
-        setCompanies(cacheRef.current.companies);
-        setExpenseClass(cacheRef.current.expenseClass);
-        setTransactionTypes(cacheRef.current.transactionTypes);
-        setTaxCodes(cacheRef.current.taxCodes);
-        setStaticDataLoading(false);
-        return;
-      }
+ useEffect(() => {
+  const fetchStaticDataWithRetry = async () => {
+    // Use cached data if available
+    if (cacheRef.current.companies) {
+      setCompanies(cacheRef.current.companies);
+      setExpenseClass(cacheRef.current.expenseClass);
+      setTransactionTypes(cacheRef.current.transactionTypes);
+      setTaxCodes(cacheRef.current.taxCodes);
+      setStaticDataLoading(false);
+      return;
+    }
 
-      // Try to fetch with exponential backoff
-      let delay = 2000; // Start with 2 seconds
+    let delay = 2000; // initial delay for exponential backoff
 
-      while (staticDataRetryRef.current < maxStaticDataRetries) {
-        try {
-          setStaticDataLoading(true);
-          setStaticDataError(false);
+    while (staticDataRetryRef.current < maxStaticDataRetries) {
+      try {
+        setStaticDataLoading(true);
+        setStaticDataError(false);
 
-          const [companiesRes, expenseRes, transactionRes, taxRes] = await Promise.all([
-            apiFetch("/api/company"),
-            apiFetch("/api/expenseclass"),
-            apiFetch("/api/transaction"),
-            apiFetch("/api/taxcode"),
-          ]);
+        // Fetch everything in parallel from Supabase
+        const [expenseList, transactionList, taxList, companiesList] = await Promise.all([
+          getExpenseClassNames(),
+          getTransactionTypeNames(),
+          getTaxCodeNames(),
+          getCompanyNames()
+        ]);
 
-          // Check if all responses are OK
-          if (!companiesRes.ok || !expenseRes.ok || !transactionRes.ok || !taxRes.ok) {
-            throw new Error("One or more static data requests failed");
-          }
-
-          const [companiesData, expenseData, transactionData, taxData] = await Promise.all([
-            companiesRes.json(),
-            expenseRes.json(),
-            transactionRes.json(),
-            taxRes.json(),
-          ]);
-
-          const companiesList = companiesData.columnA?.slice(1).map((row) => row[0]) || [];
-          const expenseList = expenseData.columnA?.slice(1).map((row) => row[0]) || [];
-          const transactionList = transactionData.columnA?.slice(1).map((row) => row[0]) || [];
-          const taxList = taxData.columnA?.slice(1).map((row) => row[0]) || [];
-
-          // Verify we got data
-          if (companiesList.length === 0 || expenseList.length === 0 || 
-              transactionList.length === 0 || taxList.length === 0) {
-            throw new Error("Empty data received");
-          }
-
-          // Cache the results
-          cacheRef.current = {
-            companies: companiesList,
-            expenseClass: expenseList,
-            transactionTypes: transactionList,
-            taxCodes: taxList,
-          };
-
-          setCompanies(companiesList);
-          setExpenseClass(expenseList);
-          setTransactionTypes(transactionList);
-          setTaxCodes(taxList);
-          setStaticDataLoading(false);
-          setStaticDataError(false);
-
-          console.log("✅ Static data loaded successfully");
-          return; // Success - exit the retry loop
-
-        } catch (err) {
-          staticDataRetryRef.current++;
-          console.warn(
-            `⚠️ Static data fetch attempt ${staticDataRetryRef.current}/${maxStaticDataRetries} failed:`,
-            err.message
-          );
-
-          if (staticDataRetryRef.current >= maxStaticDataRetries) {
-            setStaticDataError(true);
-            setStaticDataLoading(false);
-            console.error("❌ Failed to load static data after maximum retries");
-            return;
-          }
-
-          // Wait before retrying with exponential backoff
-          console.log(`⏳ Retrying in ${delay/1000} seconds...`);
-          await sleep(delay);
-          delay *= 2; // Double the delay for next attempt (2s, 4s, 8s, 16s, 32s)
+        // Validate all lists
+        if (
+          !companiesList.length ||
+          !expenseList.length ||
+          !transactionList.length ||
+          !taxList.length
+        ) {
+          throw new Error("Empty data received from one or more sources");
         }
-      }
-    };
 
-    fetchStaticDataWithRetry();
-  }, []);
+        // Cache results
+        cacheRef.current = {
+          companies: companiesList,
+          expenseClass: expenseList,
+          transactionTypes: transactionList,
+          taxCodes: taxList,
+        };
+
+        // Update state
+        setCompanies(companiesList);
+        setExpenseClass(expenseList);
+        setTransactionTypes(transactionList);
+        setTaxCodes(taxList);
+        setStaticDataLoading(false);
+        setStaticDataError(false);
+
+        console.log("✅ Static data loaded successfully");
+        return; // success
+
+      } catch (err) {
+        staticDataRetryRef.current++;
+        console.warn(
+          `⚠️ Static data fetch attempt ${staticDataRetryRef.current}/${maxStaticDataRetries} failed:`,
+          err.message
+        );
+
+        if (staticDataRetryRef.current >= maxStaticDataRetries) {
+          setStaticDataError(true);
+          setStaticDataLoading(false);
+          console.error("❌ Failed to load static data after maximum retries");
+          return;
+        }
+
+        // Wait before retrying
+        console.log(`⏳ Retrying in ${delay / 1000} seconds...`);
+        await sleep(delay);
+        delay = Math.min(delay * 2, 32000); // optional: cap exponential backoff
+      }
+    }
+  };
+
+  fetchStaticDataWithRetry();
+}, []);
+
+
 
 
   // FIXED: Supplier search with proper duplicate prevention
@@ -637,141 +642,6 @@ export default function YearEndAccrualForm() {
     return false;
   };
 
-//   const handleSubmit = async () => {
-//     if (isSubmitting) return;
-//     setIsSubmitting(true);
-//     try {
-//       const headerErrs = {};
-
-//       // ===== HEADER VALIDATION =====
-//       if (!headerInfo.email || !isValidEmail(headerInfo.email))
-//         headerErrs.email = true;
-//       if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
-//       if (!headerInfo.company) headerErrs.company = true;
-//       if (!headerInfo.supplier) headerErrs.supplier = true;
-
-//       if (
-//         headerInfo.expenseclass !==
-//           "Non-deductible expense (no valid receipt/invoice)" &&
-//         !headerInfo.invoiceNo
-//       ) {
-//         headerErrs.invoiceNo = true;
-//       }
-
-//       setHeaderErrors(headerErrs);
-
-//       // ===== LINE ITEM VALIDATION =====
-//       const newLineItemErrors = lineItems.map(item => {
-//         const errors = {};
-//         if (!item.grossAmount) errors.grossAmount = true;
-//         if (!item.transType) errors.transType = true;
-//         if (!item.glaccount) errors.glaccount = true;
-//         if (!item.remarks) errors.remarks = true;
-//         if (!item.profitcenter) errors.profitcenter = true;
-
-//         if (
-//           headerInfo.expenseclass !==
-//           "Non-deductible expense (no valid receipt/invoice)"
-//         ) {
-//           if (!item.vat) errors.vat = true;
-//           if (!item.taxCode) errors.taxCode = true;
-//         }
-//         return errors;
-//       });
-
-//       setLineItemErrors(newLineItemErrors);
-
-//       if (
-//         Object.keys(headerErrs).length > 0 ||
-//         newLineItemErrors.some(err => Object.keys(err).length > 0)
-//       ) {
-//         alert("⚠️ Please fill in all required fields.");
-//         return;
-//       }
-
-//       try {
-//         // ===== GET CONTROL NUMBER (RETRY SAFE) =====
-//         const controlNumber = await getControlNumberWithRetry(5, 1000);
-
-//         // ===== BUILD ROWS =====
-//         const timestamp = new Date().toLocaleString();
-//         const rows = lineItems.map(item => [
-//           controlNumber,
-//           timestamp,
-//           headerInfo.email,
-//           headerInfo.expenseclass,
-//           headerInfo.company,
-//           headerInfo.supplier,
-//           headerInfo.supplierName,
-//           headerInfo.invoiceNo,
-//           item.grossAmount,
-//           item.glaccount,
-//           item.glaccountName,
-//           item.profitcenter,
-//           item.profitcenterName,
-//           item.transType,
-//           item.vat,
-//           item.taxCode,
-//           item.remarks,
-//           0
-//         ]);
-
-//         // ===== SUBMIT FORM =====
-//         const response = await apiFetch("/api/submitform", {
-//           method: "POST",
-//           headers: { "Content-Type": "application/json" },
-//           body: JSON.stringify({ rows }),
-//         });
-
-//         if (!response.ok) {
-//           throw new Error("Submission failed");
-//         }
-
-//         // ===== INCREMENT CONTROL NUMBER =====
-//         const incrementSuccess = await handleIncrementWithRetry();
-
-//         if (!incrementSuccess) {
-//           alert("⚠️ Submitted but failed to update control number.");
-//           return;
-//         }
-
-//         // ===== SUCCESS =====
-//         setModalMessage(controlNumber);
-//         setShowModal(true);
-
-//         // ===== RESET FORM =====
-//         setHeaderInfo({
-//           email: "",
-//           expenseclass: "",
-//           company: "",
-//           supplier: "",
-//           supplierName: "",
-//           invoiceNo: "",
-//         });
-
-//         setHeaderErrors({});
-//         setSupplierSearch("");
-//         setLineItems([createEmptyLineItem(1)]);
-//         setLineItemErrors([{}]);
-//         setLineItemCounter(1);
-
-//         // Clear tracking refs
-//         prevSupplierSearchRef.current = "";
-//         prevGLSearchesRef.current = {};
-//         prevProfitSearchesRef.current = {};
-
-//       } catch (error) {
-//         console.error("Submission error:", error);
-//         alert("❌ Unable to submit. Please try again later.");
-//       }
-//     } catch (err) {
-//       console.error("Submission error:", err);
-//       alert("❌ Submission failed.");
-//     } finally {
-//       setIsSubmitting(false);
-//     }
-  
-// };
 
 const handleSubmit = async () => {
   if (isSubmitting) return;
@@ -827,8 +697,11 @@ const handleSubmit = async () => {
     }
 
     // ===== GET CONTROL NUMBER =====
-    const controlNumber = await getControlNumberWithRetry(5, 1000);
-    if (!controlNumber) {
+    let controlNumber;
+    try {
+      controlNumber = await getNextControlNumber(); // this calls your RPC function
+    } catch (err) {
+      console.error("Failed to get control number:", err);
       alert("❌ Unable to get control number. Submission cancelled.");
       return;
     }
@@ -868,22 +741,7 @@ const handleSubmit = async () => {
       return; 
     }
 
-    // // ===== RETRY INCREMENT CONTROL NUMBER =====
-    // let incrementSuccess = false;
-    // const maxRetries = 5;
-    // const retryDelay = 1000; // 1 second
 
-    // for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    //   incrementSuccess = await handleIncrementWithRetry();
-    //   if (incrementSuccess) break;
-    //   await new Promise(res => setTimeout(res, retryDelay));
-    // }
-
-    // if (!incrementSuccess) {
-    //   alert(
-    //     `Submission succeeded but failed to increment control number after ${maxRetries} attempts.`
-    //   );
-    // }
 
     // ===== SUCCESS =====
     setModalMessage(controlNumber);
@@ -1639,6 +1497,8 @@ const handleSubmit = async () => {
               >
                 Close
               </button>
+
+       
             </div>
           </div>
         )}
