@@ -6,6 +6,9 @@ import { getExpenseClassNames } from "./lib/ExpenseClasses";
 import { getTaxCodeNames } from "./lib/TaxCodes";
 import { getTransactionTypeNames } from "./lib/TransactionTypes";
 import { getCompanyNames } from "./lib/Companies";
+import { getSuppliers } from "./lib/Suppliers";
+import { getProfitCenters } from "./lib/ProfitCenter";
+import { getGLAccounts } from "./lib/GlAccount";
 
 // Add CSS animation for spinner
 const spinnerStyle = document.createElement('style');
@@ -118,6 +121,7 @@ export default function YearEndAccrualForm() {
   const staticDataRetryRef = useRef(0);
   const maxStaticDataRetries = 5;
   const [controlNumber, setControlNumber] = useState("");
+
   const handleClick = async () => {
     try {
       const nextNumber = await getNextControlNumber();
@@ -130,138 +134,109 @@ export default function YearEndAccrualForm() {
   };
   
   // ---------- Fetch static lists with caching and retry ----------
- useEffect(() => {
-  const fetchStaticDataWithRetry = async () => {
-    // Use cached data if available
-    if (cacheRef.current.companies) {
-      setCompanies(cacheRef.current.companies);
-      setExpenseClass(cacheRef.current.expenseClass);
-      setTransactionTypes(cacheRef.current.transactionTypes);
-      setTaxCodes(cacheRef.current.taxCodes);
-      setStaticDataLoading(false);
-      return;
-    }
-
-    let delay = 2000; // initial delay for exponential backoff
-
-    while (staticDataRetryRef.current < maxStaticDataRetries) {
-      try {
-        setStaticDataLoading(true);
-        setStaticDataError(false);
-
-        // Fetch everything in parallel from Supabase
-        const [expenseList, transactionList, taxList, companiesList] = await Promise.all([
-          getExpenseClassNames(),
-          getTransactionTypeNames(),
-          getTaxCodeNames(),
-          getCompanyNames()
-        ]);
-
-        // Validate all lists
-        if (
-          !companiesList.length ||
-          !expenseList.length ||
-          !transactionList.length ||
-          !taxList.length
-        ) {
-          throw new Error("Empty data received from one or more sources");
-        }
-
-        // Cache results
-        cacheRef.current = {
-          companies: companiesList,
-          expenseClass: expenseList,
-          transactionTypes: transactionList,
-          taxCodes: taxList,
-        };
-
-        // Update state
-        setCompanies(companiesList);
-        setExpenseClass(expenseList);
-        setTransactionTypes(transactionList);
-        setTaxCodes(taxList);
+  useEffect(() => {
+    const fetchStaticDataWithRetry = async () => {
+      // Use cached data if available
+      if (cacheRef.current.companies) {
+        setCompanies(cacheRef.current.companies);
+        setExpenseClass(cacheRef.current.expenseClass);
+        setTransactionTypes(cacheRef.current.transactionTypes);
+        setTaxCodes(cacheRef.current.taxCodes);
         setStaticDataLoading(false);
-        setStaticDataError(false);
-
-        console.log("✅ Static data loaded successfully");
-        return; // success
-
-      } catch (err) {
-        staticDataRetryRef.current++;
-        console.warn(
-          `⚠️ Static data fetch attempt ${staticDataRetryRef.current}/${maxStaticDataRetries} failed:`,
-          err.message
-        );
-
-        if (staticDataRetryRef.current >= maxStaticDataRetries) {
-          setStaticDataError(true);
-          setStaticDataLoading(false);
-          console.error("❌ Failed to load static data after maximum retries");
-          return;
-        }
-
-        // Wait before retrying
-        console.log(`⏳ Retrying in ${delay / 1000} seconds...`);
-        await sleep(delay);
-        delay = Math.min(delay * 2, 32000); // optional: cap exponential backoff
+        return;
       }
-    }
-  };
 
-  fetchStaticDataWithRetry();
-}, []);
+      let delay = 2000;
 
+      while (staticDataRetryRef.current < maxStaticDataRetries) {
+        try {
+          setStaticDataLoading(true);
+          setStaticDataError(false);
 
+          const [expenseList, transactionList, taxList, companiesList] = await Promise.all([
+            getExpenseClassNames(),
+            getTransactionTypeNames(),
+            getTaxCodeNames(),
+            getCompanyNames()
+          ]);
 
+          if (
+            !companiesList.length ||
+            !expenseList.length ||
+            !transactionList.length ||
+            !taxList.length
+          ) {
+            throw new Error("Empty data received from one or more sources");
+          }
 
-  // FIXED: Supplier search with proper duplicate prevention
+          cacheRef.current = {
+            companies: companiesList,
+            expenseClass: expenseList,
+            transactionTypes: transactionList,
+            taxCodes: taxList,
+          };
+
+          setCompanies(companiesList);
+          setExpenseClass(expenseList);
+          setTransactionTypes(transactionList);
+          setTaxCodes(taxList);
+          setStaticDataLoading(false);
+          setStaticDataError(false);
+
+          console.log("✅ Static data loaded successfully");
+          return;
+
+        } catch (err) {
+          staticDataRetryRef.current++;
+          console.warn(
+            `⚠️ Static data fetch attempt ${staticDataRetryRef.current}/${maxStaticDataRetries} failed:`,
+            err.message
+          );
+
+          if (staticDataRetryRef.current >= maxStaticDataRetries) {
+            setStaticDataError(true);
+            setStaticDataLoading(false);
+            console.error("❌ Failed to load static data after maximum retries");
+            return;
+          }
+
+          console.log(`⏳ Retrying in ${delay / 1000} seconds...`);
+          await sleep(delay);
+          delay = Math.min(delay * 2, 32000);
+        }
+      }
+    };
+
+    fetchStaticDataWithRetry();
+  }, []);
+
+  // Supplier search
   useEffect(() => {
     if (!headerInfo.company || debouncedSupplierSearch.length < 2) return;
 
-    // Check if this is the same search we already did
     const searchKey = `${headerInfo.company}-${debouncedSupplierSearch}-${supplierPage}`;
-    if (prevSupplierSearchRef.current === searchKey) {
-      return; // Skip duplicate request
-    }
+    if (prevSupplierSearchRef.current === searchKey) return;
 
     prevSupplierSearchRef.current = searchKey;
     let cancelled = false;
 
     const fetchSuppliers = async () => {
       try {
-        const query = new URLSearchParams({
-          company: headerInfo.company,
-          search: debouncedSupplierSearch,
-          page: supplierPage,
-          limit: supplierLimit,
-        }).toString();
+        const { suppliers: fetchedSuppliers, total } = await getSuppliers(
+          headerInfo.company,
+          debouncedSupplierSearch,
+          supplierPage,
+          supplierLimit
+        );
 
-        const res = await apiFetch(`/api/suppliers?${query}`);
-
-        if (!res.ok || cancelled) return;
-
-        const data = await res.json();
-
-        if (!data?.suppliers) return;
+        if (cancelled) return;
 
         setSuppliers(prev =>
           supplierPage === 1
-            ? data.suppliers.map(s => ({
-                supplier: s.supplierNo,
-                name: s.supplierName,
-                suppcompany: s.supplierCompany,
-              }))
-            : [
-                ...prev,
-                ...data.suppliers.map(s => ({
-                  supplier: s.supplierNo,
-                  name: s.supplierName,
-                  suppcompany: s.supplierCompany,
-                })),
-              ]
+            ? fetchedSuppliers
+            : [...prev, ...fetchedSuppliers]
         );
-
-        setSupplierTotal(data.pagination?.total || 0);
+        setSupplierTotal(total);
       } catch (err) {
         console.warn("Supplier fetch failed", err);
       }
@@ -274,8 +249,7 @@ export default function YearEndAccrualForm() {
     };
   }, [headerInfo.company, debouncedSupplierSearch, supplierPage]);
 
-
-  // Debounced GL Account search per line
+  // GL Account search handler
   const handleGLSearchChange = useCallback((lineId, value) => {
     setLineItems(prev =>
       prev.map(li =>
@@ -286,7 +260,7 @@ export default function YearEndAccrualForm() {
     );
   }, []);
 
-  // FIXED: Fetch GL accounts with proper duplicate prevention
+  // Fetch GL accounts
   useEffect(() => {
     if (!headerInfo.company) return;
 
@@ -300,34 +274,29 @@ export default function YearEndAccrualForm() {
       for (const line of linesToFetch) {
         const searchKey = `${headerInfo.company}-${line.glSearch}-${line.glPage}`;
         
-        // Check if we already fetched this exact search
         if (prevGLSearchesRef.current[line.id] === searchKey) {
-          continue; // Skip duplicate request
+          continue;
         }
 
         prevGLSearchesRef.current[line.id] = searchKey;
 
         try {
-          const query = new URLSearchParams({
-            company: headerInfo.company,
-            search: line.glSearch,
-            page: line.glPage,
-            limit: 50,
-          }).toString();
-
-          const res = await apiFetch(`/api/glaccount?${query}`);
-          const data = await res.json();
+          const { glAccounts: fetchedGLAccounts, total } = await getGLAccounts(
+            headerInfo.company,
+            line.glSearch,
+            line.glPage,
+            50
+          );
 
           setLineItems(prev =>
             prev.map(li =>
               li.id === line.id
                 ? {
                     ...li,
-                    glAccounts: data?.glaccount?.map(g => ({
-                      glaccount: g.glaccountNo,
-                      name: g.glaccountName,
-                    })) || [],
-                    glTotal: data.pagination?.total || 0,
+                    glAccounts: line.glPage === 1 
+                      ? fetchedGLAccounts 
+                      : [...(li.glAccounts || []), ...fetchedGLAccounts],
+                    glTotal: total,
                   }
                 : li
             )
@@ -344,7 +313,7 @@ export default function YearEndAccrualForm() {
     return () => clearTimeout(debounceTimer);
   }, [lineItems.map(li => `${li.id}-${li.glSearch}-${li.glPage}`).join(','), headerInfo.company]);
 
-  // Debounced Profit Center search
+  // Profit Center search handler
   const handleProfitSearchChange = useCallback((lineId, value) => {
     setLineItems(prev =>
       prev.map(li =>
@@ -355,7 +324,7 @@ export default function YearEndAccrualForm() {
     );
   }, []);
 
-  // FIXED: Fetch Profit Centers with proper duplicate prevention
+  // Fetch Profit Centers
   useEffect(() => {
     if (!headerInfo.company) return;
 
@@ -369,34 +338,29 @@ export default function YearEndAccrualForm() {
       for (const line of linesToFetch) {
         const searchKey = `${headerInfo.company}-${line.profitSearch}-${line.profitPage}`;
         
-        // Check if we already fetched this exact search
         if (prevProfitSearchesRef.current[line.id] === searchKey) {
-          continue; // Skip duplicate request
+          continue;
         }
 
         prevProfitSearchesRef.current[line.id] = searchKey;
 
         try {
-          const query = new URLSearchParams({
-            company: headerInfo.company,
-            search: line.profitSearch,
-            page: line.profitPage,
-            limit: 50,
-          }).toString();
-
-          const res = await apiFetch(`/api/profitcenter?${query}`);
-          const data = await res.json();
+          const { profitCenters: fetchedProfitCenters, total } = await getProfitCenters(
+            headerInfo.company,
+            line.profitSearch,
+            line.profitPage,
+            50
+          );
 
           setLineItems(prev =>
             prev.map(li =>
               li.id === line.id
                 ? {
                     ...li,
-                    profitCenters: data?.profitcenter?.map(p => ({
-                      profitcenter: p.profitcenterNo,
-                      name: p.profitcenterName,
-                    })) || [],
-                    profitTotal: data.pagination?.total || 0,
+                    profitCenters: line.profitPage === 1 
+                      ? fetchedProfitCenters 
+                      : [...(li.profitCenters || []), ...fetchedProfitCenters],
+                    profitTotal: total,
                   }
                 : li
             )
@@ -414,85 +378,23 @@ export default function YearEndAccrualForm() {
   }, [lineItems.map(li => `${li.id}-${li.profitSearch}-${li.profitPage}`).join(','), headerInfo.company]);
 
   const loadMoreGLAccounts = (lineId) => {
-    const li = lineItems.find(li => li.id === lineId);
-    if (!li || !headerInfo.company) return;
-
-    const nextPage = li.glPage + 1;
-
-    const fetchNextPage = async () => {
-      try {
-        const query = new URLSearchParams({
-          company: headerInfo.company,
-          search: li.glSearch,
-          page: nextPage,
-          limit: 50,
-        }).toString();
-
-        const res = await apiFetch(`/api/glaccount?${query}`);
-        const data = await res.json();
-
-        setLineItems(prev =>
-          prev.map(li =>
-            li.id === lineId
-              ? {
-                  ...li,
-                  glAccounts: data.glaccount?.map(g => ({
-                    glaccount: g.glaccountNo,
-                    name: g.glaccountName,
-                  })) || [],
-                  glTotal: data.pagination.total,
-                  glPage: nextPage,
-                }
-              : li
-          )
-        );
-      } catch (err) {
-        console.error("Failed to load GL Accounts", err);
-      }
-    };
-
-    fetchNextPage();
+    setLineItems(prev =>
+      prev.map(li =>
+        li.id === lineId
+          ? { ...li, glPage: li.glPage + 1 }
+          : li
+      )
+    );
   };
 
   const loadMoreProfitCenters = (lineId) => {
-    const li = lineItems.find(li => li.id === lineId);
-    if (!li || !headerInfo.company) return;
-
-    const nextPage = li.profitPage + 1;
-
-    const fetchNextPage = async () => {
-      try {
-        const query = new URLSearchParams({
-          company: headerInfo.company,
-          search: li.profitSearch,
-          page: nextPage,
-          limit: 50,
-        }).toString();
-
-        const res = await apiFetch(`/api/profitcenter?${query}`);
-        const data = await res.json();
-
-        setLineItems(prev =>
-          prev.map(li =>
-            li.id === lineId
-              ? {
-                  ...li,
-                  profitCenters: data.profitcenter?.map(p => ({
-                    profitcenter: p.profitcenterNo,
-                    name: p.profitcenterName,
-                  })) || [],
-                  profitTotal: data.pagination.total,
-                  profitPage: nextPage,
-                }
-              : li
-          )
-        );
-      } catch (err) {
-        console.error("Failed to load Profit Centers", err);
-      }
-    };
-
-    fetchNextPage();
+    setLineItems(prev =>
+      prev.map(li =>
+        li.id === lineId
+          ? { ...li, profitPage: li.profitPage + 1 }
+          : li
+      )
+    );
   };
 
   const addLineItem = () => {
@@ -506,7 +408,6 @@ export default function YearEndAccrualForm() {
     if (lineItems.length > 1) {
       setLineItems((prev) => prev.filter((item) => item.id !== id));
       setLineItemErrors((prev) => prev.slice(0, -1));
-      // Clean up tracking refs
       delete prevGLSearchesRef.current[id];
       delete prevProfitSearchesRef.current[id];
     }
@@ -524,9 +425,9 @@ export default function YearEndAccrualForm() {
         item.id === lineId
           ? {
               ...item,
-              glaccount: gl.glaccount,
+              glaccount: gl.code,
               glaccountName: gl.name,
-              glSearch: gl.glaccount,
+              glSearch: gl.code,
               showGLDropdown: false,
             }
           : item
@@ -540,9 +441,9 @@ export default function YearEndAccrualForm() {
         item.id === lineId
           ? {
               ...item,
-              profitcenter: pc.profitcenter,
+              profitcenter: pc.code,
               profitcenterName: pc.name,
-              profitSearch: pc.profitcenter,
+              profitSearch: pc.code,
               showProfitDropdown: false,
             }
           : item
@@ -582,209 +483,139 @@ export default function YearEndAccrualForm() {
     setEmailSuggestions([]);
   };
 
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
 
-  const getControlNumberWithRetry = async (
-    maxRetries = 5,
-    initialDelay = 1000
-  ) => {
-    let attempt = 0;
-    let delay = initialDelay;
+    try {
+      const headerErrs = {};
 
-    while (attempt < maxRetries) {
-      try {
-        const res = await apiFetch("/api/currentcontrol");
-
-        if (res.ok) {
-          const data = await res.json();
-          const controlNumber = data?.currentControlNumber?.trim();
-
-          if (controlNumber) {
-            return controlNumber; 
-          }
-        }
-      } catch (err) {
-        console.warn(`Control fetch attempt ${attempt + 1} failed`, err);
-      }
-
-      attempt++;
-      await sleep(delay);  
-      delay *= 2;    
-    }
-
-    throw new Error("Control number unavailable after retries");
-  };
-
-  const handleIncrementWithRetry = async (
-    maxRetries = 3,
-    initialDelay = 1000
-  ) => {
-    let attempt = 0;
-    let delay = initialDelay;
-
-    while (attempt < maxRetries) {
-      try {
-        const res = await apiFetch("/api/incrementcontrol", { method: "POST" });
-
-        if (res.ok) {
-          const data = await res.json();
-          console.log("New Control Number:", data.newControlNumber);
-          return true; 
-        }
-      } catch (err) {
-        console.warn(`Increment attempt ${attempt + 1} failed`, err);
-      }
-
-      attempt++;
-      await sleep(delay);
-      delay *= 2;
-    }
-
-    return false;
-  };
-
-
-const handleSubmit = async () => {
-  if (isSubmitting) return;
-  setIsSubmitting(true);
-
-  try {
-    const headerErrs = {};
-
-    // ===== HEADER VALIDATION =====
-    if (!headerInfo.email || !isValidEmail(headerInfo.email)) headerErrs.email = true;
-    if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
-    if (!headerInfo.company) headerErrs.company = true;
-    if (!headerInfo.supplier) headerErrs.supplier = true;
-
-    if (
-      headerInfo.expenseclass !==
-        "Non-deductible expense (no valid receipt/invoice)" &&
-      !headerInfo.invoiceNo
-    ) {
-      headerErrs.invoiceNo = true;
-    }
-
-    setHeaderErrors(headerErrs);
-
-    // ===== LINE ITEM VALIDATION =====
-    const newLineItemErrors = lineItems.map(item => {
-      const errors = {};
-      if (!item.grossAmount) errors.grossAmount = true;
-      if (!item.transType) errors.transType = true;
-      if (!item.glaccount) errors.glaccount = true;
-      if (!item.remarks) errors.remarks = true;
-      if (!item.profitcenter) errors.profitcenter = true;
+      // Header validation
+      if (!headerInfo.email || !isValidEmail(headerInfo.email)) headerErrs.email = true;
+      if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
+      if (!headerInfo.company) headerErrs.company = true;
+      if (!headerInfo.supplier) headerErrs.supplier = true;
 
       if (
-        headerInfo.expenseclass !==
-        "Non-deductible expense (no valid receipt/invoice)"
+        headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)" &&
+        !headerInfo.invoiceNo
       ) {
-        if (!item.vat) errors.vat = true;
-        if (!item.taxCode) errors.taxCode = true;
+        headerErrs.invoiceNo = true;
       }
-      return errors;
-    });
 
-    setLineItemErrors(newLineItemErrors);
+      setHeaderErrors(headerErrs);
 
-    // ===== CHECK FOR VALIDATION ERRORS =====
-    if (
-      Object.keys(headerErrs).length > 0 ||
-      newLineItemErrors.some(err => Object.keys(err).length > 0)
-    ) {
-      alert("⚠️ Please fill in all required fields.");
-      return; // STOP here, do not submit
+      // Line item validation
+      const newLineItemErrors = lineItems.map(item => {
+        const errors = {};
+        if (!item.grossAmount) errors.grossAmount = true;
+        if (!item.transType) errors.transType = true;
+        if (!item.glaccount) errors.glaccount = true;
+        if (!item.remarks) errors.remarks = true;
+        if (!item.profitcenter) errors.profitcenter = true;
+
+        if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)") {
+          if (!item.vat) errors.vat = true;
+          if (!item.taxCode) errors.taxCode = true;
+        }
+        return errors;
+      });
+
+      setLineItemErrors(newLineItemErrors);
+
+      // Check for errors
+      if (
+        Object.keys(headerErrs).length > 0 ||
+        newLineItemErrors.some(err => Object.keys(err).length > 0)
+      ) {
+        alert("⚠️ Please fill in all required fields.");
+        return;
+      }
+
+      // Get control number
+      let controlNumber;
+      try {
+        controlNumber = await getNextControlNumber();
+      } catch (err) {
+        console.error("Failed to get control number:", err);
+        alert("❌ Unable to get control number. Submission cancelled.");
+        return;
+      }
+
+      // Build rows
+      const timestamp = new Date().toLocaleString();
+      const rows = lineItems.map(item => [
+        controlNumber,
+        timestamp,
+        headerInfo.email,
+        headerInfo.expenseclass,
+        headerInfo.company,
+        headerInfo.supplier,
+        headerInfo.supplierName,
+        headerInfo.invoiceNo,
+        item.grossAmount,
+        item.glaccount,
+        item.glaccountName,
+        item.profitcenter,
+        item.profitcenterName,
+        item.transType,
+        item.vat,
+        item.taxCode,
+        item.remarks,
+        0
+      ]);
+
+      // Submit form
+      const response = await apiFetch("/api/submitform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+
+      if (!response.ok) {
+        alert("❌ Submission failed. Control number not incremented.");
+        return; 
+      }
+
+      // Success
+      setModalMessage(controlNumber);
+      setShowModal(true);
+
+      // Reset form
+      setHeaderInfo({
+        email: "",
+        expenseclass: "",
+        company: "",
+        supplier: "",
+        supplierName: "",
+        invoiceNo: "",
+      });
+
+      setHeaderErrors({});
+      setSupplierSearch("");
+      setLineItems([createEmptyLineItem(1)]);
+      setLineItemErrors([{}]);
+      setLineItemCounter(1);
+
+      prevSupplierSearchRef.current = "";
+      prevGLSearchesRef.current = {};
+      prevProfitSearchesRef.current = {};
+
+    } catch (error) {
+      console.error("Submission error:", error);
+      alert("❌ Unable to submit. Please try again later.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // ===== GET CONTROL NUMBER =====
-    let controlNumber;
-    try {
-      controlNumber = await getNextControlNumber(); // this calls your RPC function
-    } catch (err) {
-      console.error("Failed to get control number:", err);
-      alert("❌ Unable to get control number. Submission cancelled.");
-      return;
-    }
-
-    // ===== BUILD ROWS =====
-    const timestamp = new Date().toLocaleString();
-    const rows = lineItems.map(item => [
-      controlNumber,
-      timestamp,
-      headerInfo.email,
-      headerInfo.expenseclass,
-      headerInfo.company,
-      headerInfo.supplier,
-      headerInfo.supplierName,
-      headerInfo.invoiceNo,
-      item.grossAmount,
-      item.glaccount,
-      item.glaccountName,
-      item.profitcenter,
-      item.profitcenterName,
-      item.transType,
-      item.vat,
-      item.taxCode,
-      item.remarks,
-      0
-    ]);
-
-    // ===== SUBMIT FORM =====
-    const response = await apiFetch("/api/submitform", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rows }),
-    });
-
-    if (!response.ok) {
-      alert("❌ Submission failed. Control number not incremented.");
-      return; 
-    }
-
-
-
-    // ===== SUCCESS =====
-    setModalMessage(controlNumber);
-    setShowModal(true);
-
-    // ===== RESET FORM =====
-    setHeaderInfo({
-      email: "",
-      expenseclass: "",
-      company: "",
-      supplier: "",
-      supplierName: "",
-      invoiceNo: "",
-    });
-
-    setHeaderErrors({});
-    setSupplierSearch("");
-    setLineItems([createEmptyLineItem(1)]);
-    setLineItemErrors([{}]);
-    setLineItemCounter(1);
-
-    // Clear tracking refs
-    prevSupplierSearchRef.current = "";
-    prevGLSearchesRef.current = {};
-    prevProfitSearchesRef.current = {};
-
-  } catch (error) {
-    console.error("Submission error:", error);
-    alert("❌ Unable to submit. Please try again later.");
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   const isDisabled = !headerInfo.email || !headerInfo.expenseclass || staticDataLoading;
 
-  // Manual retry function
   const retryStaticData = () => {
     staticDataRetryRef.current = 0;
     setStaticDataError(false);
     setStaticDataLoading(true);
     
-    // Trigger re-fetch by clearing cache
     cacheRef.current = {
       companies: null,
       expenseClass: null,
@@ -792,7 +623,6 @@ const handleSubmit = async () => {
       taxCodes: null,
     };
     
-    // Force re-run of useEffect
     window.location.reload();
   };
 
@@ -801,38 +631,11 @@ const handleSubmit = async () => {
       <div className="formWrapper">
         {/* Loading Overlay */}
         {staticDataLoading && (
-          <div style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 9999,
-          }}>
-            <div style={{
-              backgroundColor: "white",
-              padding: "32px",
-              borderRadius: "8px",
-              textAlign: "center",
-              maxWidth: "400px",
-            }}>
-              <div style={{
-                width: "48px",
-                height: "48px",
-                border: "4px solid #f3f3f3",
-                borderTop: "4px solid #007bff",
-                borderRadius: "50%",
-                animation: "spin 1s linear infinite",
-                margin: "0 auto 16px",
-              }}></div>
-              <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", color: "#202124" }}>
-                Loading Form Data...
-              </h3>
-              <p style={{ margin: 0, fontSize: "14px", color: "#5f6368" }}>
+          <div className="loadingOverlay">
+            <div className="loadingContent">
+              <div className="spinner"></div>
+              <h3 className="loadingTitle">Loading Form Data...</h3>
+              <p className="loadingText">
                 Setting up Accrual Template
                 {staticDataRetryRef.current > 0 && (
                   <><br/>Retry attempt {staticDataRetryRef.current}/{maxStaticDataRetries}</>
@@ -844,36 +647,14 @@ const handleSubmit = async () => {
 
         {/* Error Banner */}
         {staticDataError && (
-          <div style={{
-            backgroundColor: "#fff3cd",
-            border: "1px solid #ffc107",
-            borderRadius: "4px",
-            padding: "16px",
-            marginBottom: "24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}>
-            <div style={{ flex: 1 }}>
-              <strong style={{ color: "#856404" }}>⚠️ Unable to load form data</strong>
-              <p style={{ margin: "4px 0 0 0", fontSize: "14px", color: "#856404" }}>
+          <div className="errorBanner">
+            <div className="errorBannerContent">
+              <strong className="errorBannerTitle">⚠️ Unable to load form data</strong>
+              <p className="errorBannerText">
                 The form could not load required dropdown data. Please check your connection and try again.
               </p>
             </div>
-            <button
-              onClick={retryStaticData}
-              style={{
-                backgroundColor: "#007bff",
-                color: "white",
-                border: "none",
-                borderRadius: "4px",
-                padding: "8px 16px",
-                cursor: "pointer",
-                fontSize: "14px",
-                fontWeight: "500",
-                marginLeft: "16px",
-              }}
-            >
+            <button onClick={retryStaticData} className="retryButton">
               Retry
             </button>
           </div>
@@ -893,7 +674,9 @@ const handleSubmit = async () => {
         {/* Email & Company */}
         <div className="formSection">
           <div className="formGroup">
-            <label className="label"> Email <span className="required">*</span> </label>
+            <label className="label">
+              Email <span className="required">*</span>
+            </label>
             <input
               type="email"
               className={`input ${headerErrors.email ? "inputError" : ""}`}
@@ -904,27 +687,16 @@ const handleSubmit = async () => {
                 if (emailSuggestions.length > 0) setEmailSuggestions(emailSuggestions);
               }}
             />
-            {headerErrors.email && <div className="errorText">Please enter a valid email</div>}
+            {headerErrors.email && (
+              <div className="errorText">Please enter a valid email</div>
+            )}
             {emailSuggestions.length > 0 && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "100%",
-                  left: 0,
-                  right: 0,
-                  backgroundColor: "white",
-                  border: "1px solid #ddd",
-                  borderRadius: 4,
-                  zIndex: 1000,
-                }}
-              >
+              <div className="dropdownContainer">
                 {emailSuggestions.map((sugg) => (
                   <div
                     key={sugg}
-                    style={{ padding: "8px 12px", cursor: "pointer" }}
+                    className="dropdownItem"
                     onClick={() => selectEmailSuggestion(sugg)}
-                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
-                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
                   >
                     {sugg}
                   </div>
@@ -934,7 +706,9 @@ const handleSubmit = async () => {
           </div>
 
           <div className="formGroup">
-            <label className="label"> Expense Classifications <span className="required">*</span> </label>
+            <label className="label">
+              Expense Classifications <span className="required">*</span>
+            </label>
             <select
               className={`select ${headerErrors.expenseclass ? "inputError" : ""}`}
               value={headerInfo.expenseclass}
@@ -948,11 +722,15 @@ const handleSubmit = async () => {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
-            {headerErrors.expenseclass && <div className="errorText">Expense Classification is Required</div>}
+            {headerErrors.expenseclass && (
+              <div className="errorText">Expense Classification is Required</div>
+            )}
           </div>
 
           <div className="formGroup">
-            <label className="label"> Company Charging <span className="required">*</span> </label>
+            <label className="label">
+              Company Charging <span className="required">*</span>
+            </label>
             <select
               className={`select ${headerErrors.company ? "inputError" : ""}`}
               disabled={isDisabled}
@@ -977,7 +755,9 @@ const handleSubmit = async () => {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
-            {headerErrors.company && <div className="errorText">Company Charging is Required</div>}
+            {headerErrors.company && (
+              <div className="errorText">Company Charging is Required</div>
+            )}
           </div>
         </div>
 
@@ -990,7 +770,7 @@ const handleSubmit = async () => {
             <input
               type="text"
               className={`input ${headerErrors.supplier ? "inputError" : ""}`}
-              placeholder="Type to search supplier."
+              placeholder="Type to search supplier..."
               value={supplierSearch}
               onChange={(e) => {
                 setSupplierSearch(e.target.value);
@@ -1001,60 +781,24 @@ const handleSubmit = async () => {
               onFocus={() => setShowSupplierDropdown(supplierSearch.length >= 2)}
               disabled={isDisabled}
             />
-            {headerErrors.supplier && <div className="errorText">Supplier is Required.</div>}
+            {headerErrors.supplier && (
+              <div className="errorText">Supplier is Required.</div>
+            )}
             {showSupplierDropdown && supplierSearch.length >= 2 && (
-              <div
-                style={{
-                  position: "absolute",
-                  top: "100%",
-                  left: 0,
-                  right: 0,
-                  maxHeight: 200,
-                  overflowY: "auto",
-                  backgroundColor: "white",
-                  border: "1px solid #ddd",
-                  borderRadius: 4,
-                  marginTop: 4,
-                  zIndex: 1000,
-                  boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-                }}
-              >
-                {suppliers
-                  .filter(
-                    (s) =>
-                      s.suppcompany === headerInfo.company &&
-                      (s.supplier.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-                        s.name.toLowerCase().includes(supplierSearch.toLowerCase()))
-                  )
-                  .map((s) => (
-                    <div
-                      key={s.supplier}
-                      onClick={() => selectSupplier(s)}
-                      style={{
-                        padding: "8px 12px",
-                        cursor: "pointer",
-                        borderBottom: "1px solid #f0f0f0",
-                      }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.backgroundColor = "#f5f5f5")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.backgroundColor = "white")
-                      }
-                    >
-                      {s.supplier} - {s.name}
-                    </div>
-                  ))}
+              <div className="dropdownContainer">
+                {suppliers.map((s) => (
+                  <div
+                    key={s.supplier}
+                    className="dropdownItem"
+                    onClick={() => selectSupplier(s)}
+                  >
+                    {s.supplier} - {s.name}
+                  </div>
+                ))}
 
                 {suppliers.length < supplierTotal && (
                   <div
-                    style={{
-                      padding: "8px",
-                      textAlign: "center",
-                      cursor: "pointer",
-                      fontWeight: "500",
-                      color: "#007bff",
-                    }}
+                    className="dropdownLoadMore"
                     onClick={() => setSupplierPage((prev) => prev + 1)}
                   >
                     Load more...
@@ -1062,14 +806,7 @@ const handleSubmit = async () => {
                 )}
 
                 {suppliers.length === 0 && (
-                  <div
-                    style={{
-                      padding: "12px",
-                      color: "#666",
-                      fontSize: 14,
-                      fontStyle: "italic",
-                    }}
-                  >
+                  <div className="dropdownEmpty">
                     No supplier found matching "{supplierSearch}"
                   </div>
                 )}
@@ -1079,14 +816,21 @@ const handleSubmit = async () => {
 
           <div className="formGroup">
             <label className="label">Supplier Name</label>
-            <input type="text" className="inputDisabled" value={headerInfo.supplierName} disabled />
+            <input
+              type="text"
+              className="inputDisabled"
+              value={headerInfo.supplierName}
+              disabled
+            />
           </div>
         </div>
 
         {/* Invoice No */}
         <div className="formSection">
           <div className="formGroup">
-            <label className="label"> Invoice No. <span className="required">*</span> </label>
+            <label className="label">
+              Invoice No. <span className="required">*</span>
+            </label>
             <input
               type="text"
               className={`input ${headerErrors.invoiceNo ? "inputError" : ""}`}
@@ -1098,43 +842,39 @@ const handleSubmit = async () => {
                 setHeaderErrors((prev) => ({ ...prev, invoiceNo: false }));
               }}
             />
-            {headerErrors.invoiceNo && <div className="errorText">Required</div>}
+            {headerErrors.invoiceNo && (
+              <div className="errorText">Required</div>
+            )}
           </div>
         </div>
 
         {/* Line Items */}
         <div className="formSection">
           <div className="lineItemsHeader">
-            <button type="button" className="addBtn" onClick={addLineItem} disabled={isDisabled}>
+            <button
+              type="button"
+              className="addBtn"
+              onClick={addLineItem}
+              disabled={isDisabled}
+            >
               + Add Line Item
             </button>
           </div>
 
           {lineItems.map((item, index) => {
-            const filteredGL =
-              item.glSearch && item.glSearch.length >= 2
-                ? item.glAccounts.filter(
-                    (g) =>
-                      g.glaccount.toLowerCase().includes(item.glSearch.toLowerCase()) ||
-                      g.name.toLowerCase().includes(item.glSearch.toLowerCase())
-                  ).slice(0, 50)
-                : [];
-            
-            const filteredProfit =
-              item.profitSearch && item.profitSearch.length >= 2
-                ? item.profitCenters.filter(
-                    (g) =>
-                      g.profitcenter.toLowerCase().includes(item.profitSearch.toLowerCase()) ||
-                      g.name.toLowerCase().includes(item.profitSearch.toLowerCase())
-                  ).slice(0, 50)
-                : [];
+            const filteredGL = item.glAccounts || [];
+            const filteredProfit = item.profitCenters || [];
 
             return (
               <div key={item.id} className="lineItemCard">
                 <div className="lineItemHeader">
                   <div className="lineItemTitle">Line Item #{index + 1}</div>
                   {lineItems.length > 1 && (
-                    <button type="button" className="removeBtn" onClick={() => removeLineItem(item.id)}>
+                    <button
+                      type="button"
+                      className="removeBtn"
+                      onClick={() => removeLineItem(item.id)}
+                    >
                       ✕ Remove
                     </button>
                   )}
@@ -1143,7 +883,9 @@ const handleSubmit = async () => {
                 <div className="lineItemGrid">
                   {/* Gross Amount */}
                   <div className="formGroup1">
-                    <label className="label"> Gross Amount <span className="required">*</span> </label>
+                    <label className="label">
+                      Gross Amount <span className="required">*</span>
+                    </label>
                     <input
                       type="number"
                       step="0.01"
@@ -1153,356 +895,356 @@ const handleSubmit = async () => {
                       disabled={isDisabled}
                       onChange={(e) => updateLineItem(item.id, "grossAmount", e.target.value)}
                     />
-                    {lineItemErrors[index]?.grossAmount && <div className="errorText">Gross Amount is required</div>}
+                    {lineItemErrors[index]?.grossAmount && (
+                      <div className="errorText">Gross Amount is required</div>
+                    )}
                   </div>
 
                   {/* GL Account */}
-                  <div className="formGroup1" style={{ position: "relative" }}>
-                    <label className="label">
-                      GL Account <span className="required">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      className={`inputItem ${lineItemErrors[index]?.glaccount ? "inputError" : ""}`}
-                      disabled={isDisabled}
-                      placeholder="Type to search GL Account."
-                      value={item.glSearch}
-                      onChange={(e) => handleGLSearchChange(item.id, e.target.value)}
-                      onFocus={() =>
-                        setLineItems(prev =>
-                          prev.map(li =>
-                            li.id === item.id
-                              ? { ...li, showGLDropdown: (item.glSearch || "").length >= 2 }
-                              : li
-                          )
-                        )
-                      }
-                    />
-                    {lineItemErrors[index]?.glaccount && <div className="errorText">GL Account is required</div>}
-                    {item.showGLDropdown && (
+              <div className="formGroup1" style={{ position: "relative" }}>
+                <label className="label">
+                  GL Account <span className="required">*</span>
+                </label>
+                <input
+                  type="text"
+                  className={`inputItem ${lineItemErrors[index]?.glaccount ? "inputError" : ""}`}
+                  disabled={isDisabled}
+                  placeholder="Type to search GL Account."
+                  value={item.glSearch}
+                  onChange={(e) => handleGLSearchChange(item.id, e.target.value)}
+                  onFocus={() =>
+                    setLineItems(prev =>
+                      prev.map(li =>
+                        li.id === item.id
+                          ? { ...li, showGLDropdown: (item.glSearch || "").length >= 2 }
+                          : li
+                      )
+                    )
+                  }
+                />
+                {lineItemErrors[index]?.glaccount && <div className="errorText">GL Account is required</div>}
+                {item.showGLDropdown && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      maxHeight: 200,
+                      overflowY: "auto",
+                      backgroundColor: "white",
+                      border: "1px solid #ddd",
+                      borderRadius: 4,
+                      marginTop: 4,
+                      zIndex: 1000,
+                      boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+                    }}
+                  >
+                    {filteredGL.length > 0 ? (
+                      filteredGL.map((g) => (
+                        <div
+                          key={g.code}
+                          onClick={() => selectGLAccount(item.id, g)}
+                          style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
+                        >
+                          {g.code} - {g.name}
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ padding: 12, color: "#666", fontSize: 14, fontStyle: "italic" }}>
+                        No GL accounts found matching "{item.glSearch}"
+                      </div>
+                    )}
+
+                    {filteredGL.length < item.glTotal && (
                       <div
                         style={{
-                          position: "absolute",
-                          top: "100%",
-                          left: 0,
-                          right: 0,
-                          maxHeight: 200,
-                          overflowY: "auto",
-                          backgroundColor: "white",
-                          border: "1px solid #ddd",
-                          borderRadius: 4,
-                          marginTop: 4,
-                          zIndex: 1000,
-                          boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+                          padding: "8px",
+                          textAlign: "center",
+                          cursor: "pointer",
+                          fontWeight: "500",
+                          color: "#007bff",
                         }}
+                        onClick={() => loadMoreGLAccounts(item.id)}
                       >
-                        {filteredGL.length > 0 ? (
-                          filteredGL.map((g) => (
-                            <div
-                              key={g.glaccount}
-                              onClick={() => selectGLAccount(item.id, g)}
-                              style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
-                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
-                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
-                            >
-                              {g.glaccount} - {g.name}
-                            </div>
-                          ))
-                        ) : (
-                          <div style={{ padding: 12, color: "#666", fontSize: 14, fontStyle: "italic" }}>
-                            No GL accounts found matching "{item.glSearch}"
-                          </div>
-                        )}
-
-                        {item.glAccounts.length < item.glTotal && (
-                          <div
-                            style={{
-                              padding: "8px",
-                              textAlign: "center",
-                              cursor: "pointer",
-                              fontWeight: "500",
-                              color: "#007bff",
-                            }}
-                            onClick={() => loadMoreGLAccounts(item.id)}
-                          >
-                            Load more...
-                          </div>
-                        )}
+                        Load more...
                       </div>
                     )}
                   </div>
+                )}
+              </div>
 
-                  <div className="formGroup1">
-                    <label className="label">GL Account Name</label>
-                    <input type="text" className="inputItemDisabled" value={item.glaccountName} disabled />
-                  </div>
+              <div className="formGroup1">
+                <label className="label">GL Account Name</label>
+                <input type="text" className="inputItemDisabled" value={item.glaccountName} disabled />
+              </div>
 
-                  {/* PROFIT CENTER */}
-                  <div className="formGroup1" style={{ position: "relative" }}>
-                    <label className="label">
-                      Profit Center Code <span className="required">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      disabled={isDisabled}
-                      className={`inputItem ${lineItemErrors[index]?.profitcenter ? "inputError" : ""}`}
-                      placeholder="Type to search Profit Center Code."
-                      value={item.profitSearch}
-                      onChange={(e) => handleProfitSearchChange(item.id, e.target.value)}
-                      onFocus={() =>
-                        setLineItems(prev =>
-                          prev.map(li =>
-                            li.id === item.id
-                              ? { ...li, showProfitDropdown: (item.profitSearch || "").length >= 2 }
-                              : li
-                          )
-                        )
-                      }
-                    />
-                    {lineItemErrors[index]?.profitcenter && <div className="errorText">Profit Center is required</div>}
-                    {item.showProfitDropdown && (
+              {/* PROFIT CENTER */}
+              <div className="formGroup1" style={{ position: "relative" }}>
+                <label className="label">
+                  Profit Center Code <span className="required">*</span>
+                </label>
+                <input
+                  type="text"
+                  disabled={isDisabled}
+                  className={`inputItem ${lineItemErrors[index]?.profitcenter ? "inputError" : ""}`}
+                  placeholder="Type to search Profit Center Code."
+                  value={item.profitSearch}
+                  onChange={(e) => handleProfitSearchChange(item.id, e.target.value)}
+                  onFocus={() =>
+                    setLineItems(prev =>
+                      prev.map(li =>
+                        li.id === item.id
+                          ? { ...li, showProfitDropdown: (item.profitSearch || "").length >= 2 }
+                          : li
+                      )
+                    )
+                  }
+                />
+                {lineItemErrors[index]?.profitcenter && <div className="errorText">Profit Center is required</div>}
+                {item.showProfitDropdown && (
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: "100%",
+                      left: 0,
+                      right: 0,
+                      maxHeight: 200,
+                      overflowY: "auto",
+                      backgroundColor: "white",
+                      border: "1px solid #ddd",
+                      borderRadius: 4,
+                      marginTop: 4,
+                      zIndex: 1000,
+                      boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+                    }}
+                  >
+                    {filteredProfit.length > 0 ? (
+                      filteredProfit.map((p) => (
+                        <div
+                          key={p.code}
+                          onClick={() => selectProfitCenter(item.id, p)}
+                          style={{
+                            padding: "8px 12px",
+                            cursor: "pointer",
+                            borderBottom: "1px solid #f0f0f0",
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
+                        >
+                          {p.code} - {p.name}
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ padding: 12, color: "#666", fontSize: 14, fontStyle: "italic" }}>
+                        No Profit Center found matching "{item.profitSearch}"
+                      </div>
+                    )}
+
+                    {filteredProfit.length < item.profitTotal && (
                       <div
                         style={{
-                          position: "absolute",
-                          top: "100%",
-                          left: 0,
-                          right: 0,
-                          maxHeight: 200,
-                          overflowY: "auto",
-                          backgroundColor: "white",
-                          border: "1px solid #ddd",
-                          borderRadius: 4,
-                          marginTop: 4,
-                          zIndex: 1000,
-                          boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
+                          padding: "8px",
+                          textAlign: "center",
+                          cursor: "pointer",
+                          fontWeight: "500",
+                          color: "#007bff",
                         }}
+                        onClick={() => loadMoreProfitCenters(item.id)}
                       >
-                        {filteredProfit.length > 0 ? (
-                          filteredProfit.map((p) => (
-                            <div
-                              key={p.profitcenter}
-                              onClick={() => selectProfitCenter(item.id, p)}
-                              style={{
-                                padding: "8px 12px",
-                                cursor: "pointer",
-                                borderBottom: "1px solid #f0f0f0",
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
-                              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
-                            >
-                              {p.profitcenter} - {p.name}
-                            </div>
-                          ))
-                        ) : (
-                          <div style={{ padding: 12, color: "#666", fontSize: 14, fontStyle: "italic" }}>
-                            No Profit Center found matching "{item.profitSearch}"
-                          </div>
-                        )}
-
-                        {item.profitCenters.length < item.profitTotal && (
-                          <div
-                            style={{
-                              padding: "8px",
-                              textAlign: "center",
-                              cursor: "pointer",
-                              fontWeight: "500",
-                              color: "#007bff",
-                            }}
-                            onClick={() => loadMoreProfitCenters(item.id)}
-                          >
-                            Load more...
-                          </div>
-                        )}
+                        Load more...
                       </div>
                     )}
                   </div>
+                )}
+              </div>
 
-                  <div className="formGroup1">
-                    <label className="label">Profit Center Name</label>
-                    <input type="text" className="inputItemDisabled" value={item.profitcenterName} disabled />
-                  </div>
+              <div className="formGroup1">
+                <label className="label">Profit Center Name</label>
+                <input type="text" className="inputItemDisabled" value={item.profitcenterName} disabled />
+              </div>
 
-                  {/* Transaction Type */}
+              {/* Transaction Type */}
+              <div className="formGroup1">
+                <label className="label"> Transaction Type <span className="required">*</span> </label>
+                <select
+                  className={`select ${lineItemErrors[index]?.transType ? "inputError" : ""}`}
+                  value={item.transType}
+                  disabled={isDisabled}
+                  onChange={(e) => {
+                    updateLineItem(item.id, "transType", e.target.value);
+                    setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, transType: false } : err));
+                  }}
+                >
+                  <option value="">Choose</option>
+                  {transactionTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                {lineItemErrors[index]?.transType && <div className="errorText">Transaction Type is required</div>}
+              </div>
+
+              {headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)" && (
+                <>
+                  {/* VAT */}
                   <div className="formGroup1">
-                    <label className="label"> Transaction Type <span className="required">*</span> </label>
+                    <label className="label"> VAT <span className="required">*</span> </label>
                     <select
-                      className={`select ${lineItemErrors[index]?.transType ? "inputError" : ""}`}
-                      value={item.transType}
+                      className={`select ${lineItemErrors[index]?.vat ? "inputError" : ""}`}
+                      value={item.vat}
                       disabled={isDisabled}
                       onChange={(e) => {
-                        updateLineItem(item.id, "transType", e.target.value);
-                        setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, transType: false } : err));
+                        updateLineItem(item.id, "vat", e.target.value);
+                        setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, vat: false } : err));
                       }}
                     >
                       <option value="">Choose</option>
-                      {transactionTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                      <option value="Vatable">Vatable</option>
+                      <option value="Non-Vatable">Non-Vatable</option>
                     </select>
-                    {lineItemErrors[index]?.transType && <div className="errorText">Transaction Type is required</div>}
+                    {lineItemErrors[index]?.vat && <div className="errorText">VAT is required</div>}
                   </div>
 
-                  {headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)" && (
-                    <>
-                      {/* VAT */}
-                      <div className="formGroup1">
-                        <label className="label"> VAT <span className="required">*</span> </label>
-                        <select
-                          className={`select ${lineItemErrors[index]?.vat ? "inputError" : ""}`}
-                          value={item.vat}
-                          disabled={isDisabled}
-                          onChange={(e) => {
-                            updateLineItem(item.id, "vat", e.target.value);
-                            setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, vat: false } : err));
-                          }}
-                        >
-                          <option value="">Choose</option>
-                          <option value="Vatable">Vatable</option>
-                          <option value="Non-Vatable">Non-Vatable</option>
-                        </select>
-                        {lineItemErrors[index]?.vat && <div className="errorText">VAT is required</div>}
-                      </div>
-
-                      {/* Tax Code */}
-                      <div className="formGroup1">
-                        <label className="label"> Tax Code <span className="required">*</span> </label>
-                        <select
-                          className={`select ${lineItemErrors[index]?.taxCode ? "inputError" : ""}`}
-                          value={item.taxCode}
-                          disabled={isDisabled}
-                          onChange={(e) => {
-                            updateLineItem(item.id, "taxCode", e.target.value);
-                            setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, taxCode: false } : err));
-                          }}
-                        >
-                          <option value="">Choose</option>
-                          {taxCodes.map((tc) => <option key={tc} value={tc}>{tc}</option>)}
-                        </select>
-                        {lineItemErrors[index]?.taxCode && <div className="errorText">Tax Code is required</div>}
-                      </div>
-                    </>
-                  )}
-
+                  {/* Tax Code */}
                   <div className="formGroup1">
-                    <label className="label">Remarks <span className="required">*</span> </label>
-                    <textarea
-                      className={`input ${lineItemErrors[index]?.remarks ? "inputError" : ""}`}
-                      rows={2}
+                    <label className="label"> Tax Code <span className="required">*</span> </label>
+                    <select
+                      className={`select ${lineItemErrors[index]?.taxCode ? "inputError" : ""}`}
+                      value={item.taxCode}
                       disabled={isDisabled}
-                      value={item.remarks}
-                      onChange={(e) => updateLineItem(item.id, "remarks", e.target.value)}
-                    ></textarea>
-                    {lineItemErrors[index]?.remarks && <div className="errorText">Remarks are required</div>}
+                      onChange={(e) => {
+                        updateLineItem(item.id, "taxCode", e.target.value);
+                        setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, taxCode: false } : err));
+                      }}
+                    >
+                      <option value="">Choose</option>
+                      {taxCodes.map((tc) => <option key={tc} value={tc}>{tc}</option>)}
+                    </select>
+                    {lineItemErrors[index]?.taxCode && <div className="errorText">Tax Code is required</div>}
                   </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                </>
+              )}
 
-        <div className="formFooter">
-          <button
-            type="button"
-            className="submitBtn"
-            onClick={handleSubmit}
-            disabled={isSubmitting}
-            style={{
-              opacity: isSubmitting ? 0.6 : 1,
-              cursor: isSubmitting ? "not-allowed" : "pointer",
-            }}
-          >
-            {isSubmitting ? "Submitting..." : "Submit"}
-          </button>
-        </div>
-
-        {/* Modal */}
-        {showModal && (
-          <div className="modalOverlay">
-            <div className="modalContent">
-              <div
-                style={{
-                  width: "64px",
-                  height: "64px",
-                  borderRadius: "50%",
-                  background: "linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  margin: "0 auto 24px",
-                  boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)",
-                }}
-              >
-                <svg
-                  width="32"
-                  height="32"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="white"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <polyline points="20 6 9 17 4 12"></polyline>
-                </svg>
+              <div className="formGroup1">
+                <label className="label">Remarks <span className="required">*</span> </label>
+                <textarea
+                  className={`input ${lineItemErrors[index]?.remarks ? "inputError" : ""}`}
+                  rows={2}
+                  disabled={isDisabled}
+                  value={item.remarks}
+                  onChange={(e) => updateLineItem(item.id, "remarks", e.target.value)}
+                ></textarea>
+                {lineItemErrors[index]?.remarks && <div className="errorText">Remarks are required</div>}
               </div>
-              <h2
-                style={{
-                  margin: "0 0 12px 0",
-                  fontSize: "24px",
-                  fontWeight: "500",
-                  color: "#202124",
-                  fontFamily: "'Google Sans', sans-serif",
-                }}
-              >
-                Thank you for submitting!
-              </h2>
-              <p
-                style={{
-                  margin: "0 0 8px 0",
-                  fontSize: "14px",
-                  color: "#5f6368",
-                  lineHeight: "1.6",
-                }}
-              >
-                This is your Accrual Template control number:
-              </p>
-              <div
-                style={{
-                  fontSize: "36px",
-                  fontWeight: "bold",
-                  color: "#202124",
-                  margin: "16px 0 24px 0",
-                  fontFamily: "'Google Sans', sans-serif",
-                  letterSpacing: "2px",
-                }}
-              >
-                {modalMessage}
-              </div>
-              <p
-                style={{
-                  margin: "0 0 32px 0",
-                  fontSize: "13px",
-                  color: "#5f6368",
-                  lineHeight: "1.6",
-                }}
-              >
-                Kindly note it in the upper-right corner of your printed RFP/GRPO for easier tracking. Thank you!
-              </p>
-              <button
-                onClick={() => setShowModal(false)}
-                className="submitBtn"
-                style={{
-                  width: "100%",
-                  padding: "12px 24px",
-                  fontSize: "15px",
-                }}
-              >
-                Close
-              </button>
-
-       
             </div>
           </div>
-        )}
-      </div>
+        );
+      })}
     </div>
-  );
+
+    <div className="formFooter">
+      <button
+        type="button"
+        className="submitBtn"
+        onClick={handleSubmit}
+        disabled={isSubmitting}
+        style={{
+          opacity: isSubmitting ? 0.6 : 1,
+          cursor: isSubmitting ? "not-allowed" : "pointer",
+        }}
+      >
+        {isSubmitting ? "Submitting..." : "Submit"}
+      </button>
+    </div>
+
+    {/* Modal */}
+    {showModal && (
+      <div className="modalOverlay">
+        <div className="modalContent">
+          <div
+            style={{
+              width: "64px",
+              height: "64px",
+              borderRadius: "50%",
+              background: "linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 24px",
+              boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)",
+            }}
+          >
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="white"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+          <h2
+            style={{
+              margin: "0 0 12px 0",
+              fontSize: "24px",
+              fontWeight: "500",
+              color: "#202124",
+              fontFamily: "'Google Sans', sans-serif",
+            }}
+          >
+            Thank you for submitting!
+          </h2>
+          <p
+            style={{
+              margin: "0 0 8px 0",
+              fontSize: "14px",
+              color: "#5f6368",
+              lineHeight: "1.6",
+            }}
+          >
+            This is your Accrual Template control number:
+          </p>
+          <div
+            style={{
+              fontSize: "36px",
+              fontWeight: "bold",
+              color: "#202124",
+              margin: "16px 0 24px 0",
+              fontFamily: "'Google Sans', sans-serif",
+              letterSpacing: "2px",
+            }}
+          >
+            {modalMessage}
+          </div>
+          <p
+            style={{
+              margin: "0 0 32px 0",
+              fontSize: "13px",
+              color: "#5f6368",
+              lineHeight: "1.6",
+            }}
+          >
+            Kindly note it in the upper-right corner of your printed RFP/GRPO for easier tracking. Thank you!
+          </p>
+          <button
+            onClick={() => setShowModal(false)}
+            className="submitBtn"
+            style={{
+              width: "100%",
+              padding: "12px 24px",
+              fontSize: "15px",
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    )}
+  </div>
+</div>
+);
 }
