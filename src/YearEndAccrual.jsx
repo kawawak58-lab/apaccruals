@@ -92,6 +92,12 @@ export default function YearEndAccrualForm() {
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Track previous search values to prevent duplicate requests
+  const prevSupplierSearchRef = useRef("");
+  const prevGLSearchesRef = useRef({});
+  const prevProfitSearchesRef = useRef({});
+
+  
   // ---------- Fetch static lists with caching ----------
   useEffect(() => {
     const fetchStaticData = async () => {
@@ -144,95 +150,66 @@ export default function YearEndAccrualForm() {
     fetchStaticData();
   }, []);
 
-  // Debounced supplier fetch
-  // useEffect(() => {
-  //   if (!headerInfo.company || debouncedSupplierSearch.length < 2) return;
 
-  //   const fetchSuppliers = async () => {
-  //     try {
-  //       const query = new URLSearchParams({
-  //         company: headerInfo.company,
-  //         search: debouncedSupplierSearch,
-  //         page: supplierPage,
-  //         limit: supplierLimit,
-  //       }).toString();
-
-  //       const res = await apiFetch(`/api/suppliers?${query}`);
-  //       const data = await res.json();
-        
-  //       setSuppliers(prevSuppliers =>
-  //         supplierPage === 1
-  //           ? data.suppliers.map(s => ({
-  //               supplier: s.supplierNo,
-  //               name: s.supplierName,
-  //               suppcompany: s.supplierCompany,
-  //             }))
-  //           : [...prevSuppliers, ...data.suppliers.map(s => ({
-  //               supplier: s.supplierNo,
-  //               name: s.supplierName,
-  //               suppcompany: s.supplierCompany,
-  //             }))]
-  //       );
-  //       setSupplierTotal(data.pagination.total);
-  //     } catch (err) {
-  //       console.error("Failed to fetch suppliers", err);
-  //     }
-  //   };
-
-  //   fetchSuppliers();
-  // }, [headerInfo.company, debouncedSupplierSearch, supplierPage]);
-
+  // FIXED: Supplier search with proper duplicate prevention
   useEffect(() => {
-  if (!headerInfo.company || debouncedSupplierSearch.length < 2) return;
+    if (!headerInfo.company || debouncedSupplierSearch.length < 2) return;
 
-  let cancelled = false;
+    // Check if this is the same search we already did
+    const searchKey = `${headerInfo.company}-${debouncedSupplierSearch}-${supplierPage}`;
+    if (prevSupplierSearchRef.current === searchKey) {
+      return; // Skip duplicate request
+    }
 
-  const fetchSuppliers = async () => {
-    try {
-      const query = new URLSearchParams({
-        company: headerInfo.company,
-        search: debouncedSupplierSearch,
-        page: supplierPage,
-        limit: supplierLimit,
-      }).toString();
+    prevSupplierSearchRef.current = searchKey;
+    let cancelled = false;
 
-      const res = await apiFetch(`/api/suppliers?${query}`);
+    const fetchSuppliers = async () => {
+      try {
+        const query = new URLSearchParams({
+          company: headerInfo.company,
+          search: debouncedSupplierSearch,
+          page: supplierPage,
+          limit: supplierLimit,
+        }).toString();
 
-      if (!res.ok) return;
+        const res = await apiFetch(`/api/suppliers?${query}`);
 
-      const data = await res.json();
+        if (!res.ok || cancelled) return;
 
-      if (!data?.suppliers || cancelled) return;
+        const data = await res.json();
 
-      setSuppliers(prev =>
-        supplierPage === 1
-          ? data.suppliers.map(s => ({
-              supplier: s.supplierNo,
-              name: s.supplierName,
-              suppcompany: s.supplierCompany,
-            }))
-          : [
-              ...prev,
-              ...data.suppliers.map(s => ({
+        if (!data?.suppliers) return;
+
+        setSuppliers(prev =>
+          supplierPage === 1
+            ? data.suppliers.map(s => ({
                 supplier: s.supplierNo,
                 name: s.supplierName,
                 suppcompany: s.supplierCompany,
-              })),
-            ]
-      );
+              }))
+            : [
+                ...prev,
+                ...data.suppliers.map(s => ({
+                  supplier: s.supplierNo,
+                  name: s.supplierName,
+                  suppcompany: s.supplierCompany,
+                })),
+              ]
+        );
 
-      setSupplierTotal(data.pagination?.total || 0);
-    } catch (err) {
-      console.warn("Supplier fetch failed (quota safe)", err);
-    }
-  };
+        setSupplierTotal(data.pagination?.total || 0);
+      } catch (err) {
+        console.warn("Supplier fetch failed", err);
+      }
+    };
 
-  fetchSuppliers();
+    fetchSuppliers();
 
-  return () => {
-    cancelled = true;
-  };
-}, [headerInfo.company, debouncedSupplierSearch, supplierPage]);
+    return () => {
+      cancelled = true;
+    };
+  }, [headerInfo.company, debouncedSupplierSearch, supplierPage]);
 
 
   // Debounced GL Account search per line
@@ -246,18 +223,27 @@ export default function YearEndAccrualForm() {
     );
   }, []);
 
-  // Fetch GL accounts with debouncing
+  // FIXED: Fetch GL accounts with proper duplicate prevention
   useEffect(() => {
+    if (!headerInfo.company) return;
+
+    const linesToFetch = lineItems.filter(
+      li => li.glSearch && li.glSearch.length >= 2
+    );
+
+    if (linesToFetch.length === 0) return;
+
     const fetchGLForLines = async () => {
-      if (!headerInfo.company) return;
-
-      const linesToFetch = lineItems.filter(
-        li => li.glSearch && li.glSearch.length >= 2
-      );
-
-      if (linesToFetch.length === 0) return;
-
       for (const line of linesToFetch) {
+        const searchKey = `${headerInfo.company}-${line.glSearch}-${line.glPage}`;
+        
+        // Check if we already fetched this exact search
+        if (prevGLSearchesRef.current[line.id] === searchKey) {
+          continue; // Skip duplicate request
+        }
+
+        prevGLSearchesRef.current[line.id] = searchKey;
+
         try {
           const query = new URLSearchParams({
             company: headerInfo.company,
@@ -278,7 +264,7 @@ export default function YearEndAccrualForm() {
                       glaccount: g.glaccountNo,
                       name: g.glaccountName,
                     })) || [],
-                    glTotal: data.pagination.total,
+                    glTotal: data.pagination?.total || 0,
                   }
                 : li
             )
@@ -287,14 +273,13 @@ export default function YearEndAccrualForm() {
           console.error("Failed to fetch GL Accounts", err);
         }
 
-        // Add small delay between requests
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await sleep(100);
       }
     };
 
     const debounceTimer = setTimeout(fetchGLForLines, 500);
     return () => clearTimeout(debounceTimer);
-  }, [lineItems.map(li => `${li.id}-${li.glSearch}`).join(','), headerInfo.company]);
+  }, [lineItems.map(li => `${li.id}-${li.glSearch}-${li.glPage}`).join(','), headerInfo.company]);
 
   // Debounced Profit Center search
   const handleProfitSearchChange = useCallback((lineId, value) => {
@@ -307,18 +292,27 @@ export default function YearEndAccrualForm() {
     );
   }, []);
 
-  // Fetch Profit Centers with debouncing
+  // FIXED: Fetch Profit Centers with proper duplicate prevention
   useEffect(() => {
+    if (!headerInfo.company) return;
+
+    const linesToFetch = lineItems.filter(
+      li => li.profitSearch && li.profitSearch.length >= 2
+    );
+
+    if (linesToFetch.length === 0) return;
+
     const fetchProfitForLines = async () => {
-      if (!headerInfo.company) return;
-
-      const linesToFetch = lineItems.filter(
-        li => li.profitSearch && li.profitSearch.length >= 2
-      );
-
-      if (linesToFetch.length === 0) return;
-
       for (const line of linesToFetch) {
+        const searchKey = `${headerInfo.company}-${line.profitSearch}-${line.profitPage}`;
+        
+        // Check if we already fetched this exact search
+        if (prevProfitSearchesRef.current[line.id] === searchKey) {
+          continue; // Skip duplicate request
+        }
+
+        prevProfitSearchesRef.current[line.id] = searchKey;
+
         try {
           const query = new URLSearchParams({
             company: headerInfo.company,
@@ -339,7 +333,7 @@ export default function YearEndAccrualForm() {
                       profitcenter: p.profitcenterNo,
                       name: p.profitcenterName,
                     })) || [],
-                    profitTotal: data.pagination.total,
+                    profitTotal: data.pagination?.total || 0,
                   }
                 : li
             )
@@ -348,14 +342,13 @@ export default function YearEndAccrualForm() {
           console.error("Failed to fetch Profit Centers", err);
         }
 
-        // Add small delay between requests
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await sleep(100);
       }
     };
 
     const debounceTimer = setTimeout(fetchProfitForLines, 500);
     return () => clearTimeout(debounceTimer);
-  }, [lineItems.map(li => `${li.id}-${li.profitSearch}`).join(','), headerInfo.company]);
+  }, [lineItems.map(li => `${li.id}-${li.profitSearch}-${li.profitPage}`).join(','), headerInfo.company]);
 
   const loadMoreGLAccounts = (lineId) => {
     const li = lineItems.find(li => li.id === lineId);
@@ -450,6 +443,9 @@ export default function YearEndAccrualForm() {
     if (lineItems.length > 1) {
       setLineItems((prev) => prev.filter((item) => item.id !== id));
       setLineItemErrors((prev) => prev.slice(0, -1));
+      // Clean up tracking refs
+      delete prevGLSearchesRef.current[id];
+      delete prevProfitSearchesRef.current[id];
     }
   };
 
@@ -523,25 +519,10 @@ export default function YearEndAccrualForm() {
     setEmailSuggestions([]);
   };
 
-  const handleIncrement = async () => {
-  try {
-    const res = await apiFetch("/api/incrementcontrol", { method: "POST" });
-
-    if (!res.ok) throw new Error("Increment failed");
-
-    const data = await res.json();
-    console.log("New Control Number:", data.newControlNumber);
-
-    return true;
-  } catch (err) {
-    console.error("Increment error:", err);
-    return false; // ❌ failed
-  }
-};
 
   const getControlNumberWithRetry = async (
     maxRetries = 5,
-    initialDelay = 1000 // 1 second
+    initialDelay = 1000
   ) => {
     let attempt = 0;
     let delay = initialDelay;
@@ -716,6 +697,11 @@ export default function YearEndAccrualForm() {
         setLineItemErrors([{}]);
         setLineItemCounter(1);
 
+        // Clear tracking refs
+        prevSupplierSearchRef.current = "";
+        prevGLSearchesRef.current = {};
+        prevProfitSearchesRef.current = {};
+
       } catch (error) {
         console.error("Submission error:", error);
         alert("❌ Unable to submit. Please try again later.");
@@ -728,103 +714,7 @@ export default function YearEndAccrualForm() {
     }
   
 };
-  // const handleSubmit = async () => {
-  //   const headerErrs = {};
-    
-  //   if (!headerInfo.email || !isValidEmail(headerInfo.email)) {
-  //     headerErrs.email = true;
-  //   }
-  //   if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
-  //   if (!headerInfo.company) headerErrs.company = true;
-  //   if (!headerInfo.supplier) headerErrs.supplier = true;
-  //   if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)" && !headerInfo.invoiceNo)
-  //     headerErrs.invoiceNo = true;
 
-  //   setHeaderErrors(headerErrs);
-
-  //   const newLineItemErrors = lineItems.map((item) => {
-  //     const errors = {};
-  //     if (!item.grossAmount) errors.grossAmount = true;
-  //     if (!item.transType) errors.transType = true;
-  //     if (!item.glaccount) errors.glaccount = true;
-  //     if (!item.remarks) errors.remarks = true;
-  //     if (!item.profitcenter) errors.profitcenter = true;
-  //     if (headerInfo.expenseclass !== "Non-deductible expense (no valid receipt/invoice)") {
-  //       if (!item.vat) errors.vat = true;
-  //       if (!item.taxCode) errors.taxCode = true;
-  //     }
-  //     return errors;
-  //   });
-
-  //   setLineItemErrors(newLineItemErrors);
-
-  //   if (
-  //     Object.keys(headerErrs).length > 0 ||
-  //     newLineItemErrors.some(err => Object.keys(err).length > 0)
-  //   ) {
-  //     alert("⚠️ Please fill in all required fields.");
-  //     return;
-  //   }
-
-  //   // Get control number before submission
-  //   const controlRes = await apiFetch("/api/currentcontrol");
-  //   const controlData = await controlRes.json();
-  //   const controlNumber = controlData?.currentControlNumber || "";
-
-  //   const timestamp = new Date().toLocaleString();
-  //   const rows = lineItems.map((item) => [
-  //     controlNumber,
-  //     timestamp,
-  //     headerInfo.email,
-  //     headerInfo.expenseclass,
-  //     headerInfo.company,
-  //     headerInfo.supplier,
-  //     headerInfo.supplierName,
-  //     headerInfo.invoiceNo,
-  //     item.grossAmount,
-  //     item.glaccount,
-  //     item.glaccountName,
-  //     item.profitcenter,
-  //     item.profitcenterName,
-  //     item.transType,
-  //     item.vat,
-  //     item.taxCode,
-  //     item.remarks,
-  //     0
-  //   ]);
-
-  //   try {
-  //     const response = await apiFetch("/api/submitform", {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify({ rows }),
-  //     });
-  //     if (!response.ok) throw new Error("Failed to submit form");
-      
-  //     // Increment control number after successful submission
-  //     await handleIncrement();
-      
-  //     setModalMessage(controlNumber);
-  //     setShowModal(true);
-
-  //     setHeaderInfo({
-  //       email: "",
-  //       expenseclass: "",
-  //       company: "",
-  //       supplier: "",
-  //       supplierName: "",
-  //       invoiceNo: "",
-  //     });
-  //     setHeaderErrors({});
-  //     setSupplierSearch("");
-  //     setLineItems([createEmptyLineItem(1)]);
-  //     setLineItemErrors([{}]);
-  //     setLineItemCounter(1);
-  //   } catch (error) {
-  //     console.error("Submission error:", error);
-  //     alert("❌ Submission failed. Please try again.");
-  //   }
-  // };
 
   const isDisabled = !headerInfo.email || !headerInfo.expenseclass;
 
@@ -920,6 +810,7 @@ export default function YearEndAccrualForm() {
                 setSupplierSearch("");  
                 setSuppliers([]); 
                 setSupplierPage(1);
+                prevSupplierSearchRef.current = "";
                 setHeaderErrors((prev) => ({ ...prev, company: false }));
               }}
             >
