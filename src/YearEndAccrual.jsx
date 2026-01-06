@@ -2,6 +2,16 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./YearEndAccrualForm.css";
 import { apiFetch } from "./api";
 
+// Add CSS animation for spinner
+const spinnerStyle = document.createElement('style');
+spinnerStyle.textContent = `
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+`;
+document.head.appendChild(spinnerStyle);
+
 // Debounce hook to prevent excessive API calls
 function useDebounce(value, delay) {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -97,19 +107,45 @@ export default function YearEndAccrualForm() {
   const prevGLSearchesRef = useRef({});
   const prevProfitSearchesRef = useRef({});
 
+  // Track static data fetch attempts
+  const [staticDataLoading, setStaticDataLoading] = useState(true);
+  const [staticDataError, setStaticDataError] = useState(false);
+  const staticDataRetryRef = useRef(0);
+  const maxStaticDataRetries = 5;
+
   
-  // ---------- Fetch static lists with caching ----------
+  // ---------- Fetch static lists with caching and retry ----------
   useEffect(() => {
-    const fetchStaticData = async () => {
-      try {
-        // Only fetch if not cached
-        if (!cacheRef.current.companies) {
+    const fetchStaticDataWithRetry = async () => {
+      // If already cached, use cache immediately
+      if (cacheRef.current.companies) {
+        setCompanies(cacheRef.current.companies);
+        setExpenseClass(cacheRef.current.expenseClass);
+        setTransactionTypes(cacheRef.current.transactionTypes);
+        setTaxCodes(cacheRef.current.taxCodes);
+        setStaticDataLoading(false);
+        return;
+      }
+
+      // Try to fetch with exponential backoff
+      let delay = 2000; // Start with 2 seconds
+
+      while (staticDataRetryRef.current < maxStaticDataRetries) {
+        try {
+          setStaticDataLoading(true);
+          setStaticDataError(false);
+
           const [companiesRes, expenseRes, transactionRes, taxRes] = await Promise.all([
             apiFetch("/api/company"),
             apiFetch("/api/expenseclass"),
             apiFetch("/api/transaction"),
             apiFetch("/api/taxcode"),
           ]);
+
+          // Check if all responses are OK
+          if (!companiesRes.ok || !expenseRes.ok || !transactionRes.ok || !taxRes.ok) {
+            throw new Error("One or more static data requests failed");
+          }
 
           const [companiesData, expenseData, transactionData, taxData] = await Promise.all([
             companiesRes.json(),
@@ -118,10 +154,16 @@ export default function YearEndAccrualForm() {
             taxRes.json(),
           ]);
 
-          const companiesList = companiesData.columnA.slice(1).map((row) => row[0]);
-          const expenseList = expenseData.columnA.slice(1).map((row) => row[0]);
-          const transactionList = transactionData.columnA.slice(1).map((row) => row[0]);
-          const taxList = taxData.columnA.slice(1).map((row) => row[0]);
+          const companiesList = companiesData.columnA?.slice(1).map((row) => row[0]) || [];
+          const expenseList = expenseData.columnA?.slice(1).map((row) => row[0]) || [];
+          const transactionList = transactionData.columnA?.slice(1).map((row) => row[0]) || [];
+          const taxList = taxData.columnA?.slice(1).map((row) => row[0]) || [];
+
+          // Verify we got data
+          if (companiesList.length === 0 || expenseList.length === 0 || 
+              transactionList.length === 0 || taxList.length === 0) {
+            throw new Error("Empty data received");
+          }
 
           // Cache the results
           cacheRef.current = {
@@ -135,19 +177,35 @@ export default function YearEndAccrualForm() {
           setExpenseClass(expenseList);
           setTransactionTypes(transactionList);
           setTaxCodes(taxList);
-        } else {
-          // Use cached data
-          setCompanies(cacheRef.current.companies);
-          setExpenseClass(cacheRef.current.expenseClass);
-          setTransactionTypes(cacheRef.current.transactionTypes);
-          setTaxCodes(cacheRef.current.taxCodes);
+          setStaticDataLoading(false);
+          setStaticDataError(false);
+
+          console.log("✅ Static data loaded successfully");
+          return; // Success - exit the retry loop
+
+        } catch (err) {
+          staticDataRetryRef.current++;
+          console.warn(
+            `⚠️ Static data fetch attempt ${staticDataRetryRef.current}/${maxStaticDataRetries} failed:`,
+            err.message
+          );
+
+          if (staticDataRetryRef.current >= maxStaticDataRetries) {
+            setStaticDataError(true);
+            setStaticDataLoading(false);
+            console.error("❌ Failed to load static data after maximum retries");
+            return;
+          }
+
+          // Wait before retrying with exponential backoff
+          console.log(`⏳ Retrying in ${delay/1000} seconds...`);
+          await sleep(delay);
+          delay *= 2; // Double the delay for next attempt (2s, 4s, 8s, 16s, 32s)
         }
-      } catch (err) {
-        console.error("Failed to fetch static data", err);
       }
     };
 
-    fetchStaticData();
+    fetchStaticDataWithRetry();
   }, []);
 
 
@@ -716,11 +774,109 @@ export default function YearEndAccrualForm() {
 };
 
 
-  const isDisabled = !headerInfo.email || !headerInfo.expenseclass;
+  const isDisabled = !headerInfo.email || !headerInfo.expenseclass || staticDataLoading;
+
+  // Manual retry function
+  const retryStaticData = () => {
+    staticDataRetryRef.current = 0;
+    setStaticDataError(false);
+    setStaticDataLoading(true);
+    
+    // Trigger re-fetch by clearing cache
+    cacheRef.current = {
+      companies: null,
+      expenseClass: null,
+      transactionTypes: null,
+      taxCodes: null,
+    };
+    
+    // Force re-run of useEffect
+    window.location.reload();
+  };
 
   return (
     <div className="body">
       <div className="formWrapper">
+        {/* Loading Overlay */}
+        {staticDataLoading && (
+          <div style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999,
+          }}>
+            <div style={{
+              backgroundColor: "white",
+              padding: "32px",
+              borderRadius: "8px",
+              textAlign: "center",
+              maxWidth: "400px",
+            }}>
+              <div style={{
+                width: "48px",
+                height: "48px",
+                border: "4px solid #f3f3f3",
+                borderTop: "4px solid #007bff",
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+                margin: "0 auto 16px",
+              }}></div>
+              <h3 style={{ margin: "0 0 8px 0", fontSize: "18px", color: "#202124" }}>
+                Loading Form Data...
+              </h3>
+              <p style={{ margin: 0, fontSize: "14px", color: "#5f6368" }}>
+                Setting up Accrual Template
+                {staticDataRetryRef.current > 0 && (
+                  <><br/>Retry attempt {staticDataRetryRef.current}/{maxStaticDataRetries}</>
+                )}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Error Banner */}
+        {staticDataError && (
+          <div style={{
+            backgroundColor: "#fff3cd",
+            border: "1px solid #ffc107",
+            borderRadius: "4px",
+            padding: "16px",
+            marginBottom: "24px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}>
+            <div style={{ flex: 1 }}>
+              <strong style={{ color: "#856404" }}>⚠️ Unable to load form data</strong>
+              <p style={{ margin: "4px 0 0 0", fontSize: "14px", color: "#856404" }}>
+                The form could not load required dropdown data. Please check your connection and try again.
+              </p>
+            </div>
+            <button
+              onClick={retryStaticData}
+              style={{
+                backgroundColor: "#007bff",
+                color: "white",
+                border: "none",
+                borderRadius: "4px",
+                padding: "8px 16px",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "500",
+                marginLeft: "16px",
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         <div className="formHeader">
           <h1 className="h1">Year-End Accrual Template</h1>
           <p className="headerText">
