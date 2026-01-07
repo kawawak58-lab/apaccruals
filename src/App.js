@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import AccrualSetupDate from "./AccrualSetupDate";
 import YearEndAccrual from "./YearEndAccrual";
+import AddSupplier from "./AddSupplier"; // import the Add Supplier page
+import ApprovedSupplier from "./ApprovedSupplier"; // import the Approved Supplier page
 import { apiFetch } from "./api";
 
-export default function App() {
+function MainRoutes() {
   const [setupDates, setSetupDates] = useState({ startDate: null, cutoffDate: null });
   const [loading, setLoading] = useState(true);
 
@@ -28,12 +31,12 @@ export default function App() {
   const start = setupDates.startDate ? new Date(setupDates.startDate) : null;
   const cutoff = setupDates.cutoffDate ? new Date(setupDates.cutoffDate) : null;
 
-  // If before start date, show AccrualSetupDate
+  // Before start date
   if (start && now < start) {
     return <AccrualSetupDate />;
   }
 
-  // If after cutoff date, optionally you could show a "submission closed" message
+  // After cutoff date
   if (cutoff && now > cutoff) {
     return (
       <div style={{ textAlign: "center", marginTop: "100px", fontSize: "18px" }}>
@@ -43,6 +46,18 @@ export default function App() {
     );
   }
 
-  // Otherwise, show the main form
+  // Main form
   return <YearEndAccrual />;
+}
+
+export default function App() {
+  return (
+    <Router>
+      <Routes>
+        <Route path="/" element={<MainRoutes />} />
+        <Route path="/add-supplier" element={<AddSupplier />} />
+        <Route path="/approved-supplier" element={<ApprovedSupplier />} /> {/* NEW ROUTE */}
+      </Routes>
+    </Router>
+  );
 }

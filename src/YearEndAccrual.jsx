@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Link } from "react-router-dom";
 import "./YearEndAccrualForm.css";
 import { apiFetch } from "./api";
 import { getNextControlNumber } from "./lib/ControlNumber";
@@ -766,7 +767,11 @@ export default function YearEndAccrualForm() {
           <div className="formGroup" style={{ position: "relative" }}>
             <label className="label">
               Supplier <span className="required">*</span>
+              
             </label>
+            <Link to="/add-supplier" className="missingSupplierLink">
+        Missing Supplier?
+      </Link>
             <input
               type="text"
               className={`input ${headerErrors.supplier ? "inputError" : ""}`}

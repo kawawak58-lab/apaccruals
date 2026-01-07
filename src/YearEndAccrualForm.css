@@ -308,3 +308,16 @@
   font-size: 12px;
   margin-top: 4px;
 }
+
+/* Right-edge link inside label */
+.missingSupplierLink {
+  float: right;
+  font-size: 12px;
+  color: #007bff;
+  text-decoration: underline;
+  cursor: pointer;
+  margin-left: 8px;
+}
+.missingSupplierLink:hover {
+  color: #0056b3;
+}
