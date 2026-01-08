@@ -865,8 +865,8 @@ export default function YearEndAccrualForm() {
               + Add Line Item
             </button>
           </div>
-
-          {lineItems.map((item, index) => {
+          <div className="lineItemsContainer">
+            {lineItems.map((item, index) => {
             const filteredGL = item.glAccounts || [];
             const filteredProfit = item.profitCenters || [];
 
@@ -1145,6 +1145,8 @@ export default function YearEndAccrualForm() {
           </div>
         );
       })}
+          </div>
+          
     </div>
 
     <div className="formFooter">

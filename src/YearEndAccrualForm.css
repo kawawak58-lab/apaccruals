@@ -321,3 +321,9 @@
 .missingSupplierLink:hover {
   color: #0056b3;
 }
+
+.lineItemsContainer {
+  max-height: 770px; /* or whatever height you want */
+  overflow-y: auto;
+  margin-top: 8px;   /* spacing below button */
+}
