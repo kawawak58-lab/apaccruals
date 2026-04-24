@@ -164,6 +164,34 @@ async function getCurrentControlNumber() {
   return values[0] ? values[0][0] : null;
 }
 
+function normalizeControlNumber(value) {
+  return String(value || "")
+    .toUpperCase()
+    .replace(/\s+/g, "");
+}
+
+function isValidControlNumber(value) {
+  return /^[A-Z]+\d+$/.test(normalizeControlNumber(value));
+}
+
+async function setCurrentControlNumber(controlNumber) {
+  const nextValue = normalizeControlNumber(controlNumber);
+  if (!isValidControlNumber(nextValue)) {
+    throw new Error("Invalid control number format.");
+  }
+
+  const sheets = await getSheetsClient();
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: "SETUP!B4",
+    valueInputOption: "USER_ENTERED",
+    resource: { values: [[nextValue]] }
+  });
+
+  cache.currentControlNumber = nextValue;
+  return nextValue;
+}
+
 async function getExpenseClass() {
   const sheets = await getSheetsClient();
   const response = await sheets.spreadsheets.values.get({
@@ -424,6 +452,18 @@ app.post("/api/incrementcontrol", async (req, res) => {
     res.json({ success: true, newControlNumber });
   } catch (err) {
     res.status(500).json({ error: "Failed to increment control number" });
+  }
+});
+
+app.post("/api/setcontrol", async (req, res) => {
+  try {
+    const updatedControlNumber = await setCurrentControlNumber(req.body?.controlNumber);
+    res.json({ success: true, currentControlNumber: updatedControlNumber });
+  } catch (error) {
+    const message = error.message === "Invalid control number format."
+      ? error.message
+      : "Failed to update control number";
+    res.status(message === "Invalid control number format." ? 400 : 500).json({ error: message });
   }
 });
 
