@@ -780,16 +780,21 @@ function AppShell() {
         }
 
         if (nextSession?.user && !isAllowedBountyEmail(nextSession.user.email)) {
-          await signOut();
-          if (!mounted) {
+          const confirmLogin = window.confirm(
+            `You are signing in with "${nextSession.user.email}", which is not a Bounty email account.\n\nThis workspace is intended for Bounty employees. Do you want to continue?`
+          );
+          
+          if (!confirmLogin) {
+            await signOut();
+            if (!mounted) {
+              return;
+            }
+            setSession(null);
+            setCurrentUser(null);
+            setProfileResolved(true);
+            setAuthLoading(false);
             return;
           }
-          window.alert("Only @bounty.com.ph email accounts are allowed to access this workspace.");
-          setSession(null);
-          setCurrentUser(null);
-          setProfileResolved(true);
-          setAuthLoading(false);
-          return;
         }
 
         setSession(nextSession);
@@ -838,15 +843,20 @@ function AppShell() {
       }
 
       if (!isAllowedBountyEmail(nextSession.user.email)) {
-        await signOut();
-        window.alert("Only @bounty.com.ph email accounts are allowed to access this workspace.");
-        setSession(null);
-        setCurrentUser(null);
-        setPendingName("");
-        setProfileResolved(true);
-        setProfileLoading(false);
-        sessionUserIdRef.current = null;
-        return;
+        const confirmLogin = window.confirm(
+          `You are signing in with "${nextSession.user.email}", which is not a Bounty email account.\n\nThis workspace is intended for Bounty employees. Do you want to continue?`
+        );
+        
+        if (!confirmLogin) {
+          await signOut();
+          setSession(null);
+          setCurrentUser(null);
+          setPendingName("");
+          setProfileResolved(true);
+          setProfileLoading(false);
+          sessionUserIdRef.current = null;
+          return;
+        }
       }
 
       const suggestedName = getSuggestedNameFromSession(nextSession);

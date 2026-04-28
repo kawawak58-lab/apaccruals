@@ -30,7 +30,6 @@ export async function signInWithGoogle() {
     options: {
       redirectTo: window.location.origin,
       queryParams: {
-        hd: "bounty.com.ph",
         prompt: "select_account",
       },
     },

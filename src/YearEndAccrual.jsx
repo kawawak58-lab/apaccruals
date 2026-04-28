@@ -521,7 +521,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
   const prevSupplierSearchRef = useRef("");
   const prevGLSearchesRef = useRef({});
   const prevProfitSearchesRef = useRef({});
-  const prevLineItemsRef = useRef([]);
 
   // Track static data fetch attempts
   const [staticDataLoading, setStaticDataLoading] = useState(true);
@@ -792,10 +791,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       li => li.glSearch && li.glSearch.length >= 2
     );
 
-    if (linesToFetch.length === 0) {
-      prevLineItemsRef.current = lineItems;
-      return;
-    }
+    if (linesToFetch.length === 0) return;
 
     const fetchGLForLines = async () => {
       for (const line of linesToFetch) {
@@ -837,9 +833,8 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     };
 
     const debounceTimer = setTimeout(fetchGLForLines, 500);
-    prevLineItemsRef.current = lineItems;
     return () => clearTimeout(debounceTimer);
-  }, [lineItems, headerInfo.company]);
+  }, [headerInfo.company]);
 
   // Profit Center search handler
   const handleProfitSearchChange = useCallback((lineId, value) => {
@@ -860,10 +855,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       li => li.profitSearch && li.profitSearch.length >= 2
     );
 
-    if (linesToFetch.length === 0) {
-      prevLineItemsRef.current = lineItems;
-      return;
-    }
+    if (linesToFetch.length === 0) return;
 
     const fetchProfitForLines = async () => {
       for (const line of linesToFetch) {
@@ -905,9 +897,8 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     };
 
     const debounceTimer = setTimeout(fetchProfitForLines, 500);
-    prevLineItemsRef.current = lineItems;
     return () => clearTimeout(debounceTimer);
-  }, [lineItems, headerInfo.company]);
+  }, [headerInfo.company]);
 
   const loadMoreGLAccounts = (lineId) => {
     setLineItems(prev =>
@@ -1929,7 +1920,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
             {headerErrors.email && (
               <div className="errorText">Please enter a valid email</div>
             )}
-            <FieldTip>Use your company email so the submission and future follow-ups stay traceable.</FieldTip>
             {emailSuggestions.length > 0 && (
               <div className="dropdownContainer">
                 {emailSuggestions.map((sugg) => (
@@ -1966,7 +1956,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
             {headerErrors.expenseclass && (
               <div className="errorText">Expense Classification is Required</div>
             )}
-            <FieldTip>Select the expense class first because it controls whether invoice, VAT, and tax code details are required.</FieldTip>
           </div>
 
           <div className="formGroup">
@@ -2000,7 +1989,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
             {headerErrors.company && (
               <div className="errorText">Company Charging is Required</div>
             )}
-            <FieldTip>The selected company also filters the supplier, GL account, and profit center options below.</FieldTip>
           </div>
         </div>
 
@@ -2041,7 +2029,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
             {headerErrors.supplier && (
               <div className="errorText">Supplier is Required.</div>
             )}
-            <FieldTip>Search by supplier code or vendor name. If the supplier is missing, use the enrollment request instead of typing a temporary value.</FieldTip>
             {showSupplierDropdown && supplierSearch.length >= 2 && (
               <div className="dropdownContainer">
                 {suppliers.map((s) => (
@@ -2107,7 +2094,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
             {headerErrors.invoiceNo && (
               <div className="errorText">Required</div>
             )}
-            <FieldTip>Match the invoice reference to the supporting document so finance can reconcile the accrual without manual clarification.</FieldTip>
           </div>
         </div>
 
@@ -2171,7 +2157,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
                     {lineItemErrors[index]?.grossAmount && (
                       <div className="errorText">Gross Amount is required</div>
                     )}
-                    <FieldTip>Enter the gross value exactly as it should be accrued before any later reclassification.</FieldTip>
                   </div>
 
                   {/* GL Account */}
@@ -2197,7 +2182,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
                   }
                 />
                 {lineItemErrors[index]?.glaccount && <div className="errorText">GL Account is required</div>}
-                <FieldTip>Pick the GL account that reflects the expense nature of this specific line item.</FieldTip>
                 {item.showGLDropdown && (
                   <div
                     style={{
@@ -2279,7 +2263,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
                   }
                 />
                 {lineItemErrors[index]?.profitcenter && <div className="errorText">Profit Center is required</div>}
-                <FieldTip>Use the profit center that owns the cost so reporting lands in the correct operational area.</FieldTip>
                 {item.showProfitDropdown && (
                   <div
                     style={{
@@ -2380,7 +2363,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
                       <option value="Non-Vatable">Non-Vatable</option>
                     </select>
                     {lineItemErrors[index]?.vat && <div className="errorText">VAT is required</div>}
-                    <FieldTip>VAT selection should match the tax treatment of the underlying invoice or receipt.</FieldTip>
                   </div>
 
                   {/* Tax Code */}
@@ -2399,7 +2381,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
                       {taxCodes.map((tc) => <option key={tc} value={tc}>{tc}</option>)}
                     </select>
                     {lineItemErrors[index]?.taxCode && <div className="errorText">Tax Code is required</div>}
-                    <FieldTip>Choose the tax code used by your finance team for posting and reporting this type of expense.</FieldTip>
                   </div>
                 </>
               )}
@@ -2414,7 +2395,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
                   onChange={(e) => updateLineItem(item.id, "remarks", e.target.value)}
                 ></textarea>
                 {lineItemErrors[index]?.remarks && <div className="errorText">Remarks are required</div>}
-                <FieldTip>Briefly state what is being accrued and why the amount still needs to be recognized at year-end.</FieldTip>
               </div>
             </div>
           </div>
