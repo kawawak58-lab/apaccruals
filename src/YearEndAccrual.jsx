@@ -521,6 +521,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
   const prevSupplierSearchRef = useRef("");
   const prevGLSearchesRef = useRef({});
   const prevProfitSearchesRef = useRef({});
+  const prevLineItemsRef = useRef([]);
 
   // Track static data fetch attempts
   const [staticDataLoading, setStaticDataLoading] = useState(true);
@@ -791,7 +792,10 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       li => li.glSearch && li.glSearch.length >= 2
     );
 
-    if (linesToFetch.length === 0) return;
+    if (linesToFetch.length === 0) {
+      prevLineItemsRef.current = lineItems;
+      return;
+    }
 
     const fetchGLForLines = async () => {
       for (const line of linesToFetch) {
@@ -833,8 +837,9 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     };
 
     const debounceTimer = setTimeout(fetchGLForLines, 500);
+    prevLineItemsRef.current = lineItems;
     return () => clearTimeout(debounceTimer);
-  }, [headerInfo.company]);
+  }, [lineItems, headerInfo.company]);
 
   // Profit Center search handler
   const handleProfitSearchChange = useCallback((lineId, value) => {
@@ -855,7 +860,10 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       li => li.profitSearch && li.profitSearch.length >= 2
     );
 
-    if (linesToFetch.length === 0) return;
+    if (linesToFetch.length === 0) {
+      prevLineItemsRef.current = lineItems;
+      return;
+    }
 
     const fetchProfitForLines = async () => {
       for (const line of linesToFetch) {
@@ -897,8 +905,9 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     };
 
     const debounceTimer = setTimeout(fetchProfitForLines, 500);
+    prevLineItemsRef.current = lineItems;
     return () => clearTimeout(debounceTimer);
-  }, [headerInfo.company]);
+  }, [lineItems, headerInfo.company]);
 
   const loadMoreGLAccounts = (lineId) => {
     setLineItems(prev =>
