@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MaintenanceSkeleton from "../components/MaintenanceSkeleton";
 import MaintenanceTable from "../components/MaintenanceTable";
 import { cancelAccrual, fetchAccrualSubmissions } from "../lib/AccrualSubmissions";
@@ -23,6 +23,340 @@ function formatAmount(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function parseDateValue(value) {
+  if (!value) {
+    return null;
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+
+  return new Date(year, month - 1, day);
+}
+
+function formatDateValue(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatRangeDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function getRangeLabel(dateFrom, dateTo) {
+  const startDate = parseDateValue(dateFrom);
+  const endDate = parseDateValue(dateTo);
+
+  if (startDate && endDate) {
+    return `${formatRangeDate(startDate)} - ${formatRangeDate(endDate)}`;
+  }
+
+  if (startDate) {
+    return `${formatRangeDate(startDate)} - ...`;
+  }
+
+  return "Pick a date range";
+}
+
+function startOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function addMonths(date, amount) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+function isSameDay(first, second) {
+  return Boolean(
+    first &&
+      second &&
+      first.getFullYear() === second.getFullYear() &&
+      first.getMonth() === second.getMonth() &&
+      first.getDate() === second.getDate()
+  );
+}
+
+function isBetween(day, startDate, endDate) {
+  if (!startDate || !endDate) {
+    return false;
+  }
+
+  const time = day.getTime();
+  return time > startDate.getTime() && time < endDate.getTime();
+}
+
+function buildMonthDays(monthDate) {
+  const firstDay = startOfMonth(monthDate);
+  const gridStart = new Date(firstDay);
+  gridStart.setDate(firstDay.getDate() - firstDay.getDay());
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(gridStart);
+    day.setDate(gridStart.getDate() + index);
+    return day;
+  });
+}
+
+function CalendarIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3.75" y="5.5" width="16.5" height="14.75" rx="2.25" />
+      <path d="M7.5 3.75v3.5" />
+      <path d="M16.5 3.75v3.5" />
+      <path d="M3.75 9.5h16.5" />
+    </svg>
+  );
+}
+
+function FilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h10" />
+      <path d="M18 7h2" />
+      <path d="M4 12h4" />
+      <path d="M12 12h8" />
+      <path d="M4 17h8" />
+      <path d="M16 17h4" />
+      <circle cx="16" cy="7" r="2" />
+      <circle cx="10" cy="12" r="2" />
+      <circle cx="14" cy="17" r="2" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 11a8 8 0 1 0 2 5.5" />
+      <path d="M20 4v7h-7" />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 4v10" />
+      <path d="M8 10l4 4 4-4" />
+      <path d="M4 20h16" />
+    </svg>
+  );
+}
+
+function DateRangeField({ dateFrom, dateTo, onRangeChange }) {
+  const containerRef = useRef(null);
+  const startDate = useMemo(() => parseDateValue(dateFrom), [dateFrom]);
+  const endDate = useMemo(() => parseDateValue(dateTo), [dateTo]);
+  const [open, setOpen] = useState(false);
+  const [viewMonth, setViewMonth] = useState(() => startOfMonth(startDate || new Date()));
+  const weekdays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (!containerRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
+  useEffect(() => {
+    if (startDate) {
+      setViewMonth(startOfMonth(startDate));
+    }
+  }, [startDate]);
+
+  const selectDay = (day) => {
+    const selectedValue = formatDateValue(day);
+
+    if (!startDate || (startDate && endDate)) {
+      onRangeChange(selectedValue, "");
+      return;
+    }
+
+    if (day.getTime() < startDate.getTime()) {
+      onRangeChange(selectedValue, dateFrom);
+      setOpen(false);
+      return;
+    }
+
+    onRangeChange(dateFrom, selectedValue);
+    setOpen(false);
+  };
+
+  const renderMonth = (monthDate) => {
+    const days = buildMonthDays(monthDate);
+
+    return (
+      <div className="dateRangeMonth" key={monthDate.toISOString()}>
+        <div className="dateRangeMonthTitle">
+          {monthDate.toLocaleDateString(undefined, { month: "long", year: "numeric" })}
+        </div>
+        <div className="dateRangeWeekdays">
+          {weekdays.map((weekday) => (
+            <span key={weekday}>{weekday}</span>
+          ))}
+        </div>
+        <div className="dateRangeDays">
+          {days.map((day) => {
+            const isOutsideMonth = day.getMonth() !== monthDate.getMonth();
+            const selectedStart = isSameDay(day, startDate);
+            const selectedEnd = isSameDay(day, endDate);
+            const inRange = isBetween(day, startDate, endDate);
+
+            return (
+              <button
+                key={day.toISOString()}
+                type="button"
+                className={`dateRangeDay${isOutsideMonth ? " outside" : ""}${selectedStart ? " rangeStart" : ""}${selectedEnd ? " rangeEnd" : ""}${inRange ? " inRange" : ""}`}
+                onClick={() => selectDay(day)}
+              >
+                {day.getDate()}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="headerFieldGroup dateRangeFieldGroup" ref={containerRef}>
+      <span className="headerFieldLabel">Date Range</span>
+      <button
+        type="button"
+        className={`dateRangeTrigger${open ? " open" : ""}`}
+        onClick={() => setOpen((current) => !current)}
+        aria-label="Open date range picker"
+        aria-expanded={open}
+      >
+        <span className="dateRangeTriggerIcon">
+          <CalendarIcon />
+        </span>
+        <span className={`dateRangeTriggerText${dateFrom ? "" : " placeholder"}`}>{getRangeLabel(dateFrom, dateTo)}</span>
+      </button>
+      {open ? (
+        <div className="dateRangePopover">
+          <div className="dateRangePopoverHeader">
+            <button type="button" className="dateRangeNavBtn" onClick={() => setViewMonth((current) => addMonths(current, -1))}>
+              {"<"}
+            </button>
+            <button type="button" className="dateRangeClearBtn" onClick={() => onRangeChange("", "")}>
+              Clear
+            </button>
+            <button type="button" className="dateRangeNavBtn" onClick={() => setViewMonth((current) => addMonths(current, 1))}>
+              {">"}
+            </button>
+          </div>
+          <div className="dateRangeMonths">
+            {renderMonth(viewMonth)}
+            {renderMonth(addMonths(viewMonth, 1))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function FiltersMenu({ dateFrom, dateTo, statusFilter, onRangeChange, onStatusChange, onClear }) {
+  const containerRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const activeCount = Number(Boolean(dateFrom || dateTo)) + Number(Boolean(statusFilter));
+
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event) => {
+      if (!containerRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [open]);
+
+  return (
+    <div className="filtersMenu" ref={containerRef}>
+      <button
+        type="button"
+        className={`filtersMenuButton${open ? " open" : ""}`}
+        onClick={() => setOpen((current) => !current)}
+        aria-expanded={open}
+        aria-label="Open filters"
+      >
+        <span className="filtersMenuButtonIcon">
+          <FilterIcon />
+        </span>
+        <span>Filters</span>
+        {activeCount ? <span className="filtersMenuCount">{activeCount}</span> : null}
+        <span className="filtersMenuCaret">
+          <ChevronDownIcon />
+        </span>
+      </button>
+
+      {open ? (
+        <div className="filtersMenuPopover">
+          <div className="filtersMenuHeader">
+            <div className="filtersMenuTitle">Filters</div>
+            <button type="button" className="filtersMenuClearBtn" onClick={onClear}>
+              Clear all
+            </button>
+          </div>
+
+          <DateRangeField dateFrom={dateFrom} dateTo={dateTo} onRangeChange={onRangeChange} />
+
+          <label className="headerFieldGroup">
+            <span className="headerFieldLabel">Status</span>
+            <select
+              className="input headerDateInput filtersStatusSelect"
+              value={statusFilter}
+              onChange={(event) => onStatusChange(event.target.value)}
+              aria-label="Filter accruals by status"
+            >
+              <option value="">All</option>
+              <option value="open">Open</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </label>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function getAccrualStatusMeta(status) {
@@ -68,6 +402,7 @@ function downloadExcelFile(filename, rows) {
 export default function AllAccrualsPage({ currentUser }) {
   const { showToast } = useToast();
   const [search, setSearch] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -301,57 +636,46 @@ export default function AllAccrualsPage({ currentUser }) {
       <div className="pageIntro">
         <div>
           <h1 className="pageTitle">All Accruals</h1>
-          <p className="pageSubtitle">Track submitted entries, control numbers, and line-item details from Supabase.</p>
         </div>
         <div className="headerActions">
-          <label className="headerFieldGroup">
+          <label className={`headerFieldGroup searchFieldGroup${searchFocused ? " focused" : ""}`}>
             <span className="headerFieldLabel">Search</span>
             <input
               className="input headerSearch"
               placeholder="Search by control no., email, supplier, company..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
               aria-label="Search accrual submissions"
             />
           </label>
-          <label className="headerFieldGroup">
-            <span className="headerFieldLabel">Date From</span>
-            <input
-              className="input headerDateInput"
-              type="date"
-              value={dateFrom}
-              onChange={(event) => setDateFrom(event.target.value)}
-              aria-label="Filter accruals from date"
-            />
-          </label>
-          <label className="headerFieldGroup">
-            <span className="headerFieldLabel">Date To</span>
-            <input
-              className="input headerDateInput"
-              type="date"
-              value={dateTo}
-              onChange={(event) => setDateTo(event.target.value)}
-              aria-label="Filter accruals to date"
-            />
-          </label>
-          <label className="headerFieldGroup">
-            <span className="headerFieldLabel">Status</span>
-            <select
-              className="input headerDateInput"
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              aria-label="Filter accruals by status"
-            >
-              <option value="">All</option>
-              <option value="open">Open</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </label>
           <div className="headerButtonGroup">
-            <button type="button" className="tableActionBtn" onClick={loadData}>
+            <FiltersMenu
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              statusFilter={statusFilter}
+              onRangeChange={(from, to) => {
+                setDateFrom(from);
+                setDateTo(to);
+              }}
+              onStatusChange={setStatusFilter}
+              onClear={() => {
+                setDateFrom("");
+                setDateTo("");
+                setStatusFilter("");
+              }}
+            />
+            <button type="button" className="tableActionBtn actionIconBtn" onClick={loadData}>
+              <span className="actionBtnIcon" aria-hidden="true">
+                <RefreshIcon />
+              </span>
               Refresh
             </button>
-            <button type="button" className="submitBtn" onClick={handleExport}>
+            <button type="button" className="submitBtn actionIconBtn" onClick={handleExport}>
+              <span className="actionBtnIcon" aria-hidden="true">
+                <DownloadIcon />
+              </span>
               Export Excel
             </button>
           </div>

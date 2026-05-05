@@ -208,7 +208,7 @@ export default function CategoriesPage({ categoryKey = "companies" }) {
         <div>
           <h1 className="pageTitle">{config.title}</h1>
         </div>
-        <div className="headerActions">
+        <div className="headerActions maintenanceHeaderActions">
           <input
             className="input headerSearch"
             placeholder={`Search ${config.title.toLowerCase()}`}

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import MaintenanceDialog from "../components/MaintenanceDialog";
+import MaintenanceMobileFilters from "../components/MaintenanceMobileFilters";
 import MaintenanceSkeleton from "../components/MaintenanceSkeleton";
 import MaintenanceTable from "../components/MaintenanceTable";
 import UploadDataDialog from "../components/UploadDataDialog";
@@ -183,7 +184,17 @@ export default function GLAccountsPage() {
         <div>
           <h1 className="pageTitle">GL Accounts</h1>
         </div>
-        <div className="headerActions">
+        <div className="headerActions maintenanceHeaderActions">
+          <MaintenanceMobileFilters
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search GL code, name, or company"
+            searchAriaLabel="Search GL accounts"
+            companyFilter={companyFilter}
+            onCompanyFilterChange={setCompanyFilter}
+            companyOptions={companyOptions}
+            companyAriaLabel="Filter GL accounts by company"
+          />
           <input
             className="input headerSearch"
             placeholder="Search GL code, name, or company"

@@ -24,6 +24,11 @@ function Icon({ name }) {
     strokeLinecap: "round",
     strokeLinejoin: "round",
     "aria-hidden": "true",
+    style: {
+      overflow: "visible",
+      width: "100%",
+      height: "100%",
+    },
   };
 
   const icons = {
@@ -189,7 +194,7 @@ const navigation = [
         label: "Control Number Setup",
         view: "/control-number-setup",
         icon: "controlnumber",
-        allowControlNumberEditors: true,
+        roles: ["sysadmin"],
       },
     ],
   },
@@ -365,30 +370,151 @@ function LogoutConfirmDialog({ open, onCancel, onConfirm }) {
   }
 
   return (
-    <div className="modalOverlay maintenanceOverlay">
-      <div className="modalContent maintenanceDialog confirmDialog logoutConfirmDialog">
-        <div className="dialogHeader logoutConfirmHeader">
-          <div className="logoutConfirmHeaderCopy">
-            <div className="logoutConfirmBadge">Session Management</div>
-            <h2 className="modalTitle">Confirm Logout</h2>
-            <p className="confirmDialogText">
-              Are you sure you want to end your current session and log out of the workspace?
-            </p>
+    <div style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "rgba(0, 0, 0, 0.4)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 9998,
+    }}>
+      <div style={{
+        backgroundColor: "white",
+        borderRadius: "12px",
+        boxShadow: "0 20px 60px rgba(0, 0, 0, 0.2)",
+        width: "100%",
+        maxWidth: "480px",
+        overflow: "hidden",
+      }} role="dialog" aria-modal="true">
+        {/* Header */}
+        <div style={{
+          backgroundColor: "#f8f9fa",
+          borderBottom: "1px solid #e9ecef",
+          padding: "24px 28px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+        }}>
+          <div>
+            <div style={{
+              fontSize: "12px",
+              fontWeight: "700",
+              color: "#0066cc",
+              letterSpacing: "0.5px",
+              marginBottom: "8px",
+              textTransform: "uppercase",
+            }}>
+              Session Management
+            </div>
+            <h2 style={{
+              fontSize: "22px",
+              fontWeight: "700",
+              color: "#1a1a1a",
+              margin: "0",
+            }}>
+              Confirm Logout
+            </h2>
           </div>
-          <button type="button" className="dialogClose" onClick={onCancel} aria-label="Close confirmation">
-            x
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              background: "none",
+              border: "none",
+              fontSize: "24px",
+              cursor: "pointer",
+              color: "#666",
+              padding: "0",
+              width: "32px",
+              height: "32px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+            aria-label="Close"
+          >
+            ×
           </button>
         </div>
-        <div className="logoutConfirmBody">
-          <div className="logoutConfirmCallout">
+
+        {/* Body */}
+        <div style={{ padding: "28px" }}>
+          <p style={{
+            fontSize: "15px",
+            lineHeight: "1.6",
+            color: "#333",
+            margin: "0 0 20px 0",
+          }}>
+            Are you sure you want to end your current session and log out of the workspace?
+          </p>
+          <div style={{
+            backgroundColor: "#e8f4fd",
+            border: "1px solid #b3d9f2",
+            borderRadius: "8px",
+            padding: "14px 16px",
+            fontSize: "14px",
+            color: "#0056b3",
+            lineHeight: "1.5",
+          }}>
             You can sign back in at any time using your approved Bounty email account.
           </div>
         </div>
-        <div className="dialogActions logoutConfirmActions">
-          <button type="button" className="removeBtn mutedBtn logoutConfirmSecondaryBtn" onClick={onCancel}>
+
+        {/* Footer */}
+        <div style={{
+          backgroundColor: "#f8f9fa",
+          borderTop: "1px solid #e9ecef",
+          padding: "16px 28px",
+          display: "flex",
+          gap: "12px",
+          justifyContent: "flex-end",
+        }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              padding: "10px 20px",
+              backgroundColor: "#ffffff",
+              color: "#333",
+              border: "1px solid #ccc",
+              borderRadius: "6px",
+              fontSize: "14px",
+              fontWeight: "600",
+              cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+            onMouseOver={(e) => {
+              e.target.backgroundColor = "#f0f0f0";
+              e.target.borderColor = "#999";
+            }}
+            onMouseOut={(e) => {
+              e.target.backgroundColor = "#ffffff";
+              e.target.borderColor = "#ccc";
+            }}
+          >
             Stay Signed In
           </button>
-          <button type="button" className="submitBtn logoutConfirmPrimaryBtn" onClick={onConfirm}>
+          <button
+            type="button"
+            onClick={onConfirm}
+            style={{
+              padding: "10px 20px",
+              backgroundColor: "#dc3545",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              fontSize: "14px",
+              fontWeight: "600",
+              cursor: "pointer",
+              transition: "background-color 0.2s",
+            }}
+            onMouseOver={(e) => e.target.style.backgroundColor = "#c82333"}
+            onMouseOut={(e) => e.target.style.backgroundColor = "#dc3545"}
+          >
             Log Out
           </button>
         </div>
@@ -407,7 +533,6 @@ function Sidebar({
   onToggleCollapse,
   visibleNavigation,
   currentUser,
-  onLogout,
 }) {
   return (
     <aside
@@ -465,18 +590,15 @@ function Sidebar({
         <div className="profileCopy">
           <div className="profileName">{currentUser?.display_name || "User"}</div>
           <div className="profileRole">
-            {currentUser?.usergroup === "sysadmin" ? "System Administrator" : "Accrual User"}
+            {currentUser?.email || ""}
           </div>
         </div>
-        <button type="button" className="profileLogoutBtn" aria-label="Logout" onClick={onLogout}>
-          <Icon name="logout" />
-        </button>
       </div>
     </aside>
   );
 }
 
-function TopBar({ activeView, sidebarExpanded, onToggleSidebar }) {
+function TopBar({ activeView, sidebarExpanded, onToggleSidebar, onLogout }) {
   const pageTitle = titles[activeView] || "Accrual Management";
 
   return (
@@ -496,6 +618,9 @@ function TopBar({ activeView, sidebarExpanded, onToggleSidebar }) {
           <span className="crumbCurrent">{pageTitle.replace(" Management", "")}</span>
         </span>
       </div>
+      <button type="button" className="topbarLogoutButton" onClick={onLogout}>
+        Logout
+      </button>
     </header>
   );
 }
@@ -512,7 +637,7 @@ function LoginScreen({ onLogin, signingIn, announcement, onExpandAnnouncement })
           </div>
           <div>
             <div className="authTitle">Accrual Mgr</div>
-            <div className="authSubtitle">Sign in with your Google account to access the workspace.</div>
+            <div className="authSubtitle">Sign in with your Bounty email account to access the workspace.</div>
           </div>
         </div>
 
@@ -661,6 +786,8 @@ function AppShell() {
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
   const [announcementOpen, setAnnouncementOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [nonBountyModalOpen, setNonBountyModalOpen] = useState(false);
+  const [nonBountyEmail, setNonBountyEmail] = useState("");
   const currentUserRef = React.useRef(null);
   const sessionUserIdRef = React.useRef(null);
 
@@ -780,21 +907,10 @@ function AppShell() {
         }
 
         if (nextSession?.user && !isAllowedBountyEmail(nextSession.user.email)) {
-          const confirmLogin = window.confirm(
-            `You are signing in with "${nextSession.user.email}", which is not a Bounty email account.\n\nThis workspace is intended for Bounty employees. Do you want to continue?`
-          );
-          
-          if (!confirmLogin) {
-            await signOut();
-            if (!mounted) {
-              return;
-            }
-            setSession(null);
-            setCurrentUser(null);
-            setProfileResolved(true);
-            setAuthLoading(false);
-            return;
-          }
+          // show an in-app modal instead of a browser confirm so the UX is consistent
+          setNonBountyEmail(nextSession.user.email);
+          setNonBountyModalOpen(true);
+          // keep the session state while modal is shown; modal will force sign-out if user is not allowed
         }
 
         setSession(nextSession);
@@ -829,35 +945,36 @@ function AppShell() {
         Boolean(previousUserId) &&
         nextUserId === previousUserId;
 
-      setSession(nextSession);
-      setAuthLoading(false);
-
       if (!nextSession?.user) {
+        setSession(null);
         setCurrentUser(null);
         setPendingName("");
         setProfileResolved(true);
         setProfileLoading(false);
         sessionUserIdRef.current = null;
         setLogoutConfirmOpen(false);
+        setAuthLoading(false);
         return;
       }
 
+      // Check if email is allowed BEFORE setting session
       if (!isAllowedBountyEmail(nextSession.user.email)) {
-        const confirmLogin = window.confirm(
-          `You are signing in with "${nextSession.user.email}", which is not a Bounty email account.\n\nThis workspace is intended for Bounty employees. Do you want to continue?`
-        );
-        
-        if (!confirmLogin) {
-          await signOut();
-          setSession(null);
-          setCurrentUser(null);
-          setPendingName("");
-          setProfileResolved(true);
-          setProfileLoading(false);
-          sessionUserIdRef.current = null;
-          return;
-        }
+        // Show non-bounty modal and do NOT set session (deny access)
+        setNonBountyEmail(nextSession.user.email);
+        setNonBountyModalOpen(true);
+        setSession(null);  // Ensure session is cleared
+        setCurrentUser(null);
+        setPendingName("");
+        setProfileResolved(true);
+        setProfileLoading(false);
+        sessionUserIdRef.current = null;
+        setAuthLoading(false);
+        return;
       }
+
+      // Only set session if email is allowed
+      setSession(nextSession);
+      setAuthLoading(false);
 
       const suggestedName = getSuggestedNameFromSession(nextSession);
 
@@ -1009,6 +1126,132 @@ function AppShell() {
   }
 
   if (!session) {
+    // Show non-Bounty access denied modal if triggered
+    if (nonBountyModalOpen) {
+      return (
+        <div style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 9999,
+          backgroundColor: "rgba(0, 0, 0, 0.4)",
+        }}>
+          <div style={{
+            backgroundColor: "white",
+            borderRadius: "12px",
+            boxShadow: "0 20px 60px rgba(0, 0, 0, 0.2)",
+            width: "100%",
+            maxWidth: "480px",
+            overflow: "hidden",
+          }} role="dialog" aria-modal="true">
+            {/* Icon Section */}
+            <div style={{
+              backgroundColor: "#fef2f2",
+              padding: "32px 28px 24px",
+              display: "flex",
+              justifyContent: "center",
+            }}>
+              <div style={{
+                width: "56px",
+                height: "56px",
+                backgroundColor: "#fee2e2",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "28px",
+              }}>
+                🔒
+              </div>
+            </div>
+
+            {/* Content */}
+            <div style={{
+              padding: "24px 28px",
+              textAlign: "center",
+            }}>
+              <h2 style={{
+                fontSize: "22px",
+                fontWeight: "700",
+                color: "#1a1a1a",
+                margin: "0 0 12px 0",
+              }}>
+                Access Restricted
+              </h2>
+              <p style={{
+                fontSize: "15px",
+                lineHeight: "1.6",
+                color: "#666",
+                margin: "0 0 20px 0",
+              }}>
+                This workspace is intended for Bounty employees only. Non-Bounty accounts are not permitted.
+              </p>
+              <div style={{
+                backgroundColor: "#fef2f2",
+                border: "1px solid #fecaca",
+                borderRadius: "8px",
+                padding: "12px 14px",
+                fontSize: "13px",
+                color: "#991b1b",
+                lineHeight: "1.5",
+              }}>
+                If you believe this is an error, please contact your system administrator.
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              backgroundColor: "#f8f9fa",
+              borderTop: "1px solid #e9ecef",
+              padding: "16px 28px",
+              display: "flex",
+              justifyContent: "center",
+            }}>
+              <button
+                type="button"
+                style={{
+                  width: "100%",
+                  padding: "12px 20px",
+                  backgroundColor: "#dc3545",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  transition: "background-color 0.2s",
+                }}
+                onMouseOver={(e) => e.target.style.backgroundColor = "#c82333"}
+                onMouseOut={(e) => e.target.style.backgroundColor = "#dc3545"}
+                onClick={async () => {
+                  try {
+                    await signOut();
+                  } catch (err) {
+                    // ignore sign out errors — proceed to clear state
+                  }
+                  setNonBountyModalOpen(false);
+                  setNonBountyEmail("");
+                  setSession(null);
+                  setCurrentUser(null);
+                  setPendingName("");
+                  setProfileResolved(true);
+                  setProfileLoading(false);
+                  sessionUserIdRef.current = null;
+                }}
+              >
+                Try Another Account
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <>
         <AnnouncementPreviewModal
@@ -1057,7 +1300,6 @@ function AppShell() {
             onToggleCollapse={handleToggleSidebar}
             visibleNavigation={visibleNavigation}
             currentUser={currentUser}
-            onLogout={handleLogout}
           />
         ) : null}
         {!showFullscreenNewAccrual && mobileOpen ? (
@@ -1065,7 +1307,12 @@ function AppShell() {
         ) : null}
         <div className="appMain">
           {!showFullscreenNewAccrual ? (
-            <TopBar activeView={activeView} sidebarExpanded={isMobile ? mobileOpen : !collapsed} onToggleSidebar={handleToggleSidebar} />
+            <TopBar
+              activeView={activeView}
+              sidebarExpanded={isMobile ? mobileOpen : !collapsed}
+              onToggleSidebar={handleToggleSidebar}
+              onLogout={handleLogout}
+            />
           ) : null}
           <main className="appContent">
             {renderActiveView(activeView, currentUser, {

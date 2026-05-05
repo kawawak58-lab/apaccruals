@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import MaintenanceDialog from "../components/MaintenanceDialog";
+import MaintenanceMobileFilters from "../components/MaintenanceMobileFilters";
 import MaintenanceSkeleton from "../components/MaintenanceSkeleton";
 import MaintenanceTable from "../components/MaintenanceTable";
 import UploadDataDialog from "../components/UploadDataDialog";
@@ -299,7 +300,17 @@ export default function SuppliersPage() {
         <div>
           <h1 className="pageTitle">Suppliers</h1>
         </div>
-        <div className="headerActions">
+        <div className="headerActions maintenanceHeaderActions">
+          <MaintenanceMobileFilters
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search by code, name, or company..."
+            searchAriaLabel="Search suppliers"
+            companyFilter={companyFilter}
+            onCompanyFilterChange={activeTab === "master" ? setCompanyFilter : null}
+            companyOptions={companyOptions}
+            companyAriaLabel="Filter suppliers by company"
+          />
           <input
             className="input headerSearch"
             placeholder="Search by code, name, or company..."
