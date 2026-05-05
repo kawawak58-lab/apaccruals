@@ -42,7 +42,7 @@ export async function signInWithGoogle() {
 
 export async function signOut() {
   const { error } = await supabase.auth.signOut();
-  if (error) {
+  if (error && error.message !== "Auth session missing!") {
     throw error;
   }
 }
