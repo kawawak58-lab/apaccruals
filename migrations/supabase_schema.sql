@@ -76,6 +76,7 @@ create table if not exists public.users (
   display_name text not null,
   usergroup text not null default 'accrual_user',
   can_update_control_number boolean not null default false,
+  can_update_setup boolean not null default false,
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   last_login_at timestamptz,
@@ -84,6 +85,9 @@ create table if not exists public.users (
 
 alter table public.users
   add column if not exists can_update_control_number boolean not null default false;
+
+alter table public.users
+  add column if not exists can_update_setup boolean not null default false;
 
 create table if not exists public.accrual_setup (
   id boolean primary key default true,
@@ -582,6 +586,23 @@ $$;
 
 grant execute on function public.can_update_control_number() to authenticated, service_role;
 
+create or replace function public.can_update_setup()
+returns boolean
+language sql
+security definer
+stable
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.users u
+    where (u.auth_user_id = auth.uid() or lower(u.email) = lower(coalesce(auth.jwt()->>'email', '')))
+      and coalesce(u.can_update_setup, false) = true
+  );
+$$;
+
+grant execute on function public.can_update_setup() to authenticated, service_role;
+
 drop policy if exists "users read own or sysadmin" on public.users;
 create policy "users read own or sysadmin"
 on public.users
@@ -623,8 +644,8 @@ create policy "public accrual setup update"
 on public.accrual_setup
 for update
 to authenticated
-using (true)
-with check (true);
+using (public.can_update_setup())
+with check (public.can_update_setup());
 
 drop policy if exists "public announcements read" on public.announcements;
 create policy "public announcements read"
@@ -741,6 +762,7 @@ returns table (
   display_name text,
   usergroup text,
   can_update_control_number boolean,
+  can_update_setup boolean,
   created_at timestamptz,
   updated_at timestamptz,
   last_login_at timestamptz
@@ -757,6 +779,7 @@ as $$
     u.display_name,
     u.usergroup,
     u.can_update_control_number,
+    u.can_update_setup,
     u.created_at,
     u.updated_at,
     u.last_login_at
@@ -780,6 +803,7 @@ returns table (
   display_name text,
   usergroup text,
   can_update_control_number boolean,
+  can_update_setup boolean,
   created_at timestamptz,
   updated_at timestamptz,
   last_login_at timestamptz
@@ -816,6 +840,7 @@ begin
       display_name,
       usergroup,
       can_update_control_number,
+      can_update_setup,
       last_login_at
     )
     values (
@@ -823,6 +848,7 @@ begin
       v_email,
       coalesce(v_display_name, split_part(v_email, '@', 1)),
       'accrual_user',
+      false,
       false,
       timezone('utc', now())
     )
@@ -845,6 +871,7 @@ begin
     v_existing.display_name,
     v_existing.usergroup,
     v_existing.can_update_control_number,
+    v_existing.can_update_setup,
     v_existing.created_at,
     v_existing.updated_at,
     v_existing.last_login_at;

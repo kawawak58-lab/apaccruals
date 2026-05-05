@@ -25,6 +25,16 @@ const userFields = [
       { value: "true", label: "Can Update" },
     ],
   },
+  {
+    name: "can_update_setup",
+    label: "Setup Access",
+    type: "select",
+    required: true,
+    options: [
+      { value: "false", label: "No Access" },
+      { value: "true", label: "Can Update" },
+    ],
+  },
 ];
 
 function formatDateTime(value) {
@@ -54,6 +64,7 @@ export default function UsersPage() {
     email: "",
     usergroup: "accrual_user",
     can_update_control_number: "false",
+    can_update_setup: "false",
   });
 
   const loadData = useCallback(async () => {
@@ -81,7 +92,13 @@ export default function UsersPage() {
       return true;
     }
 
-    return [user.display_name, user.email, user.usergroup, user.can_update_control_number ? "control access" : "no control access"]
+    return [
+      user.display_name,
+      user.email,
+      user.usergroup,
+      user.can_update_control_number ? "control access" : "no control access",
+      user.can_update_setup ? "setup access" : "no setup access",
+    ]
       .join(" ")
       .toLowerCase()
       .includes(keyword);
@@ -94,6 +111,7 @@ export default function UsersPage() {
       email: row.email,
       usergroup: row.usergroup,
       can_update_control_number: String(Boolean(row.can_update_control_number)),
+      can_update_setup: String(Boolean(row.can_update_setup)),
     });
     setDialogOpen(true);
   };
@@ -101,11 +119,21 @@ export default function UsersPage() {
   const handleSubmit = async () => {
     try {
       setSaving(true);
-      await updateUser(formValues.id, {
+      const updatedUser = await updateUser(formValues.id, {
         display_name: formValues.display_name.trim(),
         usergroup: formValues.usergroup,
         can_update_control_number: formValues.can_update_control_number === "true",
+        can_update_setup: formValues.can_update_setup === "true",
       });
+      window.dispatchEvent(
+        new CustomEvent("app-user-updated", {
+          detail: {
+            id: updatedUser.id,
+            auth_user_id: updatedUser.auth_user_id || null,
+            email: updatedUser.email || "",
+          },
+        })
+      );
       setDialogOpen(false);
       showToast("User updated successfully.", "success");
       await loadData();
@@ -165,6 +193,15 @@ export default function UsersPage() {
                 render: (row) => (
                   <span className={`statusPill${row.can_update_control_number ? " success" : " warning"}`}>
                     {row.can_update_control_number ? "Allowed" : "Not Allowed"}
+                  </span>
+                ),
+              },
+              {
+                key: "can_update_setup",
+                label: "Setup Access",
+                render: (row) => (
+                  <span className={`statusPill${row.can_update_setup ? " success" : " warning"}`}>
+                    {row.can_update_setup ? "Allowed" : "Not Allowed"}
                   </span>
                 ),
               },

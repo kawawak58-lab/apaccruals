@@ -76,7 +76,7 @@ export async function ensureUserProfile(displayName) {
 export async function fetchUsers() {
   const { data, error } = await supabase
     .from("users")
-    .select("id, auth_user_id, email, display_name, usergroup, can_update_control_number, created_at, updated_at, last_login_at")
+    .select("id, auth_user_id, email, display_name, usergroup, can_update_control_number, can_update_setup, created_at, updated_at, last_login_at")
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -91,7 +91,7 @@ export async function updateUser(id, payload) {
     .from("users")
     .update(payload)
     .eq("id", id)
-    .select("id, auth_user_id, email, display_name, usergroup, can_update_control_number, created_at, updated_at, last_login_at")
+    .select("id, auth_user_id, email, display_name, usergroup, can_update_control_number, can_update_setup, created_at, updated_at, last_login_at")
     .single();
 
   if (error) {

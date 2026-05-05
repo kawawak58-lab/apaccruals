@@ -13,13 +13,14 @@ const defaultFormValues = {
   cutoff_date: "",
 };
 
-export default function AccrualSetupPage() {
+export default function AccrualSetupPage({ currentUser }) {
   const { showToast } = useToast();
   const [formValues, setFormValues] = useState(defaultFormValues);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [updatedAt, setUpdatedAt] = useState(null);
+  const hasAccess = Boolean(currentUser?.can_update_setup);
 
   const loadSetup = useCallback(async () => {
     setLoading(true);
@@ -41,8 +42,12 @@ export default function AccrualSetupPage() {
   }, [showToast]);
 
   useEffect(() => {
+    if (!hasAccess) {
+      setLoading(false);
+      return;
+    }
     loadSetup();
-  }, [loadSetup]);
+  }, [hasAccess, loadSetup]);
 
   const windowStatus = useMemo(
     () => getAccrualWindowStatus(formValues, new Date()),
@@ -56,6 +61,11 @@ export default function AccrualSetupPage() {
     : "neutral";
 
   const handleSubmit = async () => {
+    if (!hasAccess) {
+      showToast("You do not have access to update the accrual setup.", "error");
+      return;
+    }
+
     if (!formValues.start_date || !formValues.cutoff_date) {
       showToast("Start date and cutoff date are required.", "error");
       return;
@@ -115,6 +125,7 @@ export default function AccrualSetupPage() {
           </div>
 
           {errorMessage ? <div className="inlineError">{errorMessage}</div> : null}
+          {!hasAccess ? <div className="inlineError">You do not have access to update the accrual setup.</div> : null}
 
           <div className="accrualSetupGrid">
             <label className="headerFieldGroup accrualSetupField">
@@ -123,7 +134,7 @@ export default function AccrualSetupPage() {
                 type="date"
                 className="input"
                 value={formValues.start_date}
-                disabled={loading || saving}
+                disabled={!hasAccess || loading || saving}
                 onChange={(event) =>
                   setFormValues((current) => ({ ...current, start_date: event.target.value }))
                 }
@@ -136,7 +147,7 @@ export default function AccrualSetupPage() {
                 type="date"
                 className="input"
                 value={formValues.cutoff_date}
-                disabled={loading || saving}
+                disabled={!hasAccess || loading || saving}
                 onChange={(event) =>
                   setFormValues((current) => ({ ...current, cutoff_date: event.target.value }))
                 }
@@ -158,24 +169,26 @@ export default function AccrualSetupPage() {
             </span>
           </div>
 
-          <div className="accrualSetupActions">
-            <button
-              type="button"
-              className="tableActionBtn"
-              onClick={loadSetup}
-              disabled={loading || saving}
-            >
-              Refresh
-            </button>
-            <button
-              type="button"
-              className={`submitBtn${saving ? " isLoading" : ""}`}
-              onClick={handleSubmit}
-              disabled={loading || saving}
-            >
-              {saving ? "Saving..." : "Save Setup"}
-            </button>
-          </div>
+          {hasAccess ? (
+            <div className="accrualSetupActions">
+              <button
+                type="button"
+                className="tableActionBtn"
+                onClick={loadSetup}
+                disabled={loading || saving}
+              >
+                Refresh
+              </button>
+              <button
+                type="button"
+                className={`submitBtn${saving ? " isLoading" : ""}`}
+                onClick={handleSubmit}
+                disabled={loading || saving}
+              >
+                {saving ? "Saving..." : "Save Setup"}
+              </button>
+            </div>
+          ) : null}
         </section>
       </div>
     </div>

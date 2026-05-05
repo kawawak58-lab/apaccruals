@@ -3894,6 +3894,7 @@ a {
 }
 
 .announcementModal {
+  position: relative;
   width: min(1440px, calc(100vw - 20px));
   max-height: calc(100vh - 20px);
   overflow: auto;
@@ -3972,14 +3973,26 @@ a {
 
 .announcementRichEditor {
   min-height: 460px;
+}
+
+.announcementRichEditor .ProseMirror {
+  min-height: 460px;
   padding: 12px;
   overflow: auto;
   outline: none;
+  color: #ffffff;
 }
 
-.announcementRichEditor:empty::before {
+.announcementRichEditor .ProseMirror:focus {
+  outline: none;
+}
+
+.announcementRichEditor .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
   color: #cbd5e1;
+  pointer-events: none;
+  float: left;
+  height: 0;
 }
 
 .announcementInput::placeholder,
@@ -4037,6 +4050,16 @@ a {
   border-color: #94a3b8;
 }
 
+.announcementToolbarBtn.isActive {
+  background: #2563eb;
+  border-color: #60a5fa;
+}
+
+.announcementToolbarBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .announcementEditorShell .announcementTextarea,
 .announcementEditorShell .announcementRichEditor {
   border: 0;
@@ -4044,34 +4067,34 @@ a {
   background: #1f2937;
 }
 
-.announcementRichEditor p,
-.announcementRichEditor h2,
-.announcementRichEditor h3,
-.announcementRichEditor ul,
-.announcementRichEditor ol {
+.announcementRichEditor .ProseMirror p,
+.announcementRichEditor .ProseMirror h2,
+.announcementRichEditor .ProseMirror h3,
+.announcementRichEditor .ProseMirror ul,
+.announcementRichEditor .ProseMirror ol {
   margin: 0 0 12px;
 }
 
-.announcementRichEditor h2 {
+.announcementRichEditor .ProseMirror h2 {
   font-size: 24px;
   font-weight: 800;
 }
 
-.announcementRichEditor h3 {
+.announcementRichEditor .ProseMirror h3 {
   font-size: 20px;
   font-weight: 800;
 }
 
-.announcementRichEditor ul,
-.announcementRichEditor ol {
+.announcementRichEditor .ProseMirror ul,
+.announcementRichEditor .ProseMirror ol {
   padding-left: 20px;
 }
 
-.announcementRichEditor a {
+.announcementRichEditor .ProseMirror a {
   color: #93c5fd;
 }
 
-.announcementRichEditor img {
+.announcementRichEditor .ProseMirror img {
   max-width: 100%;
   border-radius: 8px;
 }
@@ -4104,6 +4127,37 @@ a {
   border: 1px solid var(--accent);
   background: var(--accent);
   color: #ffffff;
+}
+
+.announcementSavingOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(2px);
+}
+
+.announcementSavingOverlayCard {
+  min-width: 220px;
+  padding: 20px 24px;
+  border: 1px solid #475569;
+  border-radius: 16px;
+  background: rgba(31, 41, 55, 0.96);
+  box-shadow: 0 24px 60px rgba(2, 6, 23, 0.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.announcementSavingOverlayText {
+  color: #f8fafc;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .announcementImagePreview {

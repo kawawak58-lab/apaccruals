@@ -13,6 +13,7 @@ import { AppViewContext } from "./lib/appView";
 import { ToastProvider, useToast } from "./lib/toast";
 import { ensureUserProfile, getCurrentAppUser, getSession, onAuthStateChange, signInWithGoogle, signOut } from "./lib/auth";
 import { fetchCollection } from "./lib/adminCrud";
+import { supabase } from "./lib/supabase";
 import UsersPage from "./pages/UsersPage";
 
 function Icon({ name }) {
@@ -188,7 +189,7 @@ const navigation = [
     section: "Administration",
     items: [
       { label: "Users", view: "/admin-users", icon: "users", roles: ["sysadmin"] },
-      { label: "Accrual Setup", view: "/accrual-setup", icon: "companies", roles: ["sysadmin"] },
+      { label: "Accrual Setup", view: "/accrual-setup", icon: "companies", roles: ["sysadmin"], allowSetupEditors: true },
       { label: "Announcement", view: "/announcements", icon: "announcement", roles: ["sysadmin"] },
       {
         label: "Control Number Setup",
@@ -765,7 +766,7 @@ function renderActiveView(activeView, currentUser, options = {}) {
     case "/admin-users":
       return <UsersPage currentUser={currentUser} />;
     case "/accrual-setup":
-      return <AccrualSetupPage />;
+      return <AccrualSetupPage currentUser={currentUser} />;
     case "/announcements":
       return <AnnouncementsPage />;
     case "/control-number-setup":
@@ -1045,6 +1046,66 @@ function AppShell() {
     return () => window.clearTimeout(timeoutId);
   }, [profileLoading, session, showToast]);
 
+  useEffect(() => {
+    if (!session?.user || !currentUser?.id) {
+      return undefined;
+    }
+
+    const refreshCurrentUser = () => {
+      void loadCurrentUser();
+    };
+
+    const refreshCurrentUserIfVisible = () => {
+      if (document.visibilityState === "visible") {
+        refreshCurrentUser();
+      }
+    };
+
+    const profileChannel = supabase
+      .channel(`current-user-profile-${currentUser.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "users",
+          filter: `id=eq.${currentUser.id}`,
+        },
+        refreshCurrentUser
+      )
+      .subscribe();
+
+    window.addEventListener("focus", refreshCurrentUser);
+    document.addEventListener("visibilitychange", refreshCurrentUserIfVisible);
+
+    return () => {
+      window.removeEventListener("focus", refreshCurrentUser);
+      document.removeEventListener("visibilitychange", refreshCurrentUserIfVisible);
+      supabase.removeChannel(profileChannel);
+    };
+  }, [currentUser?.id, loadCurrentUser, session?.user]);
+
+  useEffect(() => {
+    if (!session?.user) {
+      return undefined;
+    }
+
+    const handleUserUpdated = (event) => {
+      const detail = event?.detail || {};
+      const matchesCurrentUser =
+        (detail.id && detail.id === currentUserRef.current?.id) ||
+        (detail.auth_user_id && detail.auth_user_id === session.user.id) ||
+        (detail.email && detail.email.toLowerCase() === (session.user.email || "").toLowerCase());
+
+      if (matchesCurrentUser) {
+        void loadCurrentUser();
+      }
+    };
+
+    window.addEventListener("app-user-updated", handleUserUpdated);
+    return () => window.removeEventListener("app-user-updated", handleUserUpdated);
+  }, [loadCurrentUser, session]);
+
   const visibleNavigation = useMemo(() => {
     const role = currentUser?.usergroup || "accrual_user";
     return navigation
@@ -1054,7 +1115,8 @@ function AppShell() {
           (item) =>
             !item.roles ||
             item.roles.includes(role) ||
-            (item.allowControlNumberEditors && currentUser?.can_update_control_number)
+            (item.allowControlNumberEditors && currentUser?.can_update_control_number) ||
+            (item.allowSetupEditors && currentUser?.can_update_setup)
         ),
       }))
       .filter((group) => group.items.length > 0);

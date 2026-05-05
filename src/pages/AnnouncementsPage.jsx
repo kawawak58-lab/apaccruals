@@ -1,4 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import Image from "@tiptap/extension-image";
+import Link from "@tiptap/extension-link";
+import StarterKit from "@tiptap/starter-kit";
+import { EditorContent, useEditor } from "@tiptap/react";
 import MaintenanceSkeleton from "../components/MaintenanceSkeleton";
 import { deleteRecord, fetchCollection, insertRecord, updateRecord } from "../lib/adminCrud";
 import { useToast } from "../lib/toast";
@@ -77,6 +81,10 @@ function formatAnnouncementHtml(detail) {
     .join("");
 }
 
+function normalizeAnnouncementEditorHtml(detail) {
+  return formatAnnouncementHtml(detail).replace(/<(\/?)h[1-6]\b/gi, "<$1p");
+}
+
 function AnnouncementActions({ onEdit, onDelete }) {
   return (
     <div className="announcementActions">
@@ -100,63 +108,103 @@ function AnnouncementActions({ onEdit, onDelete }) {
 }
 
 function AnnouncementModal({ open, mode, form, saving, onChange, onClose, onSubmit, onUpload }) {
-  const editorRef = useRef(null);
+  const editor = useEditor({
+    immediatelyRender: false,
+    editorProps: {
+      attributes: {
+        "data-placeholder": "Write the announcement details here...",
+      },
+    },
+    extensions: [
+      StarterKit,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        defaultProtocol: "https",
+      }),
+      Image,
+    ],
+    content: normalizeAnnouncementEditorHtml(form.detail),
+    onUpdate: ({ editor: nextEditor }) => {
+      onChange("detail", sanitizeAnnouncementHtml(nextEditor.getHTML()));
+    },
+  });
+
+  useEffect(() => {
+    if (!editor) {
+      return;
+    }
+
+    const nextHtml = normalizeAnnouncementEditorHtml(form.detail);
+    const currentHtml = sanitizeAnnouncementHtml(editor.getHTML());
+    if (sanitizeAnnouncementHtml(nextHtml) === currentHtml) {
+      return;
+    }
+
+    editor.commands.setContent(nextHtml, false);
+  }, [editor, form.detail]);
 
   if (!open) {
     return null;
   }
 
-  const syncDetail = () => {
-    if (!editorRef.current) {
+  const runEditorCommand = (callback) => {
+    if (!editor) {
       return;
     }
 
-    onChange("detail", sanitizeAnnouncementHtml(editorRef.current.innerHTML));
-  };
-
-  const runEditorCommand = (command, value = null) => {
-    if (!editorRef.current) {
-      return;
-    }
-
-    editorRef.current.focus();
-    document.execCommand(command, false, value);
-    syncDetail();
+    callback(editor.chain().focus()).run();
   };
 
   const toolbarButtons = [
     {
       label: "H2",
-      onClick: () => runEditorCommand("formatBlock", "h2"),
+      isActive: editor?.isActive("heading", { level: 2 }),
+      onClick: () => runEditorCommand((chain) => chain.toggleHeading({ level: 2 })),
     },
     {
       label: "H3",
-      onClick: () => runEditorCommand("formatBlock", "h3"),
+      isActive: editor?.isActive("heading", { level: 3 }),
+      onClick: () => runEditorCommand((chain) => chain.toggleHeading({ level: 3 })),
     },
     {
       label: "Bold",
-      onClick: () => runEditorCommand("bold"),
+      isActive: editor?.isActive("bold"),
+      onClick: () => runEditorCommand((chain) => chain.toggleBold()),
     },
     {
       label: "Italic",
-      onClick: () => runEditorCommand("italic"),
+      isActive: editor?.isActive("italic"),
+      onClick: () => runEditorCommand((chain) => chain.toggleItalic()),
     },
     {
       label: "Bullets",
-      onClick: () => runEditorCommand("insertUnorderedList"),
+      isActive: editor?.isActive("bulletList"),
+      onClick: () => runEditorCommand((chain) => chain.toggleBulletList()),
     },
     {
       label: "Numbered",
-      onClick: () => runEditorCommand("insertOrderedList"),
+      isActive: editor?.isActive("orderedList"),
+      onClick: () => runEditorCommand((chain) => chain.toggleOrderedList()),
     },
     {
       label: "Link",
+      isActive: editor?.isActive("link"),
       onClick: () => {
-        const url = window.prompt("Enter the link URL");
-        if (!url) {
+        if (!editor) {
           return;
         }
-        runEditorCommand("createLink", url);
+        const url = window.prompt("Enter the link URL");
+        if (url === null) {
+          return;
+        }
+
+        if (!url.trim()) {
+          editor.chain().focus().unsetLink().run();
+          return;
+        }
+
+        editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
       },
     },
     {
@@ -166,7 +214,27 @@ function AnnouncementModal({ open, mode, form, saving, onChange, onClose, onSubm
         if (!url) {
           return;
         }
-        runEditorCommand("insertImage", url);
+        runEditorCommand((chain) => chain.setImage({ src: url.trim() }));
+      },
+    },
+    {
+      label: "Undo",
+      disabled: !editor?.can().chain().focus().undo().run(),
+      onClick: () => runEditorCommand((chain) => chain.undo()),
+    },
+    {
+      label: "Redo",
+      disabled: !editor?.can().chain().focus().redo().run(),
+      onClick: () => runEditorCommand((chain) => chain.redo()),
+    },
+    {
+      label: "Clear",
+      onClick: () => {
+        if (!editor) {
+          return;
+        }
+
+        editor.chain().focus().clearNodes().unsetAllMarks().run();
       },
     },
   ];
@@ -179,6 +247,19 @@ function AnnouncementModal({ open, mode, form, saving, onChange, onClose, onSubm
         aria-modal="true"
         aria-label={mode === "edit" ? "Edit Announcement" : "Add Announcement"}
       >
+        {saving ? (
+          <div className="announcementSavingOverlay" aria-live="polite">
+            <div className="announcementSavingOverlayCard">
+              <div className="announcementLoader" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                  <path d="M64 32C28.7 32 0 60.7 0 96v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm48 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0zM64 288c-35.3 0-64 28.7-64 64v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V352c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm56 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0z" />
+                </svg>
+                <span />
+              </div>
+              <div className="announcementSavingOverlayText">Saving announcement...</div>
+            </div>
+          </div>
+        ) : null}
         <div className="announcementModalHeader">
           <h2>{mode === "edit" ? "Edit Announcement" : "Add Announcement"}</h2>
           <button type="button" className="announcementModalClose" onClick={onClose} aria-label="Close">
@@ -206,22 +287,15 @@ function AnnouncementModal({ open, mode, form, saving, onChange, onClose, onSubm
                     <button
                       key={button.label}
                       type="button"
-                      className="announcementToolbarBtn"
+                      className={`announcementToolbarBtn${button.isActive ? " isActive" : ""}`}
                       onClick={button.onClick}
+                      disabled={button.disabled}
                     >
                       {button.label}
                     </button>
                   ))}
                 </div>
-                <div
-                  ref={editorRef}
-                  className="announcementRichEditor"
-                  contentEditable
-                  suppressContentEditableWarning
-                  data-placeholder="Write the announcement details here..."
-                  dangerouslySetInnerHTML={{ __html: formatAnnouncementHtml(form.detail) }}
-                  onInput={syncDetail}
-                />
+                <EditorContent editor={editor} className="announcementRichEditor" />
               </div>
             </label>
 

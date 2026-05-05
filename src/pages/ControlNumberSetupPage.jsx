@@ -220,24 +220,26 @@ export default function ControlNumberSetupPage({ currentUser }) {
             </span>
           </div>
 
-          <div className="accrualSetupActions">
-            <button
-              type="button"
-              className="tableActionBtn"
-              onClick={loadCurrentControlNumber}
-              disabled={!hasAccess || loading || saving}
-            >
-              Refresh
-            </button>
-            <button
-              type="button"
-              className={`submitBtn${saving ? " isLoading" : ""}`}
-              onClick={handleSave}
-              disabled={!hasAccess || loading || saving || !hasChanges}
-            >
-              {saving ? "Saving..." : "Save Control Number"}
-            </button>
-          </div>
+          {hasAccess ? (
+            <div className="accrualSetupActions">
+              <button
+                type="button"
+                className="tableActionBtn"
+                onClick={loadCurrentControlNumber}
+                disabled={loading || saving}
+              >
+                Refresh
+              </button>
+              <button
+                type="button"
+                className={`submitBtn${saving ? " isLoading" : ""}`}
+                onClick={handleSave}
+                disabled={loading || saving || !hasChanges}
+              >
+                {saving ? "Saving..." : "Save Control Number"}
+              </button>
+            </div>
+          ) : null}
         </section>
       </div>
     </div>
