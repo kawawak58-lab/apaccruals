@@ -625,6 +625,34 @@ function TopBar({ activeView, sidebarExpanded, onToggleSidebar, onLogout }) {
   );
 }
 
+function LoginShellLoader() {
+  return (
+    <div className="authScreen">
+      <div className="authCard authLoginShellLoader" aria-live="polite">
+        <div className="authBrandRow">
+          <div className="brandMark">
+            <BrandLogo />
+          </div>
+          <div>
+            <div className="authTitle">Accrual Mgr</div>
+            <div className="authSubtitle">Preparing sign in and latest announcement.</div>
+          </div>
+        </div>
+
+        <div className="authLoginShellLoaderBody">
+        <div className="announcementLoader" aria-hidden="true">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+            <path d="M64 32C28.7 32 0 60.7 0 96v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm48 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0zM64 288c-35.3 0-64 28.7-64 64v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V352c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm56 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0z" />
+          </svg>
+          <span />
+        </div>
+          <div className="loginAnnouncementLoadingText">Loading sign in screen...</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LoginScreen({ onLogin, signingIn, announcement, onExpandAnnouncement }) {
   const previewLines = announcement ? splitAnnouncementDetail(announcement.detail).slice(0, 2) : [];
 
@@ -785,6 +813,7 @@ function AppShell() {
   const [newAccrualFullscreen, setNewAccrualFullscreen] = useState(false);
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
   const [announcementOpen, setAnnouncementOpen] = useState(false);
+  const [announcementLoading, setAnnouncementLoading] = useState(true);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [nonBountyModalOpen, setNonBountyModalOpen] = useState(false);
   const currentUserRef = React.useRef(null);
@@ -847,6 +876,7 @@ function AppShell() {
     let cancelled = false;
 
     async function loadActiveAnnouncement() {
+      setAnnouncementLoading(true);
       try {
         const rows = await fetchCollection({
           table: "announcements",
@@ -876,14 +906,17 @@ function AppShell() {
         if (!nextAnnouncement) {
           setActiveAnnouncement(null);
           setAnnouncementOpen(false);
+          setAnnouncementLoading(false);
           return;
         }
 
         setActiveAnnouncement(nextAnnouncement);
+        setAnnouncementLoading(false);
       } catch (error) {
         if (!cancelled) {
           setActiveAnnouncement(null);
           setAnnouncementOpen(false);
+          setAnnouncementLoading(false);
         }
       }
     }
@@ -1114,7 +1147,12 @@ function AppShell() {
     return (
       <div className="authScreen">
         <div className="authCard authLoadingCard">
-          <div className="spinner" />
+          <div className="announcementLoader" aria-hidden="true">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+              <path d="M64 32C28.7 32 0 60.7 0 96v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm48 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0zM64 288c-35.3 0-64 28.7-64 64v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V352c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm56 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0z" />
+            </svg>
+            <span />
+          </div>
           <div className="authTitle">Loading Workspace</div>
           <div className="authSubtitle">Checking your session and user access.</div>
         </div>
@@ -1255,12 +1293,16 @@ function AppShell() {
           open={announcementOpen}
           onClose={() => setAnnouncementOpen(false)}
         />
-        <LoginScreen
-          onLogin={handleGoogleLogin}
-          signingIn={signingIn}
-          announcement={activeAnnouncement}
-          onExpandAnnouncement={() => setAnnouncementOpen(true)}
-        />
+        {announcementLoading ? (
+          <LoginShellLoader />
+        ) : (
+          <LoginScreen
+            onLogin={handleGoogleLogin}
+            signingIn={signingIn}
+            announcement={activeAnnouncement}
+            onExpandAnnouncement={() => setAnnouncementOpen(true)}
+          />
+        )}
       </>
     );
   }

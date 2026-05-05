@@ -214,6 +214,65 @@ body {
   margin-top: 12px;
 }
 
+.authLoginShellLoader {
+  min-height: 320px;
+}
+
+.authLoginShellLoaderBody {
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+}
+
+.loginAnnouncementLoadingText {
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.announcementLoader {
+  --color: #2563eb;
+  --size: 40px;
+  position: relative;
+  width: var(--size);
+  height: var(--size);
+}
+
+.announcementLoader span {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  border: 1px solid var(--color);
+  border-bottom: 1px solid transparent;
+  border-radius: 100%;
+  animation: announcementLoaderRotate 0.8s infinite linear;
+}
+
+.announcementLoader svg {
+  width: 100%;
+  height: 100%;
+  padding: 25%;
+  fill: var(--color);
+  animation: announcementLoaderBlink 0.8s infinite ease-in-out;
+}
+
+@keyframes announcementLoaderRotate {
+  0% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes announcementLoaderBlink {
+  50% {
+    opacity: 0.8;
+  }
+}
+
 .loginAnnouncementExpand {
   min-height: 34px;
   padding: 0 12px;
@@ -288,7 +347,7 @@ body {
   text-align: center;
 }
 
-.authLoadingCard .spinner {
+.authLoadingCard .announcementLoader {
   margin: 0 auto 16px;
 }
 
