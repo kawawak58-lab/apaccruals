@@ -834,7 +834,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
     const debounceTimer = setTimeout(fetchGLForLines, 500);
     return () => clearTimeout(debounceTimer);
-  }, [headerInfo.company]);
+  }, [headerInfo.company, lineItems]);
 
   // Profit Center search handler
   const handleProfitSearchChange = useCallback((lineId, value) => {
@@ -898,7 +898,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
     const debounceTimer = setTimeout(fetchProfitForLines, 500);
     return () => clearTimeout(debounceTimer);
-  }, [headerInfo.company]);
+  }, [headerInfo.company, lineItems]);
 
   const loadMoreGLAccounts = (lineId) => {
     setLineItems(prev =>

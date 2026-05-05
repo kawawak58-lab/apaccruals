@@ -787,7 +787,6 @@ function AppShell() {
   const [announcementOpen, setAnnouncementOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [nonBountyModalOpen, setNonBountyModalOpen] = useState(false);
-  const [nonBountyEmail, setNonBountyEmail] = useState("");
   const currentUserRef = React.useRef(null);
   const sessionUserIdRef = React.useRef(null);
 
@@ -908,7 +907,6 @@ function AppShell() {
 
         if (nextSession?.user && !isAllowedBountyEmail(nextSession.user.email)) {
           // show an in-app modal instead of a browser confirm so the UX is consistent
-          setNonBountyEmail(nextSession.user.email);
           setNonBountyModalOpen(true);
           // keep the session state while modal is shown; modal will force sign-out if user is not allowed
         }
@@ -960,7 +958,6 @@ function AppShell() {
       // Check if email is allowed BEFORE setting session
       if (!isAllowedBountyEmail(nextSession.user.email)) {
         // Show non-bounty modal and do NOT set session (deny access)
-        setNonBountyEmail(nextSession.user.email);
         setNonBountyModalOpen(true);
         setSession(null);  // Ensure session is cleared
         setCurrentUser(null);
@@ -1235,7 +1232,6 @@ function AppShell() {
                     // ignore sign out errors — proceed to clear state
                   }
                   setNonBountyModalOpen(false);
-                  setNonBountyEmail("");
                   setSession(null);
                   setCurrentUser(null);
                   setPendingName("");
