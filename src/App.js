@@ -15,6 +15,15 @@ import { ensureUserProfile, getCurrentAppUser, getSession, onAuthStateChange, si
 import { fetchCollection } from "./lib/adminCrud";
 import { supabase } from "./lib/supabase";
 import UsersPage from "./pages/UsersPage";
+import MessageCenterModal from "./components/MessageCenterModal";
+import {
+  fetchMessagingContacts,
+  fetchThreadsForUser,
+  markThreadAsRead,
+  sendDirectMessage,
+  subscribeToUserMessages,
+  subscribeToWorkspacePresence,
+} from "./lib/messaging";
 
 function Icon({ name }) {
   const commonProps = {
@@ -148,6 +157,13 @@ function Icon({ name }) {
         <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
         <path d="M10 17l5-5-5-5" />
         <path d="M15 12H3" />
+      </svg>
+    ),
+    messages: (
+      <svg {...commonProps}>
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        <path d="M8 9h8" />
+        <path d="M8 13h5" />
       </svg>
     ),
   };
@@ -507,9 +523,13 @@ function AnnouncementPreviewModal({ announcement, open, onClose }) {
 }
 
 const ALLOWED_EMAIL_DOMAIN = "bounty.com.ph";
+const ALLOWED_EMAIL_EXCEPTIONS = new Set(["baldonado0514@gmail.com"]);
 
 function isAllowedBountyEmail(email) {
   const normalized = String(email || "").trim().toLowerCase();
+  if (ALLOWED_EMAIL_EXCEPTIONS.has(normalized)) {
+    return true;
+  }
   const domain = normalized.split("@")[1] || "";
   return domain === ALLOWED_EMAIL_DOMAIN || domain.endsWith(`.${ALLOWED_EMAIL_DOMAIN}`);
 }
@@ -774,7 +794,16 @@ function Sidebar({
   );
 }
 
-function TopBar({ activeView, sidebarExpanded, onToggleSidebar, onOpenAnnouncements, announcementCount, onLogout }) {
+function TopBar({
+  activeView,
+  sidebarExpanded,
+  onToggleSidebar,
+  onOpenMessages,
+  unreadMessageCount,
+  onOpenAnnouncements,
+  announcementCount,
+  onLogout,
+}) {
   const pageTitle = titles[activeView] || "Accrual Management";
 
   return (
@@ -795,6 +824,13 @@ function TopBar({ activeView, sidebarExpanded, onToggleSidebar, onOpenAnnounceme
         </span>
       </div>
       <div className="topbarActions">
+        <button type="button" className="topbarAnnouncementButton" onClick={onOpenMessages} aria-label="Open messages">
+          <span className="topbarAnnouncementIcon" aria-hidden="true">
+            <Icon name="messages" />
+          </span>
+          <span>Messages</span>
+          {unreadMessageCount ? <span className="topbarAnnouncementCount">{unreadMessageCount}</span> : null}
+        </button>
         <button type="button" className="topbarAnnouncementButton" onClick={onOpenAnnouncements} aria-label="Open announcements">
           <span className="topbarAnnouncementIcon" aria-hidden="true">
             <Icon name="announcement" />
@@ -1120,6 +1156,13 @@ function AppShell() {
   const [announcementCenterOpen, setAnnouncementCenterOpen] = useState(false);
   const [announcementLoading, setAnnouncementLoading] = useState(true);
   const [announcementReactions, setAnnouncementReactions] = useState(() => loadAnnouncementReactions());
+  const [messageCenterOpen, setMessageCenterOpen] = useState(false);
+  const [messageContacts, setMessageContacts] = useState([]);
+  const [messageContactsLoading, setMessageContactsLoading] = useState(false);
+  const [messageThreads, setMessageThreads] = useState([]);
+  const [messageThreadsLoading, setMessageThreadsLoading] = useState(false);
+  const [selectedMessageThreadId, setSelectedMessageThreadId] = useState("");
+  const [messagePresence, setMessagePresence] = useState({});
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [nonBountyModalOpen, setNonBountyModalOpen] = useState(false);
@@ -1161,9 +1204,117 @@ function AppShell() {
     window.localStorage.setItem(ANNOUNCEMENT_REACTIONS_STORAGE_KEY, JSON.stringify(announcementReactions));
   }, [announcementReactions]);
 
+  const refreshMessagingThreads = useCallback(async () => {
+    if (!currentUser?.id) {
+      setMessageThreads([]);
+      return;
+    }
+
+    try {
+      setMessageThreadsLoading(true);
+      const threads = await fetchThreadsForUser(currentUser.id);
+      setMessageThreads(threads);
+    } catch (error) {
+      showToast(error.message || "Unable to load messages.", "error");
+      setMessageThreads([]);
+    } finally {
+      setMessageThreadsLoading(false);
+    }
+  }, [currentUser?.id, showToast]);
+
+  const loadMessagingContacts = useCallback(async () => {
+    if (!currentUser?.id) {
+      setMessageContacts([]);
+      return;
+    }
+
+    try {
+      setMessageContactsLoading(true);
+      const rows = await fetchMessagingContacts(currentUser.id);
+      setMessageContacts(rows);
+    } catch (error) {
+      showToast(error.message || "Unable to load messaging contacts.", "error");
+      setMessageContacts([]);
+    } finally {
+      setMessageContactsLoading(false);
+    }
+  }, [currentUser?.id, showToast]);
+
   useEffect(() => {
     window.localStorage.setItem("accrual-sidebar-collapsed", String(collapsed));
   }, [collapsed]);
+
+  useEffect(() => {
+    void refreshMessagingThreads();
+  }, [refreshMessagingThreads]);
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setSelectedMessageThreadId("");
+      setMessagePresence({});
+      return;
+    }
+
+    void loadMessagingContacts();
+  }, [currentUser?.id, loadMessagingContacts]);
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      return undefined;
+    }
+
+    const channel = subscribeToUserMessages(currentUser.id, () => {
+      void refreshMessagingThreads();
+    });
+
+    window.addEventListener("focus", refreshMessagingThreads);
+    return () => {
+      window.removeEventListener("focus", refreshMessagingThreads);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [currentUser?.id, refreshMessagingThreads]);
+
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setMessagePresence({});
+      return undefined;
+    }
+
+    const channel = subscribeToWorkspacePresence(currentUser, (nextPresence) => {
+      setMessagePresence(nextPresence || {});
+    });
+
+    return () => {
+      setMessagePresence({});
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (!messageThreads.length) {
+      setSelectedMessageThreadId("");
+      return;
+    }
+
+    const hasSelectedThread = messageThreads.some((thread) => thread.id === selectedMessageThreadId);
+    if (!hasSelectedThread) {
+      setSelectedMessageThreadId(messageThreads[0].id);
+    }
+  }, [messageThreads, selectedMessageThreadId]);
+
+  useEffect(() => {
+    if (!currentUser?.id || !selectedMessageThreadId) {
+      return;
+    }
+
+    void markThreadAsRead(currentUser.id, selectedMessageThreadId).then(() => {
+      void refreshMessagingThreads();
+    }).catch(() => {});
+  }, [currentUser?.id, refreshMessagingThreads, selectedMessageThreadId]);
 
   useEffect(() => {
     window.localStorage.setItem("accrual-active-view", activeView);
@@ -1496,11 +1647,42 @@ function AppShell() {
     setAnnouncementCenterOpen(true);
   };
 
+  const handleOpenMessageCenter = async () => {
+    await refreshMessagingThreads();
+    void loadMessagingContacts();
+    setMessageCenterOpen(true);
+  };
+
   const handleReactToAnnouncement = (announcementId, reaction) => {
     setAnnouncementReactions((current) => ({
       ...current,
       [String(announcementId)]: current[String(announcementId)] === reaction ? "" : reaction,
     }));
+  };
+
+  const handleSelectMessageThread = (threadId) => {
+    setSelectedMessageThreadId(threadId);
+  };
+
+  const handleSendMessage = async (recipientId, body) => {
+    const recipient = messageContacts.find((contact) => String(contact.id) === String(recipientId));
+    if (!currentUser?.id || !recipient) {
+      showToast("Select a valid recipient first.", "error");
+      return;
+    }
+
+    try {
+      const nextMessage = await sendDirectMessage({
+        sender: currentUser,
+        recipient,
+        body,
+      });
+      await refreshMessagingThreads();
+      setSelectedMessageThreadId(nextMessage.threadId);
+      showToast("Message sent.", "success");
+    } catch (error) {
+      showToast(error.message || "Unable to send message.", "error");
+    }
   };
 
   const confirmLogout = async () => {
@@ -1740,6 +1922,19 @@ function AppShell() {
         }}
         onReact={handleReactToAnnouncement}
       />
+      <MessageCenterModal
+        open={messageCenterOpen}
+        currentUser={currentUser}
+        contacts={messageContacts}
+        contactsLoading={messageContactsLoading}
+        presenceByUserId={messagePresence}
+        threads={messageThreads}
+        threadsLoading={messageThreadsLoading}
+        selectedThreadId={selectedMessageThreadId}
+        onClose={() => setMessageCenterOpen(false)}
+        onSelectThread={handleSelectMessageThread}
+        onSendMessage={handleSendMessage}
+      />
       <div className={shellClassName}>
         {!showFullscreenNewAccrual ? (
           <Sidebar
@@ -1763,6 +1958,8 @@ function AppShell() {
               activeView={activeView}
               sidebarExpanded={isMobile ? mobileOpen : !collapsed}
               onToggleSidebar={handleToggleSidebar}
+              onOpenMessages={handleOpenMessageCenter}
+              unreadMessageCount={messageThreads.reduce((total, thread) => total + thread.unreadCount, 0)}
               onOpenAnnouncements={handleOpenAnnouncementCenter}
               announcementCount={activeAnnouncements.length}
               onLogout={handleLogout}
