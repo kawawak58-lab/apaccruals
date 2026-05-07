@@ -306,54 +306,203 @@ function formatAnnouncementDate(value) {
   });
 }
 
+const ANNOUNCEMENT_REACTIONS = [
+  { value: "seen", label: "Seen" },
+  { value: "helpful", label: "Helpful" },
+  { value: "clarify", label: "Need Clarification" },
+];
+
+const ANNOUNCEMENT_REACTIONS_STORAGE_KEY = "accrual-announcement-reactions-v1";
+
+function loadAnnouncementReactions() {
+  try {
+    const rawValue = window.localStorage.getItem(ANNOUNCEMENT_REACTIONS_STORAGE_KEY);
+    if (!rawValue) {
+      return {};
+    }
+
+    const parsed = JSON.parse(rawValue);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function AnnouncementCenterModal({ open, announcements, reactions, onClose, onOpenAnnouncement, onReact }) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="announcementCenterOverlay" role="presentation" onClick={onClose}>
+      <div
+        className="announcementCenterDialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="All announcements"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="announcementCenterHeader">
+          <div>
+            <div className="announcementCenterEyebrow">Workspace News</div>
+            <h2>All Announcements</h2>
+          </div>
+          <button type="button" className="announcementCenterClose" onClick={onClose}>
+            Close
+          </button>
+        </div>
+
+        <div className="announcementCenterBody">
+          {announcements.length ? (
+            <div className="announcementCenterList">
+              {announcements.map((announcement) => {
+                const selectedReaction = reactions[String(announcement.id)] || "";
+                const previewLines = splitAnnouncementDetail(announcement.detail).slice(0, 3);
+
+                return (
+                  <article key={announcement.id} className="announcementCenterItem">
+                    <div className="announcementCenterItemTop">
+                      <div className="announcementCenterTags">
+                        <span className="announcementCenterTag">{announcement.announcement_type}</span>
+                        <span className="announcementCenterDate">{formatAnnouncementDate(announcement.published_at)}</span>
+                      </div>
+                    </div>
+
+                    <div className={`announcementCenterContent${announcement.image_url ? " hasImage" : ""}`}>
+                      {announcement.image_url ? (
+                        <button type="button" className="announcementCenterImage" onClick={() => onOpenAnnouncement(announcement)}>
+                          <img src={announcement.image_url} alt={announcement.title} />
+                        </button>
+                      ) : null}
+
+                      <div className="announcementCenterText">
+                        <h3>{announcement.title}</h3>
+                        <div className="announcementCenterPreview">
+                          {previewLines.map((line, index) => (
+                            <p key={`${announcement.id}-center-${index}`}>{line}</p>
+                          ))}
+                        </div>
+
+                        <div className="announcementCenterActions">
+                          <button type="button" className="announcementCenterReadMore" onClick={() => onOpenAnnouncement(announcement)}>
+                            Read More
+                          </button>
+                          <div className="announcementCenterReactions">
+                            {ANNOUNCEMENT_REACTIONS.map((reaction) => (
+                              <button
+                                key={reaction.value}
+                                type="button"
+                                className={`announcementReactionChip${selectedReaction === reaction.value ? " active" : ""}`}
+                                onClick={() => onReact(announcement.id, reaction.value)}
+                              >
+                                {reaction.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="announcementCenterEmpty">
+              <strong>No announcements available.</strong>
+              <span>Updates from administrators will appear here.</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AnnouncementPreviewModal({ announcement, open, onClose }) {
+  const [imageExpanded, setImageExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setImageExpanded(false);
+    }
+  }, [open]);
+
   if (!open || !announcement) {
     return null;
   }
 
   return (
-    <div className="announcementPreviewOverlay" role="presentation" onClick={onClose}>
-      <div
-        className="announcementPreviewCard"
-        role="dialog"
-        aria-modal="true"
-        aria-label={announcement.title}
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="announcementPreviewHeader">
-          <div className="announcementPreviewTitleWrap">
-            <div className="announcementPreviewEyebrow">Announcement</div>
-            <h2>{announcement.title}</h2>
-          </div>
-          <button type="button" className="announcementPreviewClose" onClick={onClose}>
-            Close
-          </button>
-        </div>
-
-        <div className="announcementPreviewBody">
-          <div className="announcementPreviewHero">
-            <div className="announcementPreviewHeroBadge">{announcement.announcement_type}</div>
-            <div className="announcementPreviewHeroDate">{formatAnnouncementDate(announcement.published_at)}</div>
-          </div>
-
-          {announcement.image_url ? (
-            <div className="announcementPreviewImageWrap">
-              <img src={announcement.image_url} alt={announcement.title} className="announcementPreviewImage" />
+    <>
+      <div className="announcementPreviewOverlay" role="presentation" onClick={onClose}>
+        <div
+          className="announcementPreviewCard"
+          role="dialog"
+          aria-modal="true"
+          aria-label={announcement.title}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <div className="announcementPreviewHeader">
+            <div className="announcementPreviewTitleWrap">
+              <div className="announcementPreviewEyebrow">Announcement</div>
+              <h2>{announcement.title}</h2>
             </div>
-          ) : null}
+            <button type="button" className="announcementPreviewClose" onClick={onClose}>
+              Close
+            </button>
+          </div>
 
-          <div
-            className="announcementPreviewContent"
-            dangerouslySetInnerHTML={{ __html: formatAnnouncementHtml(announcement.detail) }}
-          />
+          <div className="announcementPreviewBody">
+            <div className="announcementPreviewHero">
+              <div className="announcementPreviewHeroBadge">{announcement.announcement_type}</div>
+              <div className="announcementPreviewHeroDate">{formatAnnouncementDate(announcement.published_at)}</div>
+            </div>
 
-          <div className="announcementPreviewMeta">
-            <span>Internal update</span>
-            <span>{announcement.expires_at ? `Expires ${formatAnnouncementDate(announcement.expires_at)}` : "No expiry"}</span>
+            {announcement.image_url ? (
+              <div className="announcementPreviewImageWrap">
+                <button
+                  type="button"
+                  className="announcementPreviewImageButton"
+                  onClick={() => setImageExpanded(true)}
+                >
+                  <img src={announcement.image_url} alt={announcement.title} className="announcementPreviewImage" />
+                  <span className="announcementPreviewImageExpand">
+                    <span className="announcementPreviewImageExpandIcon" aria-hidden="true">
+                      <Icon name="expand" />
+                    </span>
+                    Expand image
+                  </span>
+                </button>
+              </div>
+            ) : null}
+
+            <div
+              className="announcementPreviewContent"
+              dangerouslySetInnerHTML={{ __html: formatAnnouncementHtml(announcement.detail) }}
+            />
+
+            <div className="announcementPreviewMeta">
+              <span>Internal update</span>
+              <span>{announcement.expires_at ? `Expires ${formatAnnouncementDate(announcement.expires_at)}` : "No expiry"}</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
+      {imageExpanded ? (
+        <div className="announcementImageLightbox" role="presentation" onClick={() => setImageExpanded(false)}>
+          <div className="announcementImageLightboxInner" onClick={(event) => event.stopPropagation()}>
+            <button
+              type="button"
+              className="announcementImageLightboxClose"
+              onClick={() => setImageExpanded(false)}
+            >
+              Close image
+            </button>
+            <img src={announcement.image_url} alt={announcement.title} className="announcementImageLightboxImage" />
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -365,7 +514,7 @@ function isAllowedBountyEmail(email) {
   return domain === ALLOWED_EMAIL_DOMAIN || domain.endsWith(`.${ALLOWED_EMAIL_DOMAIN}`);
 }
 
-function LogoutConfirmDialog({ open, onCancel, onConfirm }) {
+function LogoutConfirmDialog({ open, busy, onCancel, onConfirm }) {
   if (!open) {
     return null;
   }
@@ -423,11 +572,12 @@ function LogoutConfirmDialog({ open, onCancel, onConfirm }) {
           <button
             type="button"
             onClick={onCancel}
+            disabled={busy}
             style={{
               background: "none",
               border: "none",
               fontSize: "24px",
-              cursor: "pointer",
+              cursor: busy ? "not-allowed" : "pointer",
               color: "#666",
               padding: "0",
               width: "32px",
@@ -477,6 +627,7 @@ function LogoutConfirmDialog({ open, onCancel, onConfirm }) {
           <button
             type="button"
             onClick={onCancel}
+            disabled={busy}
             style={{
               padding: "10px 20px",
               backgroundColor: "#ffffff",
@@ -485,14 +636,21 @@ function LogoutConfirmDialog({ open, onCancel, onConfirm }) {
               borderRadius: "6px",
               fontSize: "14px",
               fontWeight: "600",
-              cursor: "pointer",
+              cursor: busy ? "not-allowed" : "pointer",
+              opacity: busy ? 0.75 : 1,
               transition: "all 0.2s",
             }}
             onMouseOver={(e) => {
+              if (busy) {
+                return;
+              }
               e.target.backgroundColor = "#f0f0f0";
               e.target.borderColor = "#999";
             }}
             onMouseOut={(e) => {
+              if (busy) {
+                return;
+              }
               e.target.backgroundColor = "#ffffff";
               e.target.borderColor = "#ccc";
             }}
@@ -502,6 +660,7 @@ function LogoutConfirmDialog({ open, onCancel, onConfirm }) {
           <button
             type="button"
             onClick={onConfirm}
+            disabled={busy}
             style={{
               padding: "10px 20px",
               backgroundColor: "#dc3545",
@@ -510,13 +669,30 @@ function LogoutConfirmDialog({ open, onCancel, onConfirm }) {
               borderRadius: "6px",
               fontSize: "14px",
               fontWeight: "600",
-              cursor: "pointer",
+              cursor: busy ? "not-allowed" : "pointer",
+              opacity: busy ? 0.92 : 1,
               transition: "background-color 0.2s",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              minWidth: "108px",
             }}
-            onMouseOver={(e) => e.target.style.backgroundColor = "#c82333"}
-            onMouseOut={(e) => e.target.style.backgroundColor = "#dc3545"}
+            onMouseOver={(e) => {
+              if (busy) {
+                return;
+              }
+              e.target.style.backgroundColor = "#c82333";
+            }}
+            onMouseOut={(e) => {
+              if (busy) {
+                return;
+              }
+              e.target.style.backgroundColor = "#dc3545";
+            }}
           >
-            Log Out
+            {busy ? <span className="buttonSpinner" aria-hidden="true" /> : null}
+            {busy ? "Logging Out..." : "Log Out"}
           </button>
         </div>
       </div>
@@ -546,7 +722,6 @@ function Sidebar({
           </div>
           <div className="brandText">
             <div className="brandTitle">Accrual Mgr</div>
-            <div className="brandSubtitle">Finance workspace</div>
           </div>
         </div>
         <button
@@ -599,7 +774,7 @@ function Sidebar({
   );
 }
 
-function TopBar({ activeView, sidebarExpanded, onToggleSidebar, onLogout }) {
+function TopBar({ activeView, sidebarExpanded, onToggleSidebar, onOpenAnnouncements, announcementCount, onLogout }) {
   const pageTitle = titles[activeView] || "Accrual Management";
 
   return (
@@ -619,9 +794,18 @@ function TopBar({ activeView, sidebarExpanded, onToggleSidebar, onLogout }) {
           <span className="crumbCurrent">{pageTitle.replace(" Management", "")}</span>
         </span>
       </div>
+      <div className="topbarActions">
+        <button type="button" className="topbarAnnouncementButton" onClick={onOpenAnnouncements} aria-label="Open announcements">
+          <span className="topbarAnnouncementIcon" aria-hidden="true">
+            <Icon name="announcement" />
+          </span>
+          <span>Announcements</span>
+          {announcementCount ? <span className="topbarAnnouncementCount">{announcementCount}</span> : null}
+        </button>
       <button type="button" className="topbarLogoutButton" onClick={onLogout}>
         Logout
       </button>
+      </div>
     </header>
   );
 }
@@ -629,88 +813,206 @@ function TopBar({ activeView, sidebarExpanded, onToggleSidebar, onLogout }) {
 function LoginShellLoader() {
   return (
     <div className="authScreen">
-      <div className="authCard authLoginShellLoader" aria-live="polite">
-        <div className="authBrandRow">
-          <div className="brandMark">
-            <BrandLogo />
+      <div className="authSplitShell authSplitShellLoader" aria-live="polite">
+        <section className="authNewsPanel authNewsPanelLoader">
+          <div className="authNewsHeader">
+            <div className="authNewsEyebrowRow">
+              <div className="authNewsIcon">
+                <Icon name="announcement" />
+              </div>
+              <div>
+                <div className="authNewsEyebrow">Workspace News</div>
+                <div className="authNewsTitle">Announcements</div>
+              </div>
+            </div>
+            <div className="authNewsMetaPill">Loading</div>
           </div>
-          <div>
-            <div className="authTitle">Accrual Mgr</div>
-            <div className="authSubtitle">Preparing sign in and latest announcement.</div>
+
+          <div className="authNewsCard authNewsCardLoader">
+            <div className="authNewsAccent" />
+            <div className="authNewsCardBody">
+              <div className="authNewsCardTop">
+                <div className="authNewsTags">
+                  <div className="authNewsTag">Preparing</div>
+                </div>
+              </div>
+              <div className="authLoaderLine authLoaderLineTitle" />
+              <div className="authLoaderBlock" />
+              <div className="authLoaderLine authLoaderLineWide" />
+              <div className="authLoaderLine authLoaderLineMedium" />
+              <div className="authLoaderLine authLoaderLineShort" />
+            </div>
           </div>
+        </section>
+
+        <section className="authCard authLoginCard authLoginShellLoader">
+          <div className="authBrandRow">
+            <div className="brandMark">
+              <BrandLogo />
+            </div>
+            <div>
+              <div className="authLoginEyebrow">Workspace</div>
+              <div className="authLoginBrand">Accrual Mgr</div>
+            </div>
+          </div>
+
+          <div className="authLoginShellLoaderBody">
+            <div className="announcementLoader" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+                <path d="M64 32C28.7 32 0 60.7 0 96v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm48 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0zM64 288c-35.3 0-64 28.7-64 64v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V352c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm56 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0z" />
+              </svg>
+              <span />
+            </div>
+            <div className="authSubtitle loginAnnouncementLoadingText">Preparing sign in and latest announcement.</div>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function LoginAnnouncementCard({ announcement, featured = false, showFullContent = false, onOpen }) {
+  const previewLines = showFullContent
+    ? splitAnnouncementDetail(announcement.detail)
+    : splitAnnouncementDetail(announcement.detail).slice(0, announcement.image_url ? 2 : 3);
+
+  return (
+    <div className={`authNewsCard${featured ? "" : " compact"}`}>
+      <div className="authNewsAccent" />
+      <div className={`authNewsCardBody${announcement.image_url ? " hasImage" : ""}`}>
+        <div className="authNewsCardTop">
+          <div className="authNewsTags">
+            <div className="authNewsTag">{announcement.announcement_type}</div>
+            <div className="authNewsTag pinned">Pinned</div>
+          </div>
+          <div className="authNewsDate">{formatAnnouncementDate(announcement.published_at)}</div>
         </div>
 
-        <div className="authLoginShellLoaderBody">
-        <div className="announcementLoader" aria-hidden="true">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-            <path d="M64 32C28.7 32 0 60.7 0 96v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm48 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0zM64 288c-35.3 0-64 28.7-64 64v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V352c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm56 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0z" />
-          </svg>
-          <span />
-        </div>
-          <div className="loginAnnouncementLoadingText">Loading sign in screen...</div>
+        <h2 className="authNewsCardTitle">{announcement.title}</h2>
+
+        <div className={`authNewsContentRow${announcement.image_url ? " hasImage" : ""}`}>
+          {announcement.image_url ? (
+            <button type="button" className="authNewsImage" onClick={onOpen}>
+              <img src={announcement.image_url} alt={announcement.title} />
+            </button>
+          ) : null}
+
+          <div className="authNewsTextContent">
+            <div className={`authNewsPreview${showFullContent ? " fullContent" : ""}`}>
+              {previewLines.map((line, index) => (
+                <p key={`${announcement.id}-${index}`}>{line}</p>
+              ))}
+            </div>
+
+            <button type="button" className="authNewsReadMore" onClick={onOpen}>
+              Read More
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-function LoginScreen({ onLogin, signingIn, announcement, onExpandAnnouncement }) {
-  const previewLines = announcement ? splitAnnouncementDetail(announcement.detail).slice(0, 2) : [];
+function LoginScreen({ onLogin, signingIn, announcements, onExpandAnnouncement }) {
+  const featuredAnnouncement = announcements[0] || null;
+  const additionalAnnouncements = announcements.slice(1);
+  const showFullFeaturedAnnouncement = announcements.length === 1;
 
   return (
     <div className="authScreen">
-      <div className="authCard">
-        <div className="authBrandRow">
-          <div className="brandMark">
-            <BrandLogo />
-          </div>
-          <div>
-            <div className="authTitle">Accrual Mgr</div>
-            <div className="authSubtitle">Sign in with your Bounty email account to access the workspace.</div>
-          </div>
-        </div>
-
-        <button type="button" className="submitBtn authGoogleButton" onClick={onLogin} disabled={signingIn}>
-          <span className="authButtonIcon" aria-hidden="true">
-            <Icon name="login" />
-          </span>
-          <span>{signingIn ? "Connecting..." : "Continue With Google"}</span>
-        </button>
-
-        {announcement ? (
-          <div className="loginAnnouncementCard">
-            <div className="loginAnnouncementHeader">
-              <div className="loginAnnouncementHeaderLeft">
-                <div className="loginAnnouncementLabel">Announcements</div>
-                <div className="loginAnnouncementBadge">Latest</div>
+      <div className="authSplitShell">
+        <section className="authNewsPanel">
+          <div className="authNewsHeader">
+            <div className="authNewsEyebrowRow">
+              <div className="authNewsIcon">
+                <Icon name="announcement" />
               </div>
-              <div className="loginAnnouncementDate">{formatAnnouncementDate(announcement.published_at)}</div>
+              <div>
+                <div className="authNewsEyebrow">Workspace News</div>
+                <div className="authNewsTitle">Announcements</div>
+              </div>
             </div>
+            <div className="authNewsMetaPill">
+              {announcements.length > 1 ? `${announcements.length} updates` : featuredAnnouncement ? "Latest update" : "No updates"}
+            </div>
+          </div>
 
-            <div className="loginAnnouncementInner">
-              <div className="loginAnnouncementType">{announcement.announcement_type}</div>
-              <h3 className="loginAnnouncementTitle">{announcement.title}</h3>
-
-              {announcement.image_url ? (
-                <div className="loginAnnouncementThumb">
-                  <img src={announcement.image_url} alt={announcement.title} />
+          {featuredAnnouncement ? (
+            <div className="authNewsStack">
+              <LoginAnnouncementCard
+                announcement={featuredAnnouncement}
+                featured
+                showFullContent={showFullFeaturedAnnouncement}
+                onOpen={() => onExpandAnnouncement(featuredAnnouncement)}
+              />
+              {additionalAnnouncements.length ? (
+                <div className="authNewsSecondaryList">
+                  {additionalAnnouncements.map((announcement) => (
+                    <LoginAnnouncementCard
+                      key={announcement.id}
+                      announcement={announcement}
+                      onOpen={() => onExpandAnnouncement(announcement)}
+                    />
+                  ))}
                 </div>
               ) : null}
-
-              <div className="loginAnnouncementPreview">
-                {previewLines.map((line, index) => (
-                  <p key={`${announcement.id}-${index}`}>{line}</p>
-                ))}
-              </div>
-
-              <div className="loginAnnouncementActions">
-                <button type="button" className="loginAnnouncementExpand" onClick={onExpandAnnouncement}>
-                  Read full announcement
-                </button>
+            </div>
+          ) : (
+            <div className="authNewsCard authNewsCardEmpty">
+              <div className="authNewsCardBody">
+                <div className="authNewsCardTitle">No announcements published.</div>
+                <div className="authNewsPreview">
+                  <p>System updates and reminders will appear here when your administrators publish them.</p>
+                </div>
               </div>
             </div>
+          )}
+        </section>
+
+        <section className="authCard authLoginCard">
+          <div className="authBrandRow">
+            <div className="brandMark">
+              <BrandLogo />
+            </div>
+            <div>
+              <div className="authLoginEyebrow">Workspace</div>
+              <div className="authLoginBrand">Accrual Mgr</div>
+            </div>
           </div>
-        ) : null}
+
+          <div className="authLoginPanel">
+          <div className="authLoginHero">Welcome back.</div>
+          <div className="authSubtitle authLoginSubtitle">
+            Sign in with your <strong>Bounty</strong> email account to access the workspace.
+          </div>
+
+          <button type="button" className="submitBtn authGoogleButton authGoogleButtonWide" onClick={onLogin} disabled={signingIn}>
+            <span className="authButtonIcon" aria-hidden="true">
+              <Icon name="login" />
+            </span>
+            <span className="authGoogleButtonLabel">{signingIn ? "Connecting..." : "Continue with Google"}</span>
+          </button>
+
+          <div className="authDividerLabel">Secure SSO</div>
+          <div className="authSecurityCard">
+            <div className="authSecurityIcon">✓</div>
+            <div>Only authorized <strong>@bounty</strong> accounts can access this workspace.</div>
+          </div>
+
+          {featuredAnnouncement ? (
+            <button type="button" className="authMobileAnnouncementTrigger" onClick={() => onExpandAnnouncement(featuredAnnouncement)}>
+              <span className="authMobileAnnouncementTriggerIcon" aria-hidden="true">
+                <Icon name="announcement" />
+              </span>
+              <span>{announcements.length > 1 ? `Show Announcements (${announcements.length})` : "Show Announcement"}</span>
+            </button>
+          ) : null}
+          <div className="authTerms">
+            By continuing you agree to our <strong>Terms</strong> &amp; <strong>Privacy Policy</strong>
+          </div>
+          </div>
+        </section>
       </div>
     </div>
   );
@@ -812,10 +1114,14 @@ function AppShell() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [pendingName, setPendingName] = useState("");
   const [newAccrualFullscreen, setNewAccrualFullscreen] = useState(false);
+  const [activeAnnouncements, setActiveAnnouncements] = useState([]);
   const [activeAnnouncement, setActiveAnnouncement] = useState(null);
   const [announcementOpen, setAnnouncementOpen] = useState(false);
+  const [announcementCenterOpen, setAnnouncementCenterOpen] = useState(false);
   const [announcementLoading, setAnnouncementLoading] = useState(true);
+  const [announcementReactions, setAnnouncementReactions] = useState(() => loadAnnouncementReactions());
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const [nonBountyModalOpen, setNonBountyModalOpen] = useState(false);
   const currentUserRef = React.useRef(null);
   const sessionUserIdRef = React.useRef(null);
@@ -850,6 +1156,10 @@ function AppShell() {
       setProfileResolved(true);
     }
   }, [showToast]);
+
+  useEffect(() => {
+    window.localStorage.setItem(ANNOUNCEMENT_REACTIONS_STORAGE_KEY, JSON.stringify(announcementReactions));
+  }, [announcementReactions]);
 
   useEffect(() => {
     window.localStorage.setItem("accrual-sidebar-collapsed", String(collapsed));
@@ -891,7 +1201,7 @@ function AppShell() {
         }
 
         const now = new Date();
-        const nextAnnouncement = rows.find((row) => {
+        const nextAnnouncements = rows.filter((row) => {
           if (!row.is_active) {
             return false;
           }
@@ -904,17 +1214,26 @@ function AppShell() {
           return !Number.isNaN(expiresAt.getTime()) && expiresAt >= now;
         });
 
-        if (!nextAnnouncement) {
+        if (nextAnnouncements.length === 0) {
+          setActiveAnnouncements([]);
           setActiveAnnouncement(null);
           setAnnouncementOpen(false);
           setAnnouncementLoading(false);
           return;
         }
 
-        setActiveAnnouncement(nextAnnouncement);
+        setActiveAnnouncements(nextAnnouncements);
+        setActiveAnnouncement((currentAnnouncement) => {
+          if (!currentAnnouncement) {
+            return nextAnnouncements[0];
+          }
+
+          return nextAnnouncements.find((announcement) => announcement.id === currentAnnouncement.id) || nextAnnouncements[0];
+        });
         setAnnouncementLoading(false);
       } catch (error) {
         if (!cancelled) {
+          setActiveAnnouncements([]);
           setActiveAnnouncement(null);
           setAnnouncementOpen(false);
           setAnnouncementLoading(false);
@@ -1173,8 +1492,20 @@ function AppShell() {
     setLogoutConfirmOpen(true);
   };
 
+  const handleOpenAnnouncementCenter = () => {
+    setAnnouncementCenterOpen(true);
+  };
+
+  const handleReactToAnnouncement = (announcementId, reaction) => {
+    setAnnouncementReactions((current) => ({
+      ...current,
+      [String(announcementId)]: current[String(announcementId)] === reaction ? "" : reaction,
+    }));
+  };
+
   const confirmLogout = async () => {
     try {
+      setLoggingOut(true);
       await signOut();
       setActiveView("/new-accrual");
       setCurrentUser(null);
@@ -1182,6 +1513,8 @@ function AppShell() {
       showToast("You have been logged out.", "success");
     } catch (error) {
       showToast(error.message || "Unable to log out.", "error");
+    } finally {
+      setLoggingOut(false);
     }
   };
 
@@ -1207,16 +1540,14 @@ function AppShell() {
 
   if (authLoading || (session && !currentUser && !profileResolved && profileLoading)) {
     return (
-      <div className="authScreen">
-        <div className="authCard authLoadingCard">
+      <div className="authScreen authLoadingScreen">
+        <div className="authSpinnerOnly" aria-label="Loading workspace" role="status">
           <div className="announcementLoader" aria-hidden="true">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
               <path d="M64 32C28.7 32 0 60.7 0 96v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V96c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm48 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0zM64 288c-35.3 0-64 28.7-64 64v64c0 35.3 28.7 64 64 64H448c35.3 0 64-28.7 64-64V352c0-35.3-28.7-64-64-64H64zm280 72a24 24 0 1 1 0 48 24 24 0 1 1 0-48zm56 24a24 24 0 1 1 48 0 24 24 0 1 1 -48 0z" />
             </svg>
             <span />
           </div>
-          <div className="authTitle">Loading Workspace</div>
-          <div className="authSubtitle">Checking your session and user access.</div>
         </div>
       </div>
     );
@@ -1361,8 +1692,11 @@ function AppShell() {
           <LoginScreen
             onLogin={handleGoogleLogin}
             signingIn={signingIn}
-            announcement={activeAnnouncement}
-            onExpandAnnouncement={() => setAnnouncementOpen(true)}
+            announcements={activeAnnouncements}
+            onExpandAnnouncement={(announcement) => {
+              setActiveAnnouncement(announcement);
+              setAnnouncementOpen(true);
+            }}
           />
         )}
       </>
@@ -1385,8 +1719,26 @@ function AppShell() {
     <AppViewContext.Provider value={contextValue}>
       <LogoutConfirmDialog
         open={logoutConfirmOpen}
+        busy={loggingOut}
         onCancel={() => setLogoutConfirmOpen(false)}
         onConfirm={confirmLogout}
+      />
+      <AnnouncementPreviewModal
+        announcement={activeAnnouncement}
+        open={announcementOpen}
+        onClose={() => setAnnouncementOpen(false)}
+      />
+      <AnnouncementCenterModal
+        open={announcementCenterOpen}
+        announcements={activeAnnouncements}
+        reactions={announcementReactions}
+        onClose={() => setAnnouncementCenterOpen(false)}
+        onOpenAnnouncement={(announcement) => {
+          setAnnouncementCenterOpen(false);
+          setActiveAnnouncement(announcement);
+          setAnnouncementOpen(true);
+        }}
+        onReact={handleReactToAnnouncement}
       />
       <div className={shellClassName}>
         {!showFullscreenNewAccrual ? (
@@ -1411,6 +1763,8 @@ function AppShell() {
               activeView={activeView}
               sidebarExpanded={isMobile ? mobileOpen : !collapsed}
               onToggleSidebar={handleToggleSidebar}
+              onOpenAnnouncements={handleOpenAnnouncementCenter}
+              announcementCount={activeAnnouncements.length}
               onLogout={handleLogout}
             />
           ) : null}
