@@ -437,20 +437,23 @@ export default function AllAccrualsPage({ currentUser }) {
     loadData();
   }, [loadData]);
 
+  const enrichedSubmissions = useMemo(() => (
+    submissions.map((submission) => {
+      const lines = submission.accrual_submission_lines || [];
+      const totalGrossAmount = lines.reduce((sum, line) => sum + Number(line.gross_amount || 0), 0);
+
+      return {
+        ...submission,
+        lineCount: lines.length,
+        totalGrossAmount,
+      };
+    })
+  ), [submissions]);
+
   const filteredSubmissions = useMemo(() => {
     const keyword = search.trim().toLowerCase();
 
-    return submissions
-      .map((submission) => {
-        const lines = submission.accrual_submission_lines || [];
-        const totalGrossAmount = lines.reduce((sum, line) => sum + Number(line.gross_amount || 0), 0);
-
-        return {
-          ...submission,
-          lineCount: lines.length,
-          totalGrossAmount,
-        };
-      })
+    return enrichedSubmissions
       .filter((submission) => {
         const submittedDate = submission.submitted_at ? new Date(submission.submitted_at) : null;
         const submittedDateKey =
@@ -491,7 +494,7 @@ export default function AllAccrualsPage({ currentUser }) {
 
         return haystack.includes(keyword);
       });
-  }, [dateFrom, dateTo, search, statusFilter, submissions]);
+  }, [dateFrom, dateTo, enrichedSubmissions, search, statusFilter]);
 
   const totalSubmissions = filteredSubmissions.length;
 

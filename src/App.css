@@ -52,7 +52,7 @@ body,
   border-radius: 10px;
   border: 2px solid transparent;
   background-clip: padding-box;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, border-color 0.2s ease;
 }
 
 *::-webkit-scrollbar-thumb:hover {
@@ -1607,12 +1607,21 @@ a {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .topbarAnnouncementButton:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
+  background: #f8fbff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.12);
 }
 
 .topbarAnnouncementIcon {
@@ -1647,12 +1656,21 @@ a {
   font: inherit;
   font-weight: 700;
   cursor: pointer;
-  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition:
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .topbarLogoutButton:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
+  background: #fff5f5;
+  border-color: #fca5a5;
+  color: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(220, 38, 38, 0.12);
 }
 
 .topbarToggleButton {
@@ -2248,10 +2266,25 @@ a {
   white-space: pre-wrap;
 }
 
-.messageBubbleTime {
+.messageBubbleMeta {
   margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.messageBubbleTime {
   color: #7c8da5;
   font-size: 12px;
+}
+
+.messageBubbleStatus {
+  color: #2563eb;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .messageComposePanel {
@@ -2287,6 +2320,137 @@ a {
   padding: 0 12px;
 }
 
+.messageRecipientPickerBtn {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  border: 1px solid #cfd9e7;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #0f172a;
+  font: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.messageRecipientPickerText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.messageRecipientPickerCaret {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  color: #64748b;
+}
+
+.messageRecipientPickerCaret svg {
+  width: 100%;
+  height: 100%;
+}
+
+.messageRecipientModalOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.2);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 3;
+}
+
+.messageRecipientModal {
+  width: min(560px, calc(100vw - 56px));
+  max-height: min(70vh, 720px);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 22px;
+  background: #f8fbff;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.messageRecipientModalHeader {
+  padding: 20px 22px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.messageRecipientModalTitle {
+  color: #10213a;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.messageRecipientModalList {
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.messageRecipientOption {
+  width: 100%;
+  padding: 14px 15px;
+  border: 1px solid #d8e1ee;
+  border-radius: 18px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.messageRecipientOption:hover {
+  border-color: #93c5fd;
+  background: #f8fbff;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.08);
+}
+
+.messageRecipientOption.active {
+  border-color: #93c5fd;
+  background: #eff6ff;
+  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.1);
+}
+
+.messageRecipientOptionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.messageRecipientOptionName {
+  color: #10213a;
+  font-weight: 800;
+}
+
+.messageRecipientOptionStatus,
+.messageRecipientOptionEmail {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.messageRecipientOptionEmail {
+  margin-top: 6px;
+}
+
 .messageComposer {
   border-top: 1px solid rgba(148, 163, 184, 0.16);
   padding: 20px 26px 22px;
@@ -2311,6 +2475,14 @@ a {
   background: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%);
   color: #fff;
   box-shadow: 0 12px 22px rgba(37, 99, 235, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.messageSendBtn.isLoading {
+  opacity: 0.98;
 }
 
 .messageSendBtn:disabled {

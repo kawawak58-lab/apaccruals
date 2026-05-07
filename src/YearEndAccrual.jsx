@@ -652,15 +652,10 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       }
     };
 
-    const intervalId = window.setInterval(() => {
-      refreshSetupIfVisible();
-    }, 30000);
-
     window.addEventListener("focus", refreshSetupIfVisible);
     document.addEventListener("visibilitychange", refreshSetupIfVisible);
 
     return () => {
-      window.clearInterval(intervalId);
       window.removeEventListener("focus", refreshSetupIfVisible);
       document.removeEventListener("visibilitychange", refreshSetupIfVisible);
     };
@@ -700,7 +695,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
   useEffect(() => {
     if (typeof window === "undefined") {
-      return;
+      return undefined;
     }
 
     const nextDraft = {
@@ -725,12 +720,16 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       lineItemCounter,
     };
 
-    if (!hasDraftContent(nextDraft)) {
-      clearAccrualDraft();
-      return;
-    }
+    const timeoutId = window.setTimeout(() => {
+      if (!hasDraftContent(nextDraft)) {
+        clearAccrualDraft();
+        return;
+      }
 
-    window.localStorage.setItem(ACCRUAL_DRAFT_STORAGE_KEY, JSON.stringify(nextDraft));
+      window.localStorage.setItem(ACCRUAL_DRAFT_STORAGE_KEY, JSON.stringify(nextDraft));
+    }, 300);
+
+    return () => window.clearTimeout(timeoutId);
   }, [headerInfo, supplierSearch, lineItems, lineItemCounter]);
 
   // Supplier search
@@ -783,18 +782,24 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     );
   }, []);
 
+  const activeGLRequests = useMemo(
+    () =>
+      lineItems
+        .filter((lineItem) => lineItem.glSearch && lineItem.glSearch.length >= 2)
+        .map((lineItem) => ({
+          id: lineItem.id,
+          glSearch: lineItem.glSearch,
+          glPage: lineItem.glPage,
+        })),
+    [lineItems]
+  );
+
   // Fetch GL accounts
   useEffect(() => {
-    if (!headerInfo.company) return;
-
-    const linesToFetch = lineItems.filter(
-      li => li.glSearch && li.glSearch.length >= 2
-    );
-
-    if (linesToFetch.length === 0) return;
+    if (!headerInfo.company || activeGLRequests.length === 0) return;
 
     const fetchGLForLines = async () => {
-      for (const line of linesToFetch) {
+      for (const line of activeGLRequests) {
         const searchKey = `${headerInfo.company}-${line.glSearch}-${line.glPage}`;
         
         if (prevGLSearchesRef.current[line.id] === searchKey) {
@@ -834,7 +839,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
     const debounceTimer = setTimeout(fetchGLForLines, 500);
     return () => clearTimeout(debounceTimer);
-  }, [headerInfo.company, lineItems]);
+  }, [activeGLRequests, headerInfo.company]);
 
   // Profit Center search handler
   const handleProfitSearchChange = useCallback((lineId, value) => {
@@ -847,18 +852,24 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     );
   }, []);
 
+  const activeProfitRequests = useMemo(
+    () =>
+      lineItems
+        .filter((lineItem) => lineItem.profitSearch && lineItem.profitSearch.length >= 2)
+        .map((lineItem) => ({
+          id: lineItem.id,
+          profitSearch: lineItem.profitSearch,
+          profitPage: lineItem.profitPage,
+        })),
+    [lineItems]
+  );
+
   // Fetch Profit Centers
   useEffect(() => {
-    if (!headerInfo.company) return;
-
-    const linesToFetch = lineItems.filter(
-      li => li.profitSearch && li.profitSearch.length >= 2
-    );
-
-    if (linesToFetch.length === 0) return;
+    if (!headerInfo.company || activeProfitRequests.length === 0) return;
 
     const fetchProfitForLines = async () => {
-      for (const line of linesToFetch) {
+      for (const line of activeProfitRequests) {
         const searchKey = `${headerInfo.company}-${line.profitSearch}-${line.profitPage}`;
         
         if (prevProfitSearchesRef.current[line.id] === searchKey) {
@@ -898,7 +909,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
     const debounceTimer = setTimeout(fetchProfitForLines, 500);
     return () => clearTimeout(debounceTimer);
-  }, [headerInfo.company, lineItems]);
+  }, [activeProfitRequests, headerInfo.company]);
 
   const loadMoreGLAccounts = (lineId) => {
     setLineItems(prev =>

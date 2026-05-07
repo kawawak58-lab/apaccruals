@@ -19,6 +19,7 @@ import MessageCenterModal from "./components/MessageCenterModal";
 import {
   fetchMessagingContacts,
   fetchThreadsForUser,
+  markMessagesAsDelivered,
   markThreadAsRead,
   sendDirectMessage,
   subscribeToUserMessages,
@@ -1168,6 +1169,7 @@ function AppShell() {
   const [nonBountyModalOpen, setNonBountyModalOpen] = useState(false);
   const currentUserRef = React.useRef(null);
   const sessionUserIdRef = React.useRef(null);
+  const messagingRefreshRequestRef = React.useRef(0);
 
   useEffect(() => {
     currentUserRef.current = currentUser;
@@ -1210,15 +1212,50 @@ function AppShell() {
       return;
     }
 
+    const requestId = messagingRefreshRequestRef.current + 1;
+    messagingRefreshRequestRef.current = requestId;
+
     try {
       setMessageThreadsLoading(true);
       const threads = await fetchThreadsForUser(currentUser.id);
-      setMessageThreads(threads);
+      if (messagingRefreshRequestRef.current === requestId) {
+        setMessageThreads(threads);
+      }
+
+      const undeliveredMessageIds = threads
+        .flatMap((thread) => thread.messages)
+        .filter(
+          (message) =>
+            String(message.recipientId) === String(currentUser.id) &&
+            !message.deliveredAt
+        )
+        .map((message) => message.id);
+
+      if (undeliveredMessageIds.length > 0) {
+        void markMessagesAsDelivered(currentUser.id, undeliveredMessageIds);
+        if (messagingRefreshRequestRef.current === requestId) {
+          const deliveredTimestamp = new Date().toISOString();
+          setMessageThreads(
+            threads.map((thread) => ({
+              ...thread,
+              messages: thread.messages.map((message) =>
+                undeliveredMessageIds.includes(message.id)
+                  ? { ...message, deliveredAt: deliveredTimestamp }
+                  : message
+              ),
+            }))
+          );
+        }
+      }
     } catch (error) {
       showToast(error.message || "Unable to load messages.", "error");
-      setMessageThreads([]);
+      if (messagingRefreshRequestRef.current === requestId) {
+        setMessageThreads([]);
+      }
     } finally {
-      setMessageThreadsLoading(false);
+      if (messagingRefreshRequestRef.current === requestId) {
+        setMessageThreadsLoading(false);
+      }
     }
   }, [currentUser?.id, showToast]);
 
@@ -1252,11 +1289,16 @@ function AppShell() {
     if (!currentUser?.id) {
       setSelectedMessageThreadId("");
       setMessagePresence({});
+      setMessageContacts([]);
+      return;
+    }
+
+    if (!messageCenterOpen || messageContacts.length > 0) {
       return;
     }
 
     void loadMessagingContacts();
-  }, [currentUser?.id, loadMessagingContacts]);
+  }, [currentUser?.id, loadMessagingContacts, messageCenterOpen, messageContacts.length]);
 
   useEffect(() => {
     if (!currentUser?.id) {
@@ -1267,17 +1309,19 @@ function AppShell() {
       void refreshMessagingThreads();
     });
 
-    window.addEventListener("focus", refreshMessagingThreads);
+    if (messageCenterOpen) {
+      window.addEventListener("focus", refreshMessagingThreads);
+    }
     return () => {
       window.removeEventListener("focus", refreshMessagingThreads);
       if (channel) {
         supabase.removeChannel(channel);
       }
     };
-  }, [currentUser?.id, refreshMessagingThreads]);
+  }, [currentUser?.id, messageCenterOpen, refreshMessagingThreads]);
 
   useEffect(() => {
-    if (!currentUser?.id) {
+    if (!currentUser?.id || !messageCenterOpen) {
       setMessagePresence({});
       return undefined;
     }
@@ -1292,7 +1336,7 @@ function AppShell() {
         supabase.removeChannel(channel);
       }
     };
-  }, [currentUser]);
+  }, [currentUser, messageCenterOpen]);
 
   useEffect(() => {
     if (!messageThreads.length) {
@@ -1311,10 +1355,26 @@ function AppShell() {
       return;
     }
 
-    void markThreadAsRead(currentUser.id, selectedMessageThreadId).then(() => {
-      void refreshMessagingThreads();
-    }).catch(() => {});
-  }, [currentUser?.id, refreshMessagingThreads, selectedMessageThreadId]);
+    setMessageThreads((currentThreads) => currentThreads.map((thread) => {
+      if (thread.id !== selectedMessageThreadId || thread.unreadCount === 0) {
+        return thread;
+      }
+
+      const nextMessages = thread.messages.map((message) => (
+        String(message.recipientId) === String(currentUser.id) && !message.readAt
+          ? { ...message, readAt: new Date().toISOString() }
+          : message
+      ));
+
+      return {
+        ...thread,
+        unreadCount: 0,
+        messages: nextMessages,
+      };
+    }));
+
+    void markThreadAsRead(currentUser.id, selectedMessageThreadId).catch(() => {});
+  }, [currentUser?.id, selectedMessageThreadId]);
 
   useEffect(() => {
     window.localStorage.setItem("accrual-active-view", activeView);
@@ -1545,11 +1605,9 @@ function AppShell() {
       )
       .subscribe();
 
-    window.addEventListener("focus", refreshCurrentUser);
     document.addEventListener("visibilitychange", refreshCurrentUserIfVisible);
 
     return () => {
-      window.removeEventListener("focus", refreshCurrentUser);
       document.removeEventListener("visibilitychange", refreshCurrentUserIfVisible);
       supabase.removeChannel(profileChannel);
     };
@@ -1619,6 +1677,10 @@ function AppShell() {
       }`,
     [collapsed, mobileOpen, showFullscreenNewAccrual]
   );
+  const unreadMessageCount = useMemo(
+    () => messageThreads.reduce((total, thread) => total + thread.unreadCount, 0),
+    [messageThreads]
+  );
 
   const handleToggleSidebar = () => {
     if (isMobile) {
@@ -1647,10 +1709,14 @@ function AppShell() {
     setAnnouncementCenterOpen(true);
   };
 
-  const handleOpenMessageCenter = async () => {
-    await refreshMessagingThreads();
-    void loadMessagingContacts();
+  const handleOpenMessageCenter = () => {
     setMessageCenterOpen(true);
+    if (messageThreads.length === 0) {
+      void refreshMessagingThreads();
+    }
+    if (messageContacts.length === 0) {
+      void loadMessagingContacts();
+    }
   };
 
   const handleReactToAnnouncement = (announcementId, reaction) => {
@@ -1677,7 +1743,49 @@ function AppShell() {
         recipient,
         body,
       });
-      await refreshMessagingThreads();
+      setMessageThreads((currentThreads) => {
+        const enrichedMessage = {
+          ...nextMessage,
+          senderName: currentUser.display_name || currentUser.email || "You",
+          senderEmail: currentUser.email || "",
+          recipientName: recipient.display_name || recipient.email || "User",
+          recipientEmail: recipient.email || "",
+        };
+
+        const existingThreadIndex = currentThreads.findIndex((thread) => thread.id === enrichedMessage.threadId);
+
+        if (existingThreadIndex === -1) {
+          return [{
+            id: enrichedMessage.threadId,
+            participant: {
+              id: recipient.id,
+              display_name: recipient.display_name,
+              email: recipient.email,
+            },
+            messages: [enrichedMessage],
+            unreadCount: 0,
+            lastMessageAt: enrichedMessage.createdAt,
+            lastMessagePreview: enrichedMessage.body,
+          }, ...currentThreads];
+        }
+
+        const nextThreads = currentThreads.slice();
+        const existingThread = nextThreads[existingThreadIndex];
+        const updatedThread = {
+          ...existingThread,
+          participant: existingThread.participant || {
+            id: recipient.id,
+            display_name: recipient.display_name,
+            email: recipient.email,
+          },
+          messages: [...existingThread.messages, enrichedMessage],
+          lastMessageAt: enrichedMessage.createdAt,
+          lastMessagePreview: enrichedMessage.body,
+        };
+
+        nextThreads.splice(existingThreadIndex, 1);
+        return [updatedThread, ...nextThreads];
+      });
       setSelectedMessageThreadId(nextMessage.threadId);
       showToast("Message sent.", "success");
     } catch (error) {
@@ -1959,7 +2067,7 @@ function AppShell() {
               sidebarExpanded={isMobile ? mobileOpen : !collapsed}
               onToggleSidebar={handleToggleSidebar}
               onOpenMessages={handleOpenMessageCenter}
-              unreadMessageCount={messageThreads.reduce((total, thread) => total + thread.unreadCount, 0)}
+              unreadMessageCount={unreadMessageCount}
               onOpenAnnouncements={handleOpenAnnouncementCenter}
               announcementCount={activeAnnouncements.length}
               onLogout={handleLogout}

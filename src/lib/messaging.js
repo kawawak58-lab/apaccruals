@@ -1,5 +1,10 @@
 import { supabase } from "./supabase";
 
+const DIRECTORY_CACHE_TTL_MS = 60 * 1000;
+let directoryCache = null;
+let directoryCacheFetchedAt = 0;
+let directoryCachePromise = null;
+
 export function buildThreadId(userAId, userBId) {
   return [String(userAId || ""), String(userBId || "")]
     .filter(Boolean)
@@ -30,18 +35,34 @@ function normalizeMessage(row) {
     recipientEmail: recipientRelation?.email || row.recipient_email || "",
     body: row.body,
     createdAt: row.created_at,
+    deliveredAt: row.delivered_at,
     readAt: row.read_at,
   };
 }
 
-async function fetchMessagingDirectory() {
-  const { data, error } = await supabase.rpc("list_message_contacts");
-
-  if (error) {
-    throw error;
+async function fetchMessagingDirectory({ force = false } = {}) {
+  const now = Date.now();
+  if (!force && directoryCache && now - directoryCacheFetchedAt < DIRECTORY_CACHE_TTL_MS) {
+    return directoryCache;
   }
 
-  return Array.isArray(data) ? data : [];
+  if (!force && directoryCachePromise) {
+    return directoryCachePromise;
+  }
+
+  directoryCachePromise = supabase.rpc("list_message_contacts").then(({ data, error }) => {
+    if (error) {
+      throw error;
+    }
+
+    directoryCache = Array.isArray(data) ? data : [];
+    directoryCacheFetchedAt = Date.now();
+    return directoryCache;
+  }).finally(() => {
+    directoryCachePromise = null;
+  });
+
+  return directoryCachePromise;
 }
 
 export async function fetchMessagingContacts(currentUserId) {
@@ -64,6 +85,7 @@ export async function fetchThreadsForUser(userId) {
       recipient_id,
       body,
       created_at,
+      delivered_at,
       read_at,
       sender:users!direct_messages_sender_id_fkey(id, display_name, email),
       recipient:users!direct_messages_recipient_id_fkey(id, display_name, email)
@@ -164,6 +186,7 @@ export async function sendDirectMessage({ sender, recipient, body }) {
       recipient_id,
       body,
       created_at,
+      delivered_at,
       read_at,
       sender:users!direct_messages_sender_id_fkey(id, display_name, email),
       recipient:users!direct_messages_recipient_id_fkey(id, display_name, email)
@@ -190,6 +213,30 @@ export async function markThreadAsRead(userId, threadId) {
     .eq("thread_id", normalizedThreadId)
     .eq("recipient_id", normalizedUserId)
     .is("read_at", null);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function markMessagesAsDelivered(userId, messageIds) {
+  const normalizedUserId = String(userId || "");
+  const normalizedMessageIds = Array.isArray(messageIds)
+    ? messageIds
+        .map((messageId) => Number(messageId))
+        .filter((messageId) => Number.isFinite(messageId))
+    : [];
+
+  if (!normalizedUserId || normalizedMessageIds.length === 0) {
+    return;
+  }
+
+  const { error } = await supabase
+    .from("direct_messages")
+    .update({ delivered_at: new Date().toISOString() })
+    .eq("recipient_id", normalizedUserId)
+    .is("delivered_at", null)
+    .in("id", normalizedMessageIds);
 
   if (error) {
     throw error;

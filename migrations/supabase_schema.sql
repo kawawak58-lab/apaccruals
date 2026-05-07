@@ -125,10 +125,14 @@ create table if not exists public.direct_messages (
   recipient_id bigint not null references public.users(id) on delete cascade,
   body text not null,
   created_at timestamptz not null default timezone('utc', now()),
+  delivered_at timestamptz,
   read_at timestamptz,
   constraint direct_messages_body_check check (length(trim(body)) > 0),
   constraint direct_messages_no_self_message_check check (sender_id <> recipient_id)
 );
+
+alter table public.direct_messages
+  add column if not exists delivered_at timestamptz;
 
 create index if not exists direct_messages_thread_created_idx
   on public.direct_messages (thread_id, created_at desc);

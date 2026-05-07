@@ -378,12 +378,21 @@ export default function AnnouncementsPage() {
   const { showToast } = useToast();
   const [announcements, setAnnouncements] = useState([]);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState("create");
   const [form, setForm] = useState(emptyForm);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [search]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -394,7 +403,7 @@ export default function AnnouncementsPage() {
         table: "announcements",
         orderBy: "published_at",
         ascending: false,
-        search: search.trim(),
+        search: debouncedSearch.trim(),
         searchColumns: ["title", "detail", "announcement_type"],
       });
       setAnnouncements(rows);
@@ -404,7 +413,7 @@ export default function AnnouncementsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, showToast]);
+  }, [debouncedSearch, showToast]);
 
   useEffect(() => {
     loadData();
