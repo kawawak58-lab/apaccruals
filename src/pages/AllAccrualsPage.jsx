@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import MaintenanceSkeleton from "../components/MaintenanceSkeleton";
 import MaintenanceTable from "../components/MaintenanceTable";
-import { cancelAccrual, fetchAccrualSubmissions } from "../lib/AccrualSubmissions";
+import DraftAccrualEditor from "../DraftAccrualEditor";
+import { cancelAccrual, fetchAccrualSubmissions, openAccrualDraft } from "../lib/AccrualSubmissions";
 import { useToast } from "../lib/toast";
 
 function formatDateTime(value) {
@@ -349,6 +350,7 @@ function FiltersMenu({ dateFrom, dateTo, statusFilter, onRangeChange, onStatusCh
               aria-label="Filter accruals by status"
             >
               <option value="">All</option>
+              <option value="draft">Draft</option>
               <option value="open">Open</option>
               <option value="cancelled">Cancelled</option>
             </select>
@@ -360,6 +362,7 @@ function FiltersMenu({ dateFrom, dateTo, statusFilter, onRangeChange, onStatusCh
 }
 
 function getAccrualStatusMeta(status) {
+  if (Number(status) === 2) return { label: "Draft", className: "warning" };
   if (Number(status) === 1) {
     return {
       label: "Cancelled",
@@ -413,6 +416,8 @@ export default function AllAccrualsPage({ currentUser }) {
   const [cancelDialogSubmission, setCancelDialogSubmission] = useState(null);
   const [cancellationRemarks, setCancellationRemarks] = useState("");
   const [cancelSaving, setCancelSaving] = useState(false);
+  const [editingDraft, setEditingDraft] = useState(null);
+  const [addingDraft, setAddingDraft] = useState(false);
   const detailDialogStyle = {
     width: "min(1760px, calc(100vw - 20px))",
     maxWidth: "min(1760px, calc(100vw - 20px))",
@@ -460,7 +465,7 @@ export default function AllAccrualsPage({ currentUser }) {
           submittedDate && !Number.isNaN(submittedDate.getTime())
             ? submittedDate.toLocaleDateString("en-CA")
             : "";
-        const submissionStatus = Number(submission.status) === 1 ? "cancelled" : "open";
+        const submissionStatus = getAccrualStatusMeta(submission.status).label.toLowerCase();
 
         if (dateFrom && submittedDateKey && submittedDateKey < dateFrom) {
           return false;
@@ -586,6 +591,22 @@ export default function AllAccrualsPage({ currentUser }) {
     [currentUser]
   );
 
+  const canManageDraft = (submission) => Number(submission?.status) === 2 && canCancelSubmission(submission);
+
+  const handleAddDraft = async (submission) => {
+    if (addingDraft) return;
+    setAddingDraft(true);
+    try {
+      await openAccrualDraft(submission.id);
+      setSelectedSubmission((current) => current?.id === submission.id ? { ...current, status: 0, submitted_at: new Date().toISOString() } : current);
+      await loadData();
+      showToast("Accrual added. Status is now Open.", "success");
+    } catch (error) {
+      showToast(error.message || "Unable to add draft.", "error");
+    } finally {
+      setAddingDraft(false);
+    }
+  };
   const openCancelDialog = (submission) => {
     setCancelDialogSubmission(submission);
     setCancellationRemarks("");
@@ -718,13 +739,14 @@ export default function AllAccrualsPage({ currentUser }) {
             ]}
             rows={filteredSubmissions}
             emptyText="No accrual submissions found."
-            emptyHelperText="Submit a new accrual form and it will appear here once it is written to Supabase."
+            emptyHelperText="Create or upload an accrual to save it as a draft. Review it and select Add to make it Open."
             onRowDoubleClick={(row) => setSelectedSubmission(row)}
             rowActions={(row) => (
               <>
                 <button type="button" className="tableActionBtn" onClick={() => setSelectedSubmission(row)}>
                   View
                 </button>
+                {canManageDraft(row) ? <button type="button" className="tableActionBtn" onClick={() => setEditingDraft(row)}>Edit</button> : null}
                 {canCancelSubmission(row) ? (
                   <button type="button" className="tableActionBtn danger" onClick={() => openCancelDialog(row)}>
                     Cancel
@@ -736,6 +758,16 @@ export default function AllAccrualsPage({ currentUser }) {
         )}
       </div>
 
+      {editingDraft ? <DraftAccrualEditor
+        key={editingDraft.id}
+        submission={editingDraft}
+        onClose={() => setEditingDraft(null)}
+        onSaved={async () => {
+          setEditingDraft(null);
+          await loadData();
+          showToast("Draft updated successfully.", "success");
+        }}
+      /> : null}
       {selectedSubmission ? (
         <div className="modalOverlay maintenanceOverlay">
           <div className="modalContent maintenanceDialog accrualDetailDialog" style={detailDialogStyle}>
@@ -852,13 +884,17 @@ export default function AllAccrualsPage({ currentUser }) {
               </div>
 
               <div className="dialogActions">
+                {canManageDraft(selectedSubmission) ? <>
+                  <button type="button" className="tableActionBtn" disabled={addingDraft} onClick={() => { setEditingDraft(selectedSubmission); setSelectedSubmission(null); }}>Edit</button>
+                  <button type="button" className="submitBtn" disabled={addingDraft} onClick={() => handleAddDraft(selectedSubmission)}>{addingDraft ? "Adding..." : "Add"}</button>
+                </> : null}
                 {canCancelSubmission(selectedSubmission) ? (
                   <button
                     type="button"
                     className="tableActionBtn danger"
                     onClick={() => openCancelDialog(selectedSubmission)}
                   >
-                    Cancel Entry
+                    Cancel
                   </button>
                 ) : null}
                 <button type="button" className="submitBtn" onClick={() => setSelectedSubmission(null)}>

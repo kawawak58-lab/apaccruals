@@ -1,19 +1,5 @@
 import React from "react";
 
-function getDialogBadge(title) {
-  const words = String(title || "")
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2);
-
-  if (words.length === 0) {
-    return "MD";
-  }
-
-  return words.map((word) => word[0]?.toUpperCase() || "").join("");
-}
-
 export default function MaintenanceDialog({
   open,
   title,
@@ -32,10 +18,9 @@ export default function MaintenanceDialog({
 
   return (
     <div className="modalOverlay maintenanceOverlay">
-      <div className="modalContent maintenanceDialog">
+      <div className="modalContent maintenanceDialog maintenanceEntryDialog">
         <div className="dialogHeader maintenanceDialogHeader">
           <div className="dialogHeaderLead">
-            <div className="dialogHeaderBadge">{getDialogBadge(title)}</div>
             <div className="dialogHeaderCopy">
               <h2 className="modalTitle">{title}</h2>
               {description ? <p className="dialogDescription">{description}</p> : null}

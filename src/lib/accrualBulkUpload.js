@@ -120,7 +120,7 @@ export function buildAccrualUploadPayloads(rows) {
           supplier_code: normalizeValue(row.supplier_code),
           supplier_name: normalizeValue(row.supplier_name),
           invoice_no: normalizeValue(row.invoice_no) || null,
-          status: 0,
+          status: 2,
         },
         lineItems: [],
         sequence: Number(normalizeValue(row.sequence) || 0),

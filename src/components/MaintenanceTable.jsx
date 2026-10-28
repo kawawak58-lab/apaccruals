@@ -189,10 +189,10 @@ export default function MaintenanceTable({
                     }}
                   >
                     {columns.map((column) => (
-                      <td key={column.key}>{column.render ? column.render(row) : row[column.key] ?? "-"}</td>
+                      <td key={column.key} data-label={column.label}>{column.render ? column.render(row) : row[column.key] ?? "-"}</td>
                     ))}
                     {(onEdit || onDelete || rowActions) && (
-                      <td className="tableActions">
+                      <td className="tableActions" data-label="Actions">
                         {rowActions ? rowActions(row) : null}
                         {(onEdit || onDelete) ? (
                           <div className={`rowMenuWrap${openUpward ? " openUpward" : ""}`}>

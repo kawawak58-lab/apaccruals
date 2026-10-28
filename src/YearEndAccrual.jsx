@@ -8,6 +8,8 @@ import { getSuppliers } from "./lib/Suppliers";
 import { getProfitCenters } from "./lib/ProfitCenter";
 import { getGLAccounts } from "./lib/GlAccount";
 import { useToast } from "./lib/toast";
+import { useAppView } from "./lib/appView";
+import { findExactLookup } from "./accrualLookup";
 import { submitAccrual } from "./lib/AccrualSubmissions";
 import UploadDataDialog from "./components/UploadDataDialog";
 import { fetchCollection } from "./lib/adminCrud";
@@ -105,7 +107,7 @@ function AccrualFormSkeleton({ retryCount, maxRetries }) {
           </div>
         </div>
 
-        <div className="formFooter">
+        <div className="formFooter accrualEntryFooter">
           <div className="accrualSkeletonFooter">
             <span className="skeletonBlock accrualSkeletonButton" />
             <div className="accrualSkeletonLoadingNote">
@@ -123,7 +125,7 @@ function ClosedChickenIllustration() {
   return (
     <svg
       className="accrualClosedSvg"
-      viewBox="0 0 680 680"
+      viewBox="240 0 440 680"
       preserveAspectRatio="xMidYMid meet"
       role="img"
       xmlns="http://www.w3.org/2000/svg"
@@ -195,9 +197,6 @@ function ClosedChickenIllustration() {
         <rect x="576" y="342" width="8" height="8" fill="#2e9088" opacity="0.6" />
       </g>
 
-      <text x="52" y="148" fontFamily="Arial Black, Arial, sans-serif" fontSize="68" fontWeight="900" fill="white" opacity="0.95">Entry</text>
-      <text x="52" y="218" fontFamily="Arial Black, Arial, sans-serif" fontSize="68" fontWeight="900" fill="white" opacity="0.95">closed!</text>
-      <text x="55" y="265" fontFamily="Arial, sans-serif" fontSize="28" fontWeight="700" fill="white" opacity="0.8">for now</text>
 
       <rect x="388" y="590" width="52" height="44" rx="4" fill="#e8e8e0" stroke="#c0b898" strokeWidth="2.5" />
       <rect x="388" y="590" width="52" height="12" rx="4" fill="#d0c8a8" stroke="#c0b898" strokeWidth="1.5" />
@@ -449,6 +448,7 @@ function hasDraftContent({ headerInfo, supplierSearch, lineItems }) {
 }
 
 export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) {
+  const { setActiveView } = useAppView();
   const { showToast } = useToast();
   const savedDraftRef = useRef(readAccrualDraft());
   // ---------- Header ----------
@@ -515,6 +515,8 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
   const debouncedSupplierSearch = useDebounce(supplierSearch, 500);
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [addConfirmOpen, setAddConfirmOpen] = useState(false);
+  const [createdAsOpen, setCreatedAsOpen] = useState(false);
   const previousAccrualWindowLockedRef = useRef(true);
 
   // Track previous search values to prevent duplicate requests
@@ -732,6 +734,9 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     return () => window.clearTimeout(timeoutId);
   }, [headerInfo, supplierSearch, lineItems, lineItemCounter]);
 
+  const latestLookupRef = useRef(null);
+  latestLookupRef.current = { company: headerInfo.company, supplierSearch };
+
   // Supplier search
   useEffect(() => {
     if (!headerInfo.company || debouncedSupplierSearch.length < 2) return;
@@ -751,7 +756,16 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           supplierLimit
         );
 
-        if (cancelled) return;
+        const exact = supplierPage === 1 ? await findExactLookup({
+          rows: fetchedSuppliers, total, search: debouncedSupplierSearch,
+          company: headerInfo.company, table: "suppliers", codeColumn: "suppliercode",
+          nameColumn: "suppliername", codeKey: "supplier",
+        }) : null;
+        if (cancelled || latestLookupRef.current.company !== headerInfo.company || latestLookupRef.current.supplierSearch !== debouncedSupplierSearch) return;
+        if (exact) {
+          setHeaderInfo((current) => ({ ...current, supplier: exact.code, supplierName: exact.name }));
+          setShowSupplierDropdown(false);
+        }
 
         setSuppliers(prev =>
           supplierPage === 1
@@ -773,10 +787,11 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
   // GL Account search handler
   const handleGLSearchChange = useCallback((lineId, value) => {
+    delete prevGLSearchesRef.current[lineId];
     setLineItems(prev =>
       prev.map(li =>
         li.id === lineId
-          ? { ...li, glSearch: value, glPage: 1, showGLDropdown: value.length >= 2 }
+          ? { ...li, glSearch: value, glaccount: "", glaccountName: "", glAccounts: [], glTotal: 0, glPage: 1, showGLDropdown: value.length >= 2 }
           : li
       )
     );
@@ -816,15 +831,21 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
             50
           );
 
+          const exact = line.glPage === 1 ? await findExactLookup({
+            rows: fetchedGLAccounts, total, search: line.glSearch,
+            company: headerInfo.company, table: "glaccounts", codeColumn: "glaccountcode", nameColumn: "glaccountname",
+          }) : null;
+          if (latestLookupRef.current.company !== headerInfo.company) continue;
           setLineItems(prev =>
             prev.map(li =>
-              li.id === line.id
+              li.id === line.id && li.glSearch === line.glSearch
                 ? {
                     ...li,
                     glAccounts: line.glPage === 1 
                       ? fetchedGLAccounts 
                       : [...(li.glAccounts || []), ...fetchedGLAccounts],
                     glTotal: total,
+                    ...(exact ? { glaccount: exact.code, glaccountName: exact.name, showGLDropdown: false } : {}),
                   }
                 : li
             )
@@ -843,10 +864,11 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
   // Profit Center search handler
   const handleProfitSearchChange = useCallback((lineId, value) => {
+    delete prevProfitSearchesRef.current[lineId];
     setLineItems(prev =>
       prev.map(li =>
         li.id === lineId
-          ? { ...li, profitSearch: value, profitPage: 1, showProfitDropdown: value.length >= 2 }
+          ? { ...li, profitSearch: value, profitcenter: "", profitcenterName: "", profitCenters: [], profitTotal: 0, profitPage: 1, showProfitDropdown: value.length >= 2 }
           : li
       )
     );
@@ -886,15 +908,21 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
             50
           );
 
+          const exact = line.profitPage === 1 ? await findExactLookup({
+            rows: fetchedProfitCenters, total, search: line.profitSearch,
+            company: headerInfo.company, table: "profitcenters", codeColumn: "profitcentercode", nameColumn: "profitcentername",
+          }) : null;
+          if (latestLookupRef.current.company !== headerInfo.company) continue;
           setLineItems(prev =>
             prev.map(li =>
-              li.id === line.id
+              li.id === line.id && li.profitSearch === line.profitSearch
                 ? {
                     ...li,
                     profitCenters: line.profitPage === 1 
                       ? fetchedProfitCenters 
                       : [...(li.profitCenters || []), ...fetchedProfitCenters],
                     profitTotal: total,
+                    ...(exact ? { profitcenter: exact.code, profitcenterName: exact.name, showProfitDropdown: false } : {}),
                   }
                 : li
             )
@@ -1119,7 +1147,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     setEmailSuggestions([]);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (mode = "draft") => {
     if (isSubmitting) return;
 
     const currentAccrualWindowStatus = getAccrualWindowStatus(accrualSetup, new Date());
@@ -1178,6 +1206,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       }
 
       const controlNumber = await submitAccrual({
+        open: mode === "open",
         header: {
           maker: currentUser?.email || headerInfo.email,
           requester_email: headerInfo.email,
@@ -1186,7 +1215,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           supplier_code: headerInfo.supplier,
           supplier_name: headerInfo.supplierName,
           invoice_no: headerInfo.invoiceNo || null,
-          status: 0,
+          status: 2,
         },
         lineItems: lineItems.map((item, index) => ({
           line_number: index + 1,
@@ -1203,9 +1232,10 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       });
 
       // Success
+      setCreatedAsOpen(mode === "open");
       setModalMessage(controlNumber);
       setShowModal(true);
-      showToast(`Accrual submitted successfully. Control number: ${controlNumber}`, "success");
+      showToast(`${mode === "open" ? "Accrual added as Open" : "Draft saved successfully"}. Control number: ${controlNumber}`, "success");
 
       // Reset form
       setHeaderInfo({
@@ -1272,7 +1302,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       return undefined;
     }
 
-    const shouldUseFullscreen = currentUser?.usergroup !== "sysadmin" && isAccrualWindowLocked;
+    const shouldUseFullscreen = false;
     onFullscreenChange(shouldUseFullscreen);
 
     return () => {
@@ -1861,23 +1891,39 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
         ) : null}
 
         {isAccrualWindowLocked ? (
-          <div className="accrualClosedState sectionCard">
-            <div className="accrualClosedScene" aria-hidden="true">
-              <ClosedChickenIllustration />
+          <section className="filingStatusPage">
+            <div className="filingPageHeading">
+              <h1>New Accrual</h1>
+              <p>Save and review drafts before adding your year-end accrual entries.</p>
             </div>
-            <p className="accrualClosedText">
-              {accrualSetupLoading
-                ? "Please wait while the filing window is being checked."
-                : accrualWindowStatus.reason}
-            </p>
-          </div>
+            <div className="filingStatusCard" aria-live="polite">
+              <div className="filingStatusContent">
+                <span className="filingStatusBadge">{accrualSetupLoading ? "Checking availability" : accrualSetupError ? "Setup unavailable" : !accrualWindowStatus.isConfigured ? "Setup required" : "Filing closed"}</span>
+                <h2>{accrualSetupLoading ? "Checking the accrual period" : accrualSetupError ? "Unable to check filing availability" : !accrualWindowStatus.isConfigured ? "Accrual period not configured" : "Accrual filing is currently closed"}</h2>
+                <p>{accrualSetupLoading ? "Please wait while we check when you can submit an accrual." : accrualSetupError ? "We couldn't load the filing dates. Retry the connection or contact your administrator." : !accrualWindowStatus.isConfigured ? "Filing dates haven't been set yet. You can review your submissions while you wait for the period to open." : accrualWindowStatus.reason}</p>
+                {!accrualSetupLoading && !accrualSetupError && accrualWindowStatus.isConfigured ? (
+                  <dl className="filingStatusDates">
+                    <div><dt>Start date</dt><dd>{formatDisplayDate(accrualSetup.start_date)}</dd></div>
+                    <div><dt>Cutoff date</dt><dd>{formatDisplayDate(accrualSetup.cutoff_date)}</dd></div>
+                  </dl>
+                ) : null}
+                <div className="filingStatusActions">
+                  {currentUser?.can_update_setup ? <button type="button" className="submitBtn" onClick={() => setActiveView("/accrual-setup")}>Configure accrual period</button> : null}
+                  <button type="button" className="tableActionBtn" onClick={() => setActiveView("/accruals")}>View submissions</button>
+                  {accrualSetupError ? <button type="button" className="tableActionBtn" onClick={() => loadAccrualSetup()}>Retry</button> : null}
+                </div>
+                {!currentUser?.can_update_setup && !accrualSetupLoading ? <p className="filingStatusHelp">Contact your administrator for changes to the filing period.</p> : null}
+              </div>
+              <div className="filingStatusArt" aria-hidden="true"><ClosedChickenIllustration /></div>
+            </div>
+          </section>
         ) : (
           <>
         <div className="formHeader">
           <div className="formHeaderBar">
             <div>
               <h1 className="h1">New Accrual</h1>
-              <p className="headerText">Fill in the year-end accrual details in a cleaner management workspace.</p>
+              <p className="headerText">Save your accrual as a draft. Review it in All Accruals, then select Add to make it Open.</p>
             </div>
             <div className="formHeaderActions">
               <button
@@ -1890,12 +1936,13 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               </button>
               <button
                 type="button"
-                className="submitBtn topSubmitBtn"
-                onClick={handleSubmit}
+                className="tableActionBtn topSaveDraftBtn"
+                onClick={() => handleSubmit("draft")}
                 disabled={isSubmitting || isAccrualWindowLocked}
               >
-                {isSubmitting ? "Submitting..." : "Submit"}
+                {isSubmitting ? "Saving..." : "Save Draft"}
               </button>
+              <button type="button" className="submitBtn topSubmitBtn" disabled={isSubmitting || isAccrualWindowLocked} onClick={() => setAddConfirmOpen(true)}>Add</button>
             </div>
           </div>
         </div>
@@ -2005,16 +2052,12 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
         {/* Supplier */}
         <div className="formSection sectionCard">
-          <div className="cardHeading">
-            <h2 className="cardTitle">Supplier Information</h2>
-            <p className="cardSubtitle">Search the supplier master and confirm the selected vendor.</p>
-          </div>
-          <div className="formGroup" style={{ position: "relative" }}>
-            <div className="labelRow">
-              <label className="label">
-                Supplier <span className="required">*</span>
-              </label>
-              <button
+          <div className="cardHeading supplierSectionHeading">
+            <div>
+              <h2 className="cardTitle">Supplier Information</h2>
+              <p className="cardSubtitle">Search the supplier master and confirm the selected vendor.</p>
+            </div>
+            <button
                 type="button"
                 className="missingSupplierLink"
                 onClick={handleManageSuppliers}
@@ -2022,7 +2065,9 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               >
                 Request Supplier Enrollment
               </button>
-            </div>
+          </div>
+          <div className="formGroup" style={{ position: "relative" }}>
+            <label className="label">Supplier <span className="required">*</span></label>
             <input
               type="text"
               className={`input ${headerErrors.supplier ? "inputError" : ""}`}
@@ -2030,6 +2075,9 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               value={supplierSearch}
               onChange={(e) => {
                 setSupplierSearch(e.target.value);
+                setHeaderInfo((prev) => ({ ...prev, supplier: "", supplierName: "" }));
+                setSuppliers([]);
+                prevSupplierSearchRef.current = "";
                 setSupplierPage(1);
                 setShowSupplierDropdown(e.target.value.length >= 2);
                 setHeaderErrors((prev) => ({ ...prev, supplier: false }));
@@ -2415,23 +2463,37 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           
     </div>
 
-    <div className="formFooter">
+    <div className="formFooter accrualEntryFooter">
       <button
         type="button"
-        className="submitBtn"
-        onClick={handleSubmit}
+        className="tableActionBtn"
+        onClick={() => handleSubmit("draft")}
         disabled={isSubmitting || isAccrualWindowLocked}
         style={{
           opacity: isSubmitting || isAccrualWindowLocked ? 0.6 : 1,
           cursor: isSubmitting || isAccrualWindowLocked ? "not-allowed" : "pointer",
         }}
       >
-        {isSubmitting ? "Submitting..." : "Submit"}
+        {isSubmitting ? "Saving..." : "Save Draft"}
       </button>
+      <button type="button" className="submitBtn" disabled={isSubmitting || isAccrualWindowLocked} onClick={() => setAddConfirmOpen(true)}>Add</button>
     </div>
           </>
         )}
 
+    {addConfirmOpen ? (
+      <div className="modalOverlay maintenanceOverlay">
+        <section className="modalContent maintenanceDialog addAccrualConfirm" role="dialog" aria-modal="true" aria-labelledby="addAccrualConfirmTitle">
+          <h2 id="addAccrualConfirmTitle" className="modalTitle">Add this accrual?</h2>
+          <p>This will save your accrual as <strong>Open</strong> immediately. You will no longer be able to edit it.</p>
+          <p>Choose <strong>Save Draft</strong> on the form if you want to review or edit it later.</p>
+          <div className="dialogActions">
+            <button type="button" className="tableActionBtn" autoFocus onClick={() => setAddConfirmOpen(false)}>Go back</button>
+            <button type="button" className="submitBtn" onClick={() => { setAddConfirmOpen(false); handleSubmit("open"); }}>Add accrual</button>
+          </div>
+        </section>
+      </div>
+    ) : null}
     {showSupplierEnrollmentModal && (
       <div className="modalOverlay" onClick={closeSupplierEnrollmentModal}>
         <div
@@ -2618,7 +2680,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               fontFamily: "'Google Sans', sans-serif",
             }}
           >
-            Thank you for submitting!
+            {createdAsOpen ? "Accrual added" : "Draft saved"}
           </h2>
           <p
             style={{
@@ -2628,7 +2690,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               lineHeight: "1.6",
             }}
           >
-            This is your Accrual Template control number:
+            {createdAsOpen ? "Your accrual control number:" : "Your draft control number:"}
           </p>
           <div
             style={{
@@ -2650,7 +2712,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               lineHeight: "1.6",
             }}
           >
-            Kindly note it in the upper-right corner of your printed RFP/GRPO for easier tracking. Thank you!
+            {createdAsOpen ? "Your accrual is now Open. View it in All Accruals. Open entries can no longer be edited." : "Review your draft in All Accruals. You can edit it, then select Add to change its status to Open."}
           </p>
           <button
             onClick={() => setShowModal(false)}
@@ -2670,7 +2732,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     <UploadDataDialog
       open={uploadOpen}
       title="Upload Accruals"
-      description="Upload accrual submissions in bulk using a CSV file."
+      description="Upload accruals as drafts using a CSV file. Review each draft in All Accruals, then select Add to make it Open."
       templateColumns={ACCRUAL_UPLOAD_COLUMNS}
       templateSampleRow={buildAccrualUploadTemplateSample({
         expenseClasses: expenseClass,

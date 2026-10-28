@@ -184,14 +184,14 @@ function BrandLogo() {
 
 const navigation = [
   {
-    section: "Main",
+    section: "Accruals",
     items: [
       { label: "All Accruals", view: "/accruals", icon: "accruals", roles: ["sysadmin", "accrual_user"] },
       { label: "New Accrual", view: "/new-accrual", icon: "plus", roles: ["sysadmin", "accrual_user"] },
     ],
   },
   {
-    section: "Field Management",
+    section: "Master Data",
     items: [
       { label: "Suppliers", view: "/suppliers", icon: "suppliers", roles: ["sysadmin"] },
       { label: "GL Accounts", view: "/gl-accounts", icon: "glaccounts", roles: ["sysadmin"] },
@@ -734,7 +734,7 @@ function Sidebar({
 }) {
   return (
     <aside
-      className={`appSidebar${collapsed ? " collapsed" : ""}${mobileOpen ? " mobileOpen" : ""}${isMobile ? " mobile" : ""}`}
+      className={`appSidebar${collapsed && !isMobile ? " collapsed" : ""}${mobileOpen ? " mobileOpen" : ""}${isMobile ? " mobile" : ""}`}
     >
       <div className="sidebarTop">
         <div className="brandBlock">
@@ -742,7 +742,8 @@ function Sidebar({
             <BrandLogo />
           </div>
           <div className="brandText">
-            <div className="brandTitle">Accrual Mgr</div>
+            <div className="brandTitle">Accrual Manager</div>
+            <div className="brandSubtitle">Finance workspace</div>
           </div>
         </div>
         <button
@@ -755,7 +756,7 @@ function Sidebar({
         </button>
       </div>
 
-      <div className="sidebarNav">
+      <nav className="sidebarNav" aria-label="Workspace navigation">
         {visibleNavigation.map((group, groupIndex) => (
           <div key={group.section} className={`navGroup${groupIndex > 0 ? " withDivider" : ""}`}>
             <div className="navHeading">{group.section}</div>
@@ -763,7 +764,9 @@ function Sidebar({
               <button
                 key={item.view}
                 type="button"
+                aria-current={activeView === item.view ? "page" : undefined}
                 aria-label={item.label}
+                title={collapsed ? item.label : undefined}
                 onClick={() => {
                   setActiveView(item.view);
                   if (mobileOpen) {
@@ -780,9 +783,9 @@ function Sidebar({
             ))}
           </div>
         ))}
-      </div>
+      </nav>
 
-      <div className="sidebarProfile">
+      <div className="sidebarProfile" title={currentUser?.email || ""}>
         <div className="profileAvatar">{getInitials(currentUser?.display_name)}</div>
         <div className="profileCopy">
           <div className="profileName">{currentUser?.display_name || "User"}</div>
@@ -796,6 +799,7 @@ function Sidebar({
 }
 
 function TopBar({
+  currentUser,
   activeView,
   sidebarExpanded,
   onToggleSidebar,
@@ -825,23 +829,48 @@ function TopBar({
         </span>
       </div>
       <div className="topbarActions">
-        <button type="button" className="topbarAnnouncementButton" onClick={onOpenMessages} aria-label="Open messages">
-          <span className="topbarAnnouncementIcon" aria-hidden="true">
-            <Icon name="messages" />
-          </span>
-          <span>Messages</span>
-          {unreadMessageCount ? <span className="topbarAnnouncementCount">{unreadMessageCount}</span> : null}
-        </button>
         <button type="button" className="topbarAnnouncementButton" onClick={onOpenAnnouncements} aria-label="Open announcements">
-          <span className="topbarAnnouncementIcon" aria-hidden="true">
-            <Icon name="announcement" />
-          </span>
+          <span className="topbarAnnouncementIcon" aria-hidden="true"><Icon name="announcement" /></span>
           <span>Announcements</span>
           {announcementCount ? <span className="topbarAnnouncementCount">{announcementCount}</span> : null}
         </button>
-      <button type="button" className="topbarLogoutButton" onClick={onLogout}>
-        Logout
-      </button>
+        <details
+          className="topbarAccountMenu"
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) {
+              event.currentTarget.removeAttribute("open");
+            }
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.currentTarget.removeAttribute("open");
+              event.currentTarget.querySelector("summary").focus();
+            }
+          }}
+        >
+          <summary className="topbarMenuTrigger" aria-label="Account menu">
+            <span className="topbarAccountInitials">{getInitials(currentUser?.display_name)}</span>
+            <span>Account</span>
+            {unreadMessageCount ? <span className="topbarAnnouncementCount">{unreadMessageCount}</span> : null}
+            <span className="topbarMenuChevron" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
+          </summary>
+          <div className="topbarMenuPanel">
+            <div className="topbarMenuHeading">Workspace</div>
+            <button type="button" onClick={(event) => {
+              event.currentTarget.closest("details").removeAttribute("open");
+              onOpenMessages();
+            }}>
+              <span className="topbarMenuItemIcon" aria-hidden="true"><Icon name="messages" /></span><span>Messages</span>
+              {unreadMessageCount ? <span className="topbarAnnouncementCount">{unreadMessageCount}</span> : null}
+            </button>
+            <button type="button" className="topbarMenuLogout" onClick={(event) => {
+              event.currentTarget.closest("details").removeAttribute("open");
+              onLogout();
+            }}>
+              <span className="topbarMenuItemIcon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 5H5v14h4M14 8l4 4-4 4M9 12h9" /></svg></span><span>Logout</span>
+            </button>
+          </div>
+        </details>
       </div>
     </header>
   );
@@ -1057,7 +1086,7 @@ function LoginScreen({ onLogin, signingIn, announcements, onExpandAnnouncement }
 
 function OnboardingScreen({ email, value, onChange, onSubmit, saving }) {
   return (
-    <div className="authScreen">
+    <div className="authScreen authProfileScreen">
       <div className="authCard">
         <div className="authTitle">Complete Your Profile</div>
         <div className="authSubtitle">
@@ -1134,7 +1163,7 @@ function AppShell() {
   const { showToast } = useToast();
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const [collapsed, setCollapsed] = useState(() => {
-    const stored = window.localStorage.getItem("accrual-sidebar-collapsed");
+    const stored = window.localStorage.getItem("accrual-sidebar-v2-collapsed");
     return stored === "true";
   });
   const [activeView, setActiveView] = useState(() => {
@@ -1278,7 +1307,7 @@ function AppShell() {
   }, [currentUser?.id, showToast]);
 
   useEffect(() => {
-    window.localStorage.setItem("accrual-sidebar-collapsed", String(collapsed));
+    window.localStorage.setItem("accrual-sidebar-v2-collapsed", String(collapsed));
   }, [collapsed]);
 
   useEffect(() => {
@@ -2063,6 +2092,7 @@ function AppShell() {
         <div className="appMain">
           {!showFullscreenNewAccrual ? (
             <TopBar
+              currentUser={currentUser}
               activeView={activeView}
               sidebarExpanded={isMobile ? mobileOpen : !collapsed}
               onToggleSidebar={handleToggleSidebar}

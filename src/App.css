@@ -978,6 +978,27 @@ body {
   height: 18px;
 }
 
+.authScreen.authProfileScreen {
+  height: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  align-items: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+}
+
+.authProfileScreen .authCard {
+  width: 100%;
+  max-width: 520px;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: clamp(24px, 5vw, 36px);
+  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.08);
+}
+
+.authProfileScreen .authSubtitle {
+  overflow-wrap: anywhere;
+}
 .authFieldGroup {
   margin-top: 20px;
   margin-left: 0;
@@ -2577,8 +2598,23 @@ a {
   margin-bottom: 0;
 }
 
+.maintenanceHeaderActions > .headerSearch,
+.maintenanceHeaderActions > .headerSelect,
 .maintenanceHeaderActions > .tableActionBtn,
 .maintenanceHeaderActions > .submitBtn {
+  height: 44px;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.maintenanceHeaderActions > .tableActionBtn,
+.maintenanceHeaderActions > .submitBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  font-size: 14px;
+  line-height: 1;
   white-space: nowrap;
 }
 
@@ -4247,7 +4283,8 @@ a {
   text-align: left;
 }
 
-.dialogField.spanTwo {
+.dialogField.spanTwo,
+.dialogField:only-child {
   grid-column: 1 / -1;
 }
 
@@ -4277,6 +4314,8 @@ a {
 
 .maintenanceDialog .input,
 .maintenanceDialog .select {
+  width: 100%;
+  box-sizing: border-box;
   min-height: 42px;
   border-radius: 10px;
   border-color: #cfd8e3;
@@ -6229,4 +6268,321 @@ a {
   .maintenanceHeaderActions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* Shared add/edit forms for master data. */
+.modalContent.maintenanceEntryDialog {
+  width: min(600px, calc(100vw - 32px));
+  max-width: 600px;
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  overflow: auto;
+  text-align: left;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.2);
+}
+
+.maintenanceEntryDialog .maintenanceDialogHeader {
+  align-items: center;
+  padding: 24px;
+  gap: 16px;
+}
+
+.maintenanceEntryDialog .dialogHeaderLead {
+  flex: 1;
+}
+
+.maintenanceEntryDialog .modalTitle {
+  font-size: clamp(20px, 4vw, 24px);
+  line-height: 1.3;
+}
+
+.maintenanceEntryDialog .dialogBodySection {
+  padding: 24px;
+}
+
+.maintenanceEntryDialog .label {
+  font-size: 13px;
+  white-space: normal;
+}
+
+.maintenanceEntryDialog .input,
+.maintenanceEntryDialog .select {
+  min-height: 46px;
+  font-size: 14px;
+}
+
+.maintenanceEntryDialog .maintenanceDialogActions {
+  padding: 16px 24px;
+  gap: 12px;
+}
+
+.maintenanceEntryDialog .maintenanceDialogActions button {
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 20px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.maintenanceEntryDialog .maintenanceDialogActions .submitBtn {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+@media (max-width: 480px) {
+  .maintenanceEntryDialog .dialogGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .maintenanceEntryDialog .maintenanceDialogHeader,
+  .maintenanceEntryDialog .dialogBodySection {
+    padding: 20px;
+  }
+
+  .maintenanceEntryDialog .maintenanceDialogActions {
+    padding: 16px 20px;
+  }
+}
+.topbarAccountMenu { position: relative; }
+.topbarMenuTrigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  padding: 8px 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #334155;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.topbarMenuTrigger::-webkit-details-marker { display: none; }
+.topbarMenuTrigger:hover,
+.topbarAccountMenu[open] .topbarMenuTrigger { background: #dbeafe; border-color: #93c5fd; color: #1d4ed8; }
+.topbarMenuAvatar {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #2563eb;
+}
+.topbarMenuItemIcon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex: 0 0 18px; }
+.topbarMenuChevron { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; color: #64748b; margin-left: 4px; }
+.topbarMenuChevron svg, .topbarMenuItemIcon svg { display: block; width: 100%; height: 100%; }
+.topbarAccountMenu[open] .topbarMenuChevron { transform: rotate(180deg); }
+.topbarMenuPanel {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(264px, calc(100vw - 32px));
+  padding: 8px;
+  box-sizing: border-box;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.14);
+}
+.topbarMenuHeading { padding: 8px 12px 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #64748b; }
+.topbarMenuPanel button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #334155;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.topbarMenuPanel button:hover { background: #dbeafe; color: #1d4ed8; }
+.topbarMenuPanel button .topbarAnnouncementCount { margin-left: auto; }
+.topbarMenuPanel .topbarMenuLogout { margin-top: 6px; border-top: 1px solid #e2e8f0; border-radius: 0 0 8px 8px; color: #b91c1c; justify-content: flex-start; }
+.topbarMenuPanel .topbarMenuLogout:hover { background: #fee2e2; color: #991b1b; }
+.topbarMenuTrigger:focus-visible,
+.topbarMenuPanel button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+/* Consistent workspace header controls. */
+.topbarActions > .topbarAnnouncementButton,
+.topbarMenuTrigger { min-height: 42px; box-sizing: border-box; border-radius: 10px; font-size: 13px; font-weight: 600; }
+.topbarAccountInitials { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: #e0e7ff; color: #3730a3; font-size: 11px; font-weight: 700; }
+.topbarTitleRow { min-width: 0; }
+.topbarActions { flex-shrink: 0; }
+@media (max-width: 600px) {
+  .topbarBreadcrumb .crumbRoot, .topbarBreadcrumb .crumbSep { display: none; }
+  .topbarActions { gap: 6px; }
+  .topbarActions > .topbarAnnouncementButton { padding: 8px; }
+  .topbarMenuTrigger { padding: 6px 8px; gap: 6px; }
+  .topbarMenuTrigger > span:nth-child(2) { display: none; }
+}
+/* Sidebar navigation: readable desktop layout and balanced icon rail. */
+:root { --sidebar-width: 248px; --sidebar-collapsed-width: 72px; }
+.appSidebar { box-sizing: border-box; padding: 20px 12px 16px; gap: 24px; background: #151e2f; border-right-color: #263247; }
+.sidebarTop { gap: 8px; }
+.sidebarTop .brandBlock { gap: 10px; }
+.sidebarTop .brandMark { width: 34px; height: 34px; flex-basis: 34px; border-radius: 9px; box-shadow: none; }
+.sidebarTop .brandLogoSvg { width: 29px; height: 29px; }
+.brandTitle { font-size: 14px; letter-spacing: -0.02em; }
+.brandSubtitle { font-size: 11px; color: #94a3b8; margin-top: 4px; }
+.sidebarCollapseBtn { width: 28px; height: 28px; flex-basis: 28px; border-radius: 7px; border-color: #334155; background: transparent; }
+.sidebarCollapseBtn:hover { color: #fff; background: #334155; }
+.sidebarNav { gap: 24px; padding-right: 0; scrollbar-width: thin; }
+.navGroup { gap: 4px; }
+.navGroup.withDivider { border-top: 0; padding-top: 0; }
+.navHeading { margin: 0 12px 8px; color: #94a3b8; font-size: 10px; letter-spacing: 0.1em; }
+.navItem { min-height: 44px; padding: 9px 12px; gap: 10px; border-radius: 8px; font-size: 13px; line-height: 1.4; color: #cbd5e1; }
+.navText { white-space: normal; }
+.navIcon { width: 20px; height: 20px; flex: 0 0 20px; }
+.navIcon svg { display: block; }
+.navItem:hover { background: #263247; color: #fff; }
+.navItem.active { background: #244b91; border-color: #3765b3; color: #fff; font-weight: 600; }
+.navItem::before { display: none; }
+.navItem:focus-visible, .sidebarCollapseBtn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+.sidebarProfile { gap: 10px; padding: 16px 4px 0; border-color: #2a3548; }
+.sidebarProfile .profileAvatar { width: 34px; height: 34px; flex-basis: 34px; font-size: 11px; background: #263650; border-color: #40516c; }
+.profileName, .profileRole { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profileRole { margin-top: 4px; font-size: 11px; color: #94a3b8; }
+.appSidebar.collapsed { padding: 20px 12px 16px; gap: 24px; }
+.appSidebar.collapsed .brandText,
+.appSidebar.collapsed .navText,
+.appSidebar.collapsed .navHeading,
+.appSidebar.collapsed .profileCopy { display: none; }
+.appSidebar.collapsed .sidebarTop { gap: 16px; }
+.appSidebar.collapsed .brandBlock { gap: 0; }
+.appSidebar.collapsed .navItem { width: 44px; min-height: 44px; padding: 0; gap: 0; margin: 0 auto; }
+.appSidebar.collapsed .sidebarNav { gap: 16px; }
+.appSidebar.collapsed .navGroup { gap: 4px; }
+.appSidebar.collapsed .navGroup.withDivider { border-top: 1px solid #2a3548; padding-top: 16px; }
+.appSidebar.collapsed .sidebarProfile { padding: 16px 0 0; gap: 0; }
+@media (max-width: 767px) {
+  .appSidebar.mobile { width: var(--sidebar-width); }
+}
+/* Keep the details heading aligned with its description and content. */
+.accrualDetailDialog .dialogHeader,
+.accrualDetailDialog .uploadDialogHeaderCopy,
+.accrualDetailDialog .modalTitle,
+.accrualDetailDialog .uploadDialogHeaderText {
+  text-align: left;
+}
+.accrualDetailDialog .uploadDialogHeaderCopy { flex: 1; min-width: 0; }
+.accrualDetailDialog .modalTitle { margin: 0; padding: 0; }
+/* Phone layouts prioritize readable content and touch targets. */
+@media (max-width: 640px) {
+  .appTopbar { height: 60px; min-height: 60px; padding: 0 12px; gap: 8px; }
+  .topbarToggleButton { width: 40px; height: 40px; flex: 0 0 40px; margin-right: 0; }
+  .topbarTitleRow { flex: 1; overflow: hidden; font-size: 13px; }
+  .topbarBreadcrumb { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbarActions { gap: 8px; }
+  .topbarActions > .topbarAnnouncementButton { min-width: 42px; min-height: 42px; padding: 8px; gap: 4px; }
+  .topbarActions > .topbarAnnouncementButton > span:nth-child(2) { display: none; }
+  .topbarMenuTrigger { min-height: 42px; padding: 6px 8px; gap: 4px; }
+  .topbarMenuTrigger > span:nth-child(2) { display: none; }
+  .appContent { padding: 16px 12px; overflow-y: auto; }
+  .managementPage { height: auto; min-height: 100%; overflow: visible; }
+  .pageIntro { gap: 16px; margin-bottom: 16px; }
+  .pageTitle { font-size: 24px; line-height: 1.3; }
+  .headerActions { width: 100%; min-width: 0; flex-wrap: wrap; }
+  .searchFieldGroup, .searchFieldGroup.focused { width: 100%; min-width: 0; }
+  .headerActions .input, .headerActions .select { width: 100%; min-height: 44px; box-sizing: border-box; }
+  .headerButtonGroup { width: 100%; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .headerActions .headerButtonGroup button { min-height: 44px; padding: 8px; font-size: 12px; }
+  .managementPanel { flex: none; overflow: visible; padding: 0; border: 0; background: transparent; }
+  .maintenanceTableShell { overflow: visible; flex: none; }
+  .maintenanceTableWrap { flex: none; overflow: visible; border: 0; background: transparent; }
+  .maintenanceTable { display: block; width: 100%; min-width: 0; }
+  .maintenanceTable thead { display: none; }
+  .maintenanceTable tbody { display: grid; gap: 12px; }
+  .maintenanceTable tbody tr { display: block; min-width: 0; padding: 12px 16px; border: 1px solid #d7deea; border-radius: 12px; background: #fff; }
+  .maintenanceTable tbody td { display: grid; grid-template-columns: minmax(90px, 35%) minmax(0, 1fr); gap: 12px; padding: 10px 0; border: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; font-size: 13px; }
+  .maintenanceTable tbody td[data-label]::before { content: attr(data-label); color: #64748b; font-size: 12px; font-weight: 600; }
+  .maintenanceTable tbody td.tableActions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 12px; }
+  .maintenanceTable tbody td.tableActions::before { display: none; }
+  .maintenanceTable .tableActions button { min-height: 44px; }
+  .maintenanceTable tbody td.emptyTableCell { display: block; padding: 32px 12px !important; }
+  .emptyStateBlock, .emptyStateHelper { width: 100%; max-width: 100%; white-space: normal; box-sizing: border-box; overflow-wrap: anywhere; }
+  .tablePagination { flex-wrap: wrap; gap: 12px; }
+  .tablePaginationControls { flex-wrap: wrap; gap: 6px; }
+  .tablePageBtn { min-height: 44px; }
+  .filtersMenu { max-width: calc(100vw - 32px); }
+}
+.modalContent.draftEditorDialog { width: min(900px, calc(100vw - 32px)); max-width: 900px; max-height: calc(100dvh - 32px); overflow-y: auto; text-align: left; }
+.draftEditorDialog .modalTitle { text-align: left; }
+.draftEditorFields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.draftEditorFields h3 { margin: 24px 0 16px; font-size: 16px; }
+.draftEditorLine { padding: 16px; margin-bottom: 16px; border: 1px solid #e2e8f0; border-radius: 12px; }
+.draftEditorLineHeading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; }
+.draftEditorLineHeading h4 { margin: 0; }
+.draftEditorDialog .input { width: 100%; box-sizing: border-box; }
+@media (max-width: 640px) {
+  .draftEditorDialog .dialogGrid { grid-template-columns: minmax(0, 1fr); }
+  .draftEditorDialog input { min-height: 44px; font-size: 16px; }
+  .accrualDetailDialog .dialogActions { flex-wrap: wrap; gap: 8px; }
+  .draftEditorDialog .dialogActions button, .accrualDetailDialog .dialogActions button { min-height: 44px; }
+}
+/* Consistent detail actions: cancellation left, primary Add on the right. */
+.accrualDetailDialog .dialogActions { display: flex; align-items: center; gap: 10px; padding-top: 18px; }
+.accrualDetailDialog .dialogActions button {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 88px; height: 42px; min-height: 42px; padding: 0 18px;
+  margin: 0; border: 1px solid #cbd5e1; border-radius: 8px;
+  background: #fff; color: #334155; font-size: 14px; font-weight: 600; line-height: 1; order: 1;
+}
+.accrualDetailDialog .dialogActions .danger { margin-right: auto; color: #b91c1c; border-color: #fecaca; order: 0; }
+.accrualDetailDialog .dialogActions .danger:hover { background: #fef2f2; }
+.accrualDetailDialog .dialogActions .submitBtn:not(:last-child) { order: 3; background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.accrualDetailDialog .dialogActions .submitBtn:not(:last-child):hover { background: #1e40af; }
+.accrualDetailDialog .dialogActions button:last-child { order: 2; }
+.accrualDetailDialog .dialogActions button:disabled { opacity: 0.6; cursor: wait; }
+.modalContent.addAccrualConfirm { width: min(480px, calc(100vw - 32px)); box-sizing: border-box; text-align: left; padding: 28px; border-radius: 16px; }
+.addAccrualConfirm p { color: #64748b; font-size: 14px; line-height: 1.7; }
+.addAccrualConfirm .dialogActions button { min-height: 44px; padding: 10px 18px; border-radius: 8px; }
+@media (max-width: 640px) {
+  .accrualDetailDialog .dialogActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .accrualDetailDialog .dialogActions button { width: 100%; min-width: 0; margin: 0; }
+}
+/* Detail actions use distinct purpose colors. */
+.accrualDetailDialog .dialogActions .tableActionBtn:not(.danger) {
+  background: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+}
+.accrualDetailDialog .dialogActions .tableActionBtn:not(.danger):hover {
+  background: #fde68a;
+  border-color: #d97706;
+}
+.accrualDetailDialog .dialogActions .danger {
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+.accrualDetailDialog .dialogActions .danger:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  color: #fff;
+}
+.accrualDetailDialog .dialogActions button:last-child {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #475569;
+}
+.accrualDetailDialog .dialogActions button:last-child:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
 }

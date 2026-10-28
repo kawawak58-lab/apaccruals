@@ -27,14 +27,14 @@ export async function getAccrualSetup() {
 
 export async function saveAccrualSetup(payload) {
   const normalizedPayload = {
-    id: ACCRUAL_SETUP_SINGLETON_ID,
     start_date: payload?.start_date || null,
     cutoff_date: payload?.cutoff_date || null,
   };
 
   const { data, error } = await supabase
     .from("accrual_setup")
-    .upsert(normalizedPayload, { onConflict: "id" })
+    .update(normalizedPayload)
+    .eq("id", ACCRUAL_SETUP_SINGLETON_ID)
     .select("id, start_date, cutoff_date, updated_at")
     .single();
 

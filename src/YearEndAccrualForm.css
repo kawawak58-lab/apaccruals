@@ -482,6 +482,7 @@ textarea.input {
 
 .lineItemGrid {
   display: grid;
+  align-items: start;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 18px;
 }
@@ -1112,4 +1113,90 @@ textarea.input {
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+/* Filing availability stays within the normal workspace. */
+.body.bodyLocked { overflow-y: auto; }
+.formWrapper.formWrapperLocked { max-width: 1120px; height: auto; min-height: 0; padding-bottom: 24px; }
+.filingPageHeading { margin: 8px 0 24px; }
+.filingPageHeading h1 { margin: 0; color: #0f172a; font-size: 28px; font-weight: 700; letter-spacing: -0.03em; }
+.filingPageHeading p { margin: 8px 0 0; color: #64748b; font-size: 14px; line-height: 1.6; }
+.filingStatusCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  align-items: center;
+  gap: 40px;
+  padding: 40px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03);
+}
+.filingStatusBadge { display: inline-flex; padding: 6px 10px; border: 1px solid #fde68a; border-radius: 6px; background: #fffbeb; color: #92400e; font-size: 12px; font-weight: 600; }
+.filingStatusContent h2 { margin: 18px 0 12px; color: #0f172a; font-size: clamp(22px, 3vw, 28px); line-height: 1.3; letter-spacing: -0.025em; }
+.filingStatusContent > p { max-width: 58ch; margin: 0; font-size: 14px; color: #64748b; line-height: 1.75; }
+.filingStatusDates { display: flex; flex-wrap: wrap; gap: 24px; margin: 24px 0; }
+.filingStatusDates dt { color: #64748b; font-size: 12px; margin-bottom: 6px; }
+.filingStatusDates dd { margin: 0; font-size: 14px; font-weight: 600; color: #334155; }
+.filingStatusActions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.filingStatusActions button { min-height: 44px; height: auto; padding: 10px 16px; margin: 0; border-radius: 8px; font-size: 14px; line-height: 1.4; }
+.filingStatusContent .filingStatusHelp { margin-top: 20px; font-size: 12px; }
+.filingStatusArt { display: flex; align-items: center; justify-content: center; height: 240px; border-radius: 50%; background: #f0fdfa; }
+.filingStatusArt .accrualClosedSvg { width: 170px; height: 220px; max-width: 100%; }
+@media (max-width: 700px) {
+  .filingStatusCard { grid-template-columns: minmax(0, 1fr); padding: 24px; gap: 24px; }
+  .filingStatusArt { grid-row: 1; justify-self: center; width: 160px; height: 160px; }
+  .filingStatusArt .accrualClosedSvg { width: 110px; height: 150px; }
+  .filingStatusActions button { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .filingStatusArt * { animation: none !important; }
+}
+@media (max-width: 640px) {
+  .body { height: auto; overflow: visible; }
+  .formWrapper { gap: 16px; padding-bottom: 24px; }
+  .formHeader { padding: 16px; border-radius: 12px; }
+  .formHeader .h1 { font-size: 24px; line-height: 1.3; }
+  .formHeader .headerText { font-size: 13px; line-height: 1.6; }
+  .formHeaderActions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  .formHeaderActions .topUploadBtn, .formHeaderActions .topSubmitBtn { width: 100%; min-width: 0; min-height: 44px; padding: 10px 8px; font-size: 13px; margin: 0; align-self: stretch; }
+  .formSection { padding: 16px; border-radius: 12px; gap: 18px; }
+  .formSection .input, .formSection .select, .formSection input, .formSection select, .formSection textarea { min-height: 46px; font-size: 16px; box-sizing: border-box; }
+  .deadlineReminder { padding: 12px 14px; border-radius: 10px; }
+}
+.formHeaderActions .topSaveDraftBtn { min-height: 44px; min-width: 110px; display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; border-radius: 8px; font-size: 14px; line-height: 1.2; margin: 0; }
+.accrualEntryFooter { display: flex; justify-content: flex-end; gap: 12px; }
+.accrualEntryFooter button { min-width: 110px; min-height: 44px; margin: 0; padding: 10px 18px; border-radius: 8px; font-size: 14px; }
+@media (max-width: 640px) {
+  .formHeaderActions .topUploadBtn { grid-column: 1 / -1; }
+  .formHeaderActions .topSaveDraftBtn, .formHeaderActions .topSubmitBtn { min-width: 0; width: 100%; }
+  .accrualEntryFooter button { flex: 1; min-width: 0; }
+}
+/* Distinguish import, draft, and final Add actions. */
+.formHeaderActions .topUploadBtn {
+  background: #ccfbf1;
+  border: 1px solid #14b8a6;
+  color: #115e59;
+}
+.formHeaderActions .topUploadBtn:hover { background: #99f6e4; border-color: #0d9488; }
+.formHeaderActions .topSaveDraftBtn,
+.accrualEntryFooter > .tableActionBtn {
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  color: #92400e;
+}
+.formHeaderActions .topSaveDraftBtn:hover,
+.accrualEntryFooter > .tableActionBtn:hover { background: #fde68a; border-color: #d97706; }
+.formHeaderActions .topSubmitBtn,
+.accrualEntryFooter > .submitBtn {
+  background: #1d4ed8;
+  border: 1px solid #1d4ed8;
+  color: #fff;
+}
+.formHeaderActions .topSubmitBtn:hover,
+.accrualEntryFooter > .submitBtn:hover { background: #1e40af; border-color: #1e40af; }
+.supplierSectionHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.supplierSectionHeading .missingSupplierLink { flex-shrink: 0; }
+@media (max-width: 640px) {
+  .supplierSectionHeading { flex-direction: column; align-items: stretch; gap: 12px; }
 }
