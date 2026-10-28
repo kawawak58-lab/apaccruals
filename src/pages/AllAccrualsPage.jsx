@@ -501,7 +501,16 @@ export default function AllAccrualsPage({ currentUser }) {
       });
   }, [dateFrom, dateTo, enrichedSubmissions, search, statusFilter]);
 
-  const totalSubmissions = filteredSubmissions.length;
+  const submissionTotals = filteredSubmissions.reduce(
+    (totals, submission) => {
+      totals.all += 1;
+      if (Number(submission.status) === 0) totals.open += 1;
+      if (Number(submission.status) === 1) totals.cancelled += 1;
+      if (Number(submission.status) === 2) totals.draft += 1;
+      return totals;
+    },
+    { all: 0, open: 0, cancelled: 0, draft: 0 }
+  );
 
   const exportRows = useMemo(() => {
     const headerRow = [
@@ -656,7 +665,7 @@ export default function AllAccrualsPage({ currentUser }) {
   };
 
   return (
-    <div className="contentPage managementPage">
+    <div className="contentPage managementPage allAccrualsPage">
       <div className="pageIntro">
         <div>
           <h1 className="pageTitle">All Accruals</h1>
@@ -706,10 +715,22 @@ export default function AllAccrualsPage({ currentUser }) {
         </div>
       </div>
 
-      <div className="summaryGrid">
+      <div className="summaryGrid accrualSummaryGrid">
         <div className="summaryCard">
           <div className="summaryLabel">Total Submissions</div>
-          <div className="summaryValue">{totalSubmissions.toLocaleString()}</div>
+          <div className="summaryValue">{submissionTotals.all.toLocaleString()}</div>
+        </div>
+        <div className="summaryCard">
+          <div className="summaryLabel">Open</div>
+          <div className="summaryValue">{submissionTotals.open.toLocaleString()}</div>
+        </div>
+        <div className="summaryCard">
+          <div className="summaryLabel">Cancelled</div>
+          <div className="summaryValue">{submissionTotals.cancelled.toLocaleString()}</div>
+        </div>
+        <div className="summaryCard">
+          <div className="summaryLabel">Draft</div>
+          <div className="summaryValue">{submissionTotals.draft.toLocaleString()}</div>
         </div>
       </div>
 
@@ -723,7 +744,6 @@ export default function AllAccrualsPage({ currentUser }) {
             columns={[
               { key: "control_number", label: "Control No." },
               { key: "submitted_at", label: "Timestamp", render: (row) => formatDateTime(row.submitted_at) },
-              { key: "requester_email", label: "Email" },
               {
                 key: "status",
                 label: "Status",
@@ -735,6 +755,7 @@ export default function AllAccrualsPage({ currentUser }) {
               },
               { key: "company", label: "Company" },
               { key: "supplier_name", label: "Supplier" },
+              { key: "invoice_no", label: "Invoice No.", render: (row) => row.invoice_no || "-" },
               { key: "totalGrossAmount", label: "Gross Amount", render: (row) => formatAmount(row.totalGrossAmount) },
             ]}
             rows={filteredSubmissions}
@@ -952,11 +973,11 @@ export default function AllAccrualsPage({ currentUser }) {
               <div className="dialogActions accrualCancelActions">
                 <button
                   type="button"
-                  className="removeBtn mutedBtn accrualCancelSecondaryBtn"
+                  className="accrualCancelSecondaryBtn"
                   onClick={closeCancelDialog}
                   disabled={cancelSaving}
                 >
-                  Cancel
+                  Close
                 </button>
                 <button
                   type="button"

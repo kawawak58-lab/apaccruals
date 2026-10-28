@@ -86,25 +86,27 @@ export async function downloadAccrualTemplateWorkbook({
   glAccounts = [],
   profitCenters = [],
   filename = "accrual-upload-template.xlsx",
+  includeSampleRows = false,
 }) {
   const workbook = new ExcelJS.Workbook();
   const uploadSheet = workbook.addWorksheet("Accrual Upload");
   const listsSheet = workbook.addWorksheet("Lists");
 
-  const sampleRows = buildAccrualUploadTemplateSample({
-    companies,
-    expenseClasses,
-    transactionTypes,
-    taxCodes,
-    suppliers,
-    glAccounts,
-    profitCenters,
-  });
-
   uploadSheet.addRow(ACCRUAL_UPLOAD_COLUMNS);
-  sampleRows.forEach((row) => {
-    uploadSheet.addRow(ACCRUAL_UPLOAD_COLUMNS.map((column) => row[column] || ""));
-  });
+  if (includeSampleRows) {
+    const sampleRows = buildAccrualUploadTemplateSample({
+      companies,
+      expenseClasses,
+      transactionTypes,
+      taxCodes,
+      suppliers,
+      glAccounts,
+      profitCenters,
+    });
+    sampleRows.forEach((row) => {
+      uploadSheet.addRow(ACCRUAL_UPLOAD_COLUMNS.map((column) => row[column] || ""));
+    });
+  }
 
   setColumnWidths(uploadSheet);
   applyHeaderStyle(uploadSheet.getRow(1));

@@ -2573,6 +2573,40 @@ a {
   margin-bottom: 12px;
 }
 
+.allAccrualsPage .pageIntro {
+  align-items: flex-start;
+  margin-bottom: 8px;
+}
+
+.allAccrualsPage .accrualSummaryGrid {
+  grid-template-columns: repeat(4, minmax(0, 220px));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.allAccrualsPage .accrualSummaryGrid .summaryCard {
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+
+.allAccrualsPage .accrualSummaryGrid .summaryValue {
+  margin-top: 5px;
+  font-size: 22px;
+}
+
+@media (max-width: 1050px) {
+  .allAccrualsPage .accrualSummaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 220px));
+  }
+}
+
+@media (max-width: 720px) {
+  .allAccrualsPage .accrualSummaryGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 .pageTitle {
   margin: 0;
   font-size: 22px;
@@ -4050,6 +4084,12 @@ a {
 .accrualCancelSecondaryBtn,
 .accrualCancelPrimaryBtn {
   min-width: 164px;
+  min-height: 46px;
+  padding: 0 18px;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .accrualCancelSecondaryBtn {
@@ -4062,6 +4102,12 @@ a {
 .accrualCancelSecondaryBtn:hover {
   background: #f8fafc;
   color: var(--text-main);
+}
+
+.accrualCancelSecondaryBtn:disabled,
+.accrualCancelPrimaryBtn:disabled {
+  opacity: 0.6;
+  cursor: wait;
 }
 
 .accrualCancelPrimaryBtn {
@@ -4090,6 +4136,27 @@ a {
 .modalContent.uploadDialog {
   width: min(1680px, calc(100vw - 20px));
   max-width: min(1680px, calc(100vw - 20px));
+}
+
+.uploadDialog .dialogHeader .uploadDialogHeaderCopy {
+  flex: 1;
+  text-align: left;
+}
+
+.uploadDialog .dialogHeader .modalTitle {
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+.uploadDialog .dialogForm {
+  flex: 1;
+}
+
+.uploadDialog .dialogActions {
+  margin-top: auto;
+  padding-bottom: 0;
+  flex: 0 0 auto;
 }
 
 .modalContent.maintenanceDialog.uploadErrorDialog {
@@ -4383,8 +4450,11 @@ a {
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 0;
   align-items: stretch;
-  min-height: 560px;
+  min-height: 0;
+  padding-top: 18px;
+  box-sizing: border-box;
   flex: 1;
+  overflow: hidden;
 }
 
 .uploadDialogSidebar {
@@ -4392,7 +4462,10 @@ a {
   flex-direction: column;
   gap: 18px;
   min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
   padding-right: 24px;
+  padding-bottom: 12px;
 }
 
 .uploadDialogHeaderCopy {
@@ -4627,6 +4700,37 @@ a {
   gap: 10px;
 }
 
+.uploadTemplateHint {
+  margin: -4px 0 0;
+  color: var(--text-soft);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.uploadGuideNotice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 0;
+  padding: 10px 12px;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.uploadGuideNoticeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #f59e0b;
+  color: #fff;
+  font-weight: 800;
+}
+
 .uploadFullButton {
   width: 100%;
   justify-content: center;
@@ -4720,7 +4824,8 @@ a {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  min-height: 560px;
+  min-height: 0;
+  overflow: hidden;
   padding-left: 24px;
   padding-bottom: 0;
 }
@@ -4738,6 +4843,27 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.uploadReviewErrorsBtn {
+  min-height: 32px;
+  padding: 5px 10px;
+  border: 1px solid #fca5a5;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.uploadReviewErrorsBtn:hover {
+  background: #fee2e2;
+  border-color: #ef4444;
 }
 
 .uploadPreviewTitle {
@@ -4786,7 +4912,7 @@ a {
 .uploadPreviewTableWrap {
   flex: 1;
   min-height: 0;
-  height: 100%;
+  height: auto;
   max-height: none;
   overflow: auto;
   margin-top: 12px;
@@ -4897,6 +5023,16 @@ a {
 
 .uploadPreviewTable tbody tr:nth-child(even) {
   background: #f8fbff;
+}
+
+.uploadPreviewTable tbody tr.hasErrors td {
+  background: #fef2f2;
+  color: #991b1b;
+  border-bottom-color: #fecaca;
+}
+
+.uploadPreviewTable tbody tr.hasErrors td:first-child {
+  border-left: 3px solid #dc2626;
 }
 
 .uploadErrorTable tbody tr.hasErrors {
@@ -5878,6 +6014,10 @@ a {
     margin-bottom: 10px;
   }
 
+  .allAccrualsPage .pageIntro {
+    align-items: stretch;
+  }
+
   .pageTitle {
     font-size: 28px;
   }
@@ -6585,4 +6725,26 @@ a {
 .accrualDetailDialog .dialogActions button:last-child:hover {
   background: #e2e8f0;
   border-color: #94a3b8;
+}
+
+@media (max-width: 720px) {
+  .uploadDialog .dialogForm {
+    overflow-y: auto;
+  }
+
+  .uploadDialog .uploadDialogLayout {
+    min-height: auto;
+    flex: none;
+    overflow: visible;
+  }
+
+  .uploadDialog .uploadDialogSidebar,
+  .uploadDialog .uploadPreviewPanel {
+    overflow: visible;
+  }
+
+  .uploadDialog .uploadPreviewTableWrap {
+    min-height: 240px;
+    max-height: 360px;
+  }
 }

@@ -81,8 +81,8 @@ export default function MaintenanceDialog({
           </div>
 
           <div className="dialogActions maintenanceDialogActions">
-            <button type="button" className="removeBtn mutedBtn" onClick={onClose}>
-              Cancel
+            <button type="button" className="tableActionBtn mutedBtn" onClick={onClose}>
+              Close
             </button>
             <button type="submit" className="submitBtn" disabled={saving}>
               {saving ? "Saving..." : submitLabel}

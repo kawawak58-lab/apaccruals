@@ -442,7 +442,9 @@ function clearAccrualDraft() {
 function hasDraftContent({ headerInfo, supplierSearch, lineItems }) {
   return Boolean(
     supplierSearch ||
-      Object.values(headerInfo || {}).some((value) => String(value || "").trim()) ||
+      Object.entries(headerInfo || {}).some(
+        ([field, value]) => field !== "email" && String(value || "").trim()
+      ) ||
       (lineItems || []).some((item) => lineItemHasDraftContent(item))
   );
 }
@@ -452,9 +454,14 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
   const { showToast } = useToast();
   const savedDraftRef = useRef(readAccrualDraft());
   // ---------- Header ----------
-  const [headerInfo, setHeaderInfo] = useState(
-    () => savedDraftRef.current?.headerInfo || defaultHeaderInfo
-  );
+  const [headerInfo, setHeaderInfo] = useState(() => {
+    const savedHeader = savedDraftRef.current?.headerInfo;
+    return {
+      ...defaultHeaderInfo,
+      ...savedHeader,
+      email: savedHeader?.email || currentUser?.email || "",
+    };
+  });
 
   // ---------- Line Items ----------
   const [headerErrors, setHeaderErrors] = useState({});
@@ -1239,7 +1246,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
       // Reset form
       setHeaderInfo({
-        email: "",
+        email: currentUser?.email || "",
         expenseclass: "",
         company: "",
         supplier: "",
@@ -1789,7 +1796,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     [accrualSetupLoading, accrualWindowStatus.isOpen, accrualWindowStatus.reason, currentUser]
   );
 
-  const handleAccrualTemplateDownload = useCallback(() => {
+  const handleAccrualTemplateDownload = useCallback((includeSampleRows = false) => {
     const buildTemplate = async () => {
       const company = companies[0] || "";
       let suppliersForCompany = [];
@@ -1831,6 +1838,8 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
         suppliers: suppliersForCompany,
         glAccounts: glAccountsForCompany,
         profitCenters: profitCentersForCompany,
+        includeSampleRows,
+        filename: includeSampleRows ? "accrual-upload-guide.xlsx" : "accrual-upload-template.xlsx",
       });
     };
 
@@ -2579,7 +2588,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               onClick={closeSupplierEnrollmentModal}
               disabled={isSavingSupplierEnrollment}
             >
-              Cancel
+              Close
             </button>
             <button
               type="button"
@@ -2744,7 +2753,8 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
         profitCenters: [],
       })}
       templateFileName="accrual-upload-template.xlsx"
-      templateDownloadHandler={handleAccrualTemplateDownload}
+      templateDownloadHandler={() => handleAccrualTemplateDownload(false)}
+      templateGuideDownloadHandler={() => handleAccrualTemplateDownload(true)}
       expectedLabel="accrual"
       validateRows={validateAccrualUploadRows}
       onClose={() => setUploadOpen(false)}

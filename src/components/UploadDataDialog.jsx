@@ -35,6 +35,7 @@ export default function UploadDataDialog({
   templateSampleRow,
   templateFileName,
   templateDownloadHandler,
+  templateGuideDownloadHandler,
   expectedLabel,
   validateRows,
   onClose,
@@ -139,8 +140,19 @@ export default function UploadDataDialog({
       return;
     }
 
-    const csv = buildTemplateCsv(templateColumns, templateSampleRow);
+    const csv = buildTemplateCsv(templateColumns);
     downloadTextFile(templateFileName, csv);
+  };
+
+  const handleGuideDownload = () => {
+    if (templateGuideDownloadHandler) {
+      templateGuideDownloadHandler();
+      return;
+    }
+
+    const guideFileName = templateFileName.replace(/(\.[^.]+)$/, "-guide$1");
+    const csv = buildTemplateCsv(templateColumns, templateSampleRow);
+    downloadTextFile(guideFileName, csv);
   };
 
   const handleFileChange = async (file) => {
@@ -370,10 +382,22 @@ export default function UploadDataDialog({
                 <button type="button" className="tableActionBtn uploadFullButton" onClick={handleTemplateDownload}>
                   Download template
                 </button>
+                <p className="uploadTemplateHint">Blank file, ready for your data.</p>
               </div>
 
               <div className="uploadStepBlock">
-                <div className="uploadStepTitle">2. Upload your file</div>
+                <div className="uploadStepTitle">2. Guide template</div>
+                <button type="button" className="tableActionBtn uploadFullButton" onClick={handleGuideDownload}>
+                  Download guide template
+                </button>
+                <p className="uploadTemplateHint uploadGuideNotice">
+                  <span className="uploadGuideNoticeIcon" aria-hidden="true">!</span>
+                  <span>Example rows show how to fill each column. <strong>Do not upload the examples.</strong></span>
+                </p>
+              </div>
+
+              <div className="uploadStepBlock">
+                <div className="uploadStepTitle">3. Upload your file</div>
                 <div
                   className={`uploadDropZone${parsing ? " isBusy" : ""}`}
                   onClick={openFilePicker}
@@ -489,6 +513,15 @@ export default function UploadDataDialog({
                 {previewRows.length > 0 ? (
                   <div className="uploadPreviewMetaActions">
                     <span className="uploadPreviewBadge">{previewRows.length} rows detected</span>
+                    {errorRows.length > 0 ? (
+                      <button
+                        type="button"
+                        className="uploadReviewErrorsBtn"
+                        onClick={() => setErrorModalOpen(true)}
+                      >
+                        Review {errorRows.length} {errorRows.length === 1 ? "error" : "errors"}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       className="uploadPreviewExpandBtn"
@@ -528,7 +561,7 @@ export default function UploadDataDialog({
                     </thead>
                     <tbody>
                       {paginatedPreviewRows.map((row) => (
-                        <tr key={row.__rowNumber}>
+                        <tr key={row.__rowNumber} className={(row.__errors || []).length > 0 ? "hasErrors" : ""}>
                           {previewColumns.map((column) => (
                             <td key={`${row.__rowNumber}-${column.key}`}>{row[column.key] || "-"}</td>
                           ))}
@@ -581,8 +614,8 @@ export default function UploadDataDialog({
           </div>
 
           <div className="dialogActions">
-            <button type="button" className="removeBtn mutedBtn" onClick={handleClose} disabled={isUploading}>
-              Cancel
+            <button type="button" className="tableActionBtn mutedBtn" onClick={handleClose} disabled={isUploading}>
+              Close
             </button>
             <button type="submit" className={`submitBtn${isUploading || parsing ? " isLoading" : ""}`} disabled={isUploading || parsing || !hasValidPreview}>
               {isUploading ? (
@@ -802,7 +835,7 @@ export default function UploadDataDialog({
                   </thead>
                   <tbody>
                     {paginatedExpandedPreviewRows.map((row) => (
-                      <tr key={`expanded-row-${row.__rowNumber}`}>
+                      <tr key={`expanded-row-${row.__rowNumber}`} className={(row.__errors || []).length > 0 ? "hasErrors" : ""}>
                         {previewColumns.map((column) => (
                           <td key={`expanded-${row.__rowNumber}-${column.key}`}>{row[column.key] || "-"}</td>
                         ))}

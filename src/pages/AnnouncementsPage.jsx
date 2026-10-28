@@ -363,7 +363,7 @@ function AnnouncementModal({ open, mode, form, saving, onChange, onClose, onSubm
 
         <div className="announcementModalFooter">
           <button type="button" className="announcementSecondaryBtn" onClick={onClose} disabled={saving}>
-            Cancel
+            Close
           </button>
           <button type="button" className="announcementPrimaryBtn" onClick={onSubmit} disabled={saving}>
             {saving ? "Saving..." : mode === "edit" ? "Update" : "Save"}
