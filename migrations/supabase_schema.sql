@@ -449,6 +449,7 @@ alter table public.profitcenters enable row level security;
 alter table public.users enable row level security;
 alter table public.accrual_setup enable row level security;
 alter table public.announcements enable row level security;
+alter table public.direct_messages enable row level security;
 alter table public.accrual_submissions enable row level security;
 alter table public.accrual_submission_lines enable row level security;
 alter table public.control_number_sequence enable row level security;
