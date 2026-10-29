@@ -6716,6 +6716,8 @@ a {
 }
 .accrualDetailDialog .uploadDialogHeaderCopy { flex: 1; min-width: 0; }
 .accrualDetailDialog .modalTitle { margin: 0; padding: 0; }
+.accrualDetailHeaderActions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
+.accrualDetailHeaderActions .accrualNotesAction { min-height: 36px; height: 36px; padding: 0 14px; }
 /* Phone layouts prioritize readable content and touch targets. */
 @media (max-width: 640px) {
   .appTopbar { height: 52px; min-height: 52px; flex-basis: 52px; padding: 0 12px; gap: 8px; }
@@ -6758,9 +6760,17 @@ a {
 .draftEditorFields { border: 0; padding: 0; margin: 0; min-width: 0; }
 .draftEditorFields h3 { margin: 24px 0 16px; font-size: 16px; }
 .draftEditorLine { padding: 16px; margin-bottom: 16px; border: 1px solid #e2e8f0; border-radius: 12px; }
+.draftEditorLineGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .draftEditorLineHeading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; gap: 12px; }
 .draftEditorLineHeading h4 { margin: 0; }
 .draftEditorDialog .input { width: 100%; box-sizing: border-box; }
+.draftEditorDialog .select { width: 100%; box-sizing: border-box; }
+.draftLookupField { position: relative; }
+.draftLookupControl { position: relative; }
+.draftLookupControl > .input { width: 100%; }
+.draftLookupDropdown { z-index: 1200; }
+.draftLookupDropdown .dropdownItem { display: block; width: 100%; border: 0; background: #fff; text-align: left; }
+.draftLookupDropdown .dropdownItem:hover { background: #eff6ff; }
 @media (max-width: 640px) {
   .draftEditorDialog .dialogGrid { grid-template-columns: minmax(0, 1fr); }
   .draftEditorDialog input { min-height: 44px; font-size: 16px; }

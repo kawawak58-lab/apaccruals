@@ -450,9 +450,11 @@ export default function AllAccrualsPage({ currentUser }) {
     try {
       const rows = await fetchAccrualSubmissions({ currentUser });
       setSubmissions(rows);
+      return rows;
     } catch (error) {
       setErrorMessage(error.message || "Failed to load accrual submissions.");
       showToast(error.message || "Failed to load accrual submissions.", "error");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -820,23 +822,6 @@ export default function AllAccrualsPage({ currentUser }) {
         )}
       </div>
 
-      {editingDraft ? <DraftAccrualEditor
-        key={editingDraft.id}
-        submission={editingDraft}
-        onClose={() => setEditingDraft(null)}
-        onSaved={async () => {
-          setEditingDraft(null);
-          await loadData();
-          showToast("Draft updated successfully.", "success");
-        }}
-      /> : null}
-      {notesSubmission ? (
-        <AccrualNotesDialog
-          key={notesSubmission.id}
-          submission={notesSubmission}
-          onClose={() => setNotesSubmission(null)}
-        />
-      ) : null}
       {selectedSubmission ? (
         <div className="modalOverlay maintenanceOverlay">
           <div className="modalContent maintenanceDialog accrualDetailDialog" style={detailDialogStyle}>
@@ -852,14 +837,23 @@ export default function AllAccrualsPage({ currentUser }) {
                   Review the submitted header and line items for control number {selectedSubmission.control_number}.
                 </p>
               </div>
-              <button
-                type="button"
-                className="dialogClose"
-                onClick={() => setSelectedSubmission(null)}
-                aria-label="Close accrual details"
-              >
-                x
-              </button>
+              <div className="accrualDetailHeaderActions">
+                <button
+                  type="button"
+                  className="tableActionBtn accrualNotesAction"
+                  onClick={() => setNotesSubmission(selectedSubmission)}
+                >
+                  Notes
+                </button>
+                <button
+                  type="button"
+                  className="dialogClose"
+                  onClick={() => setSelectedSubmission(null)}
+                  aria-label="Close accrual details"
+                >
+                  x
+                </button>
+              </div>
             </div>
 
             <div className="dialogForm">
@@ -953,9 +947,8 @@ export default function AllAccrualsPage({ currentUser }) {
               </div>
 
               <div className="dialogActions">
-                <button type="button" className="tableActionBtn accrualNotesAction" onClick={() => { setNotesSubmission(selectedSubmission); setSelectedSubmission(null); }}>Notes</button>
                 {canManageDraft(selectedSubmission) ? <>
-                  <button type="button" className="tableActionBtn" disabled={addingDraft} onClick={() => { setEditingDraft(selectedSubmission); setSelectedSubmission(null); }}>Edit</button>
+                  <button type="button" className="tableActionBtn" disabled={addingDraft} onClick={() => setEditingDraft(selectedSubmission)}>Edit</button>
                   <button type="button" className="submitBtn" disabled={addingDraft} onClick={() => handleAddDraft(selectedSubmission)}>{addingDraft ? "Adding..." : "Add"}</button>
                 </> : null}
                 {canCancelSubmission(selectedSubmission) ? (
@@ -974,6 +967,25 @@ export default function AllAccrualsPage({ currentUser }) {
             </div>
           </div>
         </div>
+      ) : null}
+      {editingDraft ? <DraftAccrualEditor
+        key={editingDraft.id}
+        submission={editingDraft}
+        onClose={() => setEditingDraft(null)}
+        onSaved={async () => {
+          setEditingDraft(null);
+          const refreshedRows = await loadData();
+          const refreshedSubmission = refreshedRows?.find((row) => row.id === editingDraft.id);
+          if (refreshedSubmission) setSelectedSubmission(refreshedSubmission);
+          showToast("Draft updated successfully.", "success");
+        }}
+      /> : null}
+      {notesSubmission ? (
+        <AccrualNotesDialog
+          key={notesSubmission.id}
+          submission={notesSubmission}
+          onClose={() => setNotesSubmission(null)}
+        />
       ) : null}
 
       {cancelDialogSubmission ? (
