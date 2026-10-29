@@ -236,7 +236,7 @@ body {
 
 .authNewsCard.compact .authNewsPreview p {
   font-size: 16px;
-  -webkit-line-clamp: 1;
+  -webkit-line-clamp: 2;
 }
 
 .authNewsCardEmpty {
@@ -359,14 +359,8 @@ body {
   line-height: 1.6;
   display: -webkit-box;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   overflow: hidden;
-}
-
-.authNewsPreview.fullContent p {
-  display: block;
-  -webkit-line-clamp: unset;
-  overflow: visible;
 }
 
 .authNewsReadMore {
@@ -1590,12 +1584,12 @@ a {
 }
 
 .appTopbar {
-  height: 68px;
+  height: 52px;
   background: #fff;
   border-bottom: 1px solid var(--panel-border);
   display: flex;
   align-items: center;
-  padding: 0 24px;
+  padding: 0 16px;
   position: sticky;
   top: 0;
   z-index: 50;
@@ -1613,7 +1607,7 @@ a {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .topbarAnnouncementButton {
@@ -2574,14 +2568,14 @@ a {
 }
 
 .allAccrualsPage .pageIntro {
-  align-items: flex-start;
-  margin-bottom: 8px;
+  align-items: center;
+  margin-bottom: 4px;
 }
 
 .allAccrualsPage .accrualSummaryGrid {
   grid-template-columns: repeat(4, minmax(0, 220px));
   gap: 10px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .allAccrualsPage .accrualSummaryGrid .summaryCard {
@@ -2593,6 +2587,51 @@ a {
   margin-top: 5px;
   font-size: 22px;
 }
+
+.allAccrualsPage .headerActions {
+  align-items: center;
+}
+
+.allAccrualsPage .headerButtonGroup {
+  padding-top: 0;
+}
+
+.accrualSummaryChips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.accrualSummaryChip {
+  min-width: 112px;
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 12px;
+  border: 1px solid #dbe3f0;
+  border-radius: 11px;
+  background: #fff;
+  color: #475569;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(15, 23, 42, .045);
+  transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.accrualSummaryChip span { font-size: 11px; font-weight: 700; letter-spacing: .035em; text-transform: uppercase; }
+.accrualSummaryChip strong { color: #0f172a; font-size: 18px; line-height: 1; font-variant-numeric: tabular-nums; }
+.accrualSummaryChip.open { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+.accrualSummaryChip.open strong { color: #1d4ed8; }
+.accrualSummaryChip.cancelled { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.accrualSummaryChip.cancelled strong { color: #b91c1c; }
+.accrualSummaryChip.draft { background: #fffbeb; border-color: #fde68a; color: #a16207; }
+.accrualSummaryChip.draft strong { color: #a16207; }
+.accrualSummaryChip.active { box-shadow: 0 0 0 2px rgba(37, 99, 235, .16), 0 3px 8px rgba(15, 23, 42, .08); border-color: #2563eb; transform: translateY(-1px); }
+.accrualSummaryChip:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 
 @media (max-width: 1050px) {
   .allAccrualsPage .accrualSummaryGrid {
@@ -5608,13 +5647,6 @@ a {
   padding-left: 18px;
 }
 
-.announcementSummary {
-  margin: 0 0 10px;
-  color: #475569;
-  font-size: 14px;
-  line-height: 1.6;
-}
-
 .announcementPill {
   display: inline-flex;
   align-items: center;
@@ -5890,6 +5922,9 @@ a {
 .announcementRichEditor .ProseMirror ol {
   padding-left: 20px;
 }
+
+.announcementRichEditor .ProseMirror ul { list-style-type: disc; }
+.announcementRichEditor .ProseMirror ol { list-style-type: decimal; }
 
 .announcementRichEditor .ProseMirror a {
   color: #93c5fd;
@@ -6611,6 +6646,64 @@ a {
 .appSidebar.collapsed .navGroup { gap: 4px; }
 .appSidebar.collapsed .navGroup.withDivider { border-top: 1px solid #2a3548; padding-top: 16px; }
 .appSidebar.collapsed .sidebarProfile { padding: 16px 0 0; gap: 0; }
+/* Compact header actions keep their labels available to assistive technology. */
+.appTopbar { height: 52px; flex: 0 0 52px; }
+.topbarActions > .topbarIconButton,
+.topbarAccountMenu .topbarMenuTrigger {
+  position: relative;
+  box-sizing: border-box;
+  width: 36px;
+  min-width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 1px solid #dbe3f0;
+  border-radius: 9px;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #334155;
+  cursor: pointer;
+}
+.topbarActions > .topbarIconButton:hover,
+.topbarAccountMenu .topbarMenuTrigger:hover { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; }
+.topbarActions > .topbarIconButton:focus-visible,
+.topbarAccountMenu .topbarMenuTrigger:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+.topbarIconButton .topbarAnnouncementIcon { width: 18px; height: 18px; flex-basis: 18px; }
+.topbarIconButton .topbarAnnouncementCount {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  height: 17px;
+  min-width: 17px;
+  padding: 0 4px;
+  border: 2px solid #fff;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 10px;
+}
+.topbarAccountMenu .topbarMenuTrigger { list-style: none; }
+.topbarAccountMenu .topbarMenuTrigger::-webkit-details-marker { display: none; }
+.topbarAccountInitials { width: 26px; height: 26px; }
+.topbarMenuHeading { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.appSidebar.collapsed .sidebarNav { scrollbar-width: none; }
+.appSidebar.collapsed .sidebarNav::-webkit-scrollbar { display: none; }
+@media (max-height: 950px) and (min-width: 768px) {
+  .appSidebar { padding-top: 12px; padding-bottom: 10px; gap: 12px; }
+  .sidebarNav { gap: 10px; }
+  .navGroup { gap: 2px; }
+  .navGroup.withDivider { padding-top: 8px; }
+  .navItem { min-height: 36px; padding-top: 6px; padding-bottom: 6px; }
+  .sidebarProfile { padding-top: 8px; }
+  .appSidebar.collapsed { padding-top: 12px; padding-bottom: 10px; gap: 12px; }
+  .appSidebar.collapsed .sidebarTop { gap: 8px; }
+  .appSidebar.collapsed .sidebarNav { gap: 8px; }
+  .appSidebar.collapsed .navGroup { gap: 2px; }
+  .appSidebar.collapsed .navGroup.withDivider { padding-top: 8px; }
+  .appSidebar.collapsed .navItem { min-height: 36px; width: 36px; }
+  .appSidebar.collapsed .sidebarProfile { padding-top: 8px; }
+}
 @media (max-width: 767px) {
   .appSidebar.mobile { width: var(--sidebar-width); }
 }
@@ -6625,15 +6718,13 @@ a {
 .accrualDetailDialog .modalTitle { margin: 0; padding: 0; }
 /* Phone layouts prioritize readable content and touch targets. */
 @media (max-width: 640px) {
-  .appTopbar { height: 60px; min-height: 60px; padding: 0 12px; gap: 8px; }
+  .appTopbar { height: 52px; min-height: 52px; flex-basis: 52px; padding: 0 12px; gap: 8px; }
   .topbarToggleButton { width: 40px; height: 40px; flex: 0 0 40px; margin-right: 0; }
   .topbarTitleRow { flex: 1; overflow: hidden; font-size: 13px; }
   .topbarBreadcrumb { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .topbarActions { gap: 8px; }
-  .topbarActions > .topbarAnnouncementButton { min-width: 42px; min-height: 42px; padding: 8px; gap: 4px; }
-  .topbarActions > .topbarAnnouncementButton > span:nth-child(2) { display: none; }
-  .topbarMenuTrigger { min-height: 42px; padding: 6px 8px; gap: 4px; }
-  .topbarMenuTrigger > span:nth-child(2) { display: none; }
+  .topbarActions > .topbarIconButton { width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0; }
+  .topbarAccountMenu .topbarMenuTrigger { width: 36px; min-width: 36px; height: 36px; min-height: 36px; padding: 0; }
   .appContent { padding: 16px 12px; overflow-y: auto; }
   .managementPage { height: auto; min-height: 100%; overflow: visible; }
   .pageIntro { gap: 16px; margin-bottom: 16px; }
@@ -6813,6 +6904,98 @@ a {
     width: auto;
     padding: 10px 0;
   }
+}
+
+/* Keep the All Accruals table readable at laptop widths. */
+.allAccrualsPage .maintenanceTable {
+  table-layout: fixed;
+  min-width: 1300px;
+}
+.allAccrualsPage .maintenanceTable th:nth-child(1),
+.allAccrualsPage .maintenanceTable td:nth-child(1) { width: 38px; }
+.allAccrualsPage .maintenanceTable th:nth-child(2),
+.allAccrualsPage .maintenanceTable td:nth-child(2) { width: 132px; }
+.allAccrualsPage .maintenanceTable th:nth-child(3),
+.allAccrualsPage .maintenanceTable td:nth-child(3) { width: 190px; }
+.allAccrualsPage .maintenanceTable th:nth-child(4),
+.allAccrualsPage .maintenanceTable td:nth-child(4) { width: 90px; }
+.allAccrualsPage .maintenanceTable th:nth-child(5),
+.allAccrualsPage .maintenanceTable td:nth-child(5) { width: 150px; }
+.allAccrualsPage .maintenanceTable th:nth-child(6),
+.allAccrualsPage .maintenanceTable td:nth-child(6) { width: auto; }
+.allAccrualsPage .maintenanceTable th:nth-child(7),
+.allAccrualsPage .maintenanceTable td:nth-child(7) { width: 112px; }
+.allAccrualsPage .maintenanceTable th:nth-child(8),
+.allAccrualsPage .maintenanceTable td:nth-child(8) { width: 156px; }
+.allAccrualsPage .maintenanceTable th.actionsCol,
+.allAccrualsPage .maintenanceTable td.tableActions { width: 216px; }
+.allAccrualsPage .maintenanceTable th:nth-child(2) .columnSortButton { white-space: nowrap; }
+.allAccrualsPage .maintenanceTable th:nth-child(7) .columnSortButton,
+.allAccrualsPage .maintenanceTable th:nth-child(8) .columnSortButton {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+.allAccrualsPage .maintenanceTable th:nth-child(7) .columnSortButton > span:first-child,
+.allAccrualsPage .maintenanceTable th:nth-child(8) .columnSortButton > span:first-child {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.allAccrualsPage .maintenanceTable th:nth-child(7) .sortArrow,
+.allAccrualsPage .maintenanceTable th:nth-child(8) .sortArrow { flex: 0 0 auto; }
+.allAccrualsPage .maintenanceTable th.actionsCol { text-align: right; }
+.allAccrualsPage .maintenanceTable td.tableActions {
+  display: table-cell;
+  vertical-align: middle;
+}
+.allAccrualsPage .accrualRowActionGroup {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+.allAccrualsPage .accrualRowActionGroup .tableActionBtn { white-space: nowrap; }
+.allAccrualsPage .maintenanceTable .accrualAmountColumn,
+.allAccrualsPage .maintenanceTable th:nth-child(8) {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.allAccrualsPage .maintenanceTable .statusPill {
+  width: 78px;
+  min-height: 26px;
+  box-sizing: border-box;
+  justify-content: center;
+  padding: 0 6px;
+  white-space: nowrap;
+}
+.allAccrualsPage .maintenanceTable tbody tr.interactiveRow:hover { background: #eef4ff; }
+.allAccrualsPage .maintenanceTable td:nth-child(2),
+.allAccrualsPage .maintenanceTable td:nth-child(3),
+.allAccrualsPage .maintenanceTable td:nth-child(4),
+.allAccrualsPage .maintenanceTable td:nth-child(7),
+.allAccrualsPage .maintenanceTable td:nth-child(8) { white-space: nowrap; }
+.allAccrualsPage .maintenanceTable td:nth-child(5),
+.allAccrualsPage .maintenanceTable td:nth-child(6) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .allAccrualsPage .maintenanceTable { min-width: 0; table-layout: auto; }
+  .allAccrualsPage .maintenanceTable tbody td {
+    width: auto !important;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;
+  }
+  .allAccrualsPage .maintenanceTable tbody td.tableActions {
+    display: flex;
+    width: auto;
+  }
+  .allAccrualsPage .accrualSummaryChips { gap: 6px; }
+  .allAccrualsPage .accrualSummaryChip { min-width: 0; flex: 1 1 calc(50% - 6px); min-height: 44px; }
 }
 
 .accrualDetailDialog .dialogActions .accrualNotesAction {

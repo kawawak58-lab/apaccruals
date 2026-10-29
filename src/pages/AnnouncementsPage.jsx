@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import StarterKit from "@tiptap/starter-kit";
@@ -22,6 +22,19 @@ const emptyForm = {
   type: "System Update",
   expires: "",
   active: true,
+};
+
+const announcementEditorExtensions = [
+  StarterKit,
+  Link.configure({ openOnClick: false, autolink: true, defaultProtocol: "https" }),
+  Image,
+];
+
+const announcementEditorProps = {
+  attributes: {
+    "aria-label": "Announcement detail",
+    "data-placeholder": "Write the announcement details here...",
+  },
 };
 
 function formatDate(value, emptyLabel = "-") {
@@ -49,24 +62,6 @@ function sanitizeAnnouncementHtml(html) {
     .replace(/javascript:/gi, "");
 }
 
-function stripHtml(detail) {
-  return String(detail || "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|h1|h2|h3|h4|h5|h6|li)>/gi, "\n")
-    .replace(/<li>/gi, "- ")
-    .replace(/<[^>]+>/g, "")
-    .replace(/\n{2,}/g, "\n")
-    .trim();
-}
-
-function getAnnouncementSummary(detail) {
-  return stripHtml(detail)
-    .split(/\n+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .join(" ");
-}
-
 function formatAnnouncementHtml(detail) {
   const sanitized = sanitizeAnnouncementHtml(detail);
   if (/<[a-z][\s\S]*>/i.test(sanitized)) {
@@ -79,10 +74,6 @@ function formatAnnouncementHtml(detail) {
     .filter(Boolean)
     .map((line) => `<p>${line}</p>`)
     .join("");
-}
-
-function normalizeAnnouncementEditorHtml(detail) {
-  return formatAnnouncementHtml(detail).replace(/<(\/?)h[1-6]\b/gi, "<$1p");
 }
 
 function AnnouncementActions({ onEdit, onDelete }) {
@@ -107,46 +98,18 @@ function AnnouncementActions({ onEdit, onDelete }) {
   );
 }
 
-function AnnouncementModal({ open, mode, form, saving, onChange, onClose, onSubmit, onUpload }) {
+function AnnouncementModal({ mode, form, saving, onChange, onClose, onSubmit, onUpload }) {
+  const initialDetail = useRef(form.detail ? formatAnnouncementHtml(form.detail) : "<p></p>");
   const editor = useEditor({
     immediatelyRender: false,
-    editorProps: {
-      attributes: {
-        "data-placeholder": "Write the announcement details here...",
-      },
-    },
-    extensions: [
-      StarterKit,
-      Link.configure({
-        openOnClick: false,
-        autolink: true,
-        defaultProtocol: "https",
-      }),
-      Image,
-    ],
-    content: normalizeAnnouncementEditorHtml(form.detail),
+    shouldRerenderOnTransaction: true,
+    editorProps: announcementEditorProps,
+    extensions: announcementEditorExtensions,
+    content: initialDetail.current,
     onUpdate: ({ editor: nextEditor }) => {
       onChange("detail", sanitizeAnnouncementHtml(nextEditor.getHTML()));
     },
   });
-
-  useEffect(() => {
-    if (!editor) {
-      return;
-    }
-
-    const nextHtml = normalizeAnnouncementEditorHtml(form.detail);
-    const currentHtml = sanitizeAnnouncementHtml(editor.getHTML());
-    if (sanitizeAnnouncementHtml(nextHtml) === currentHtml) {
-      return;
-    }
-
-    editor.commands.setContent(nextHtml, false);
-  }, [editor, form.detail]);
-
-  if (!open) {
-    return null;
-  }
 
   const runEditorCommand = (callback) => {
     if (!editor) {
@@ -157,6 +120,13 @@ function AnnouncementModal({ open, mode, form, saving, onChange, onClose, onSubm
   };
 
   const toolbarButtons = [
+    {
+      label: "Normal",
+      isActive: editor?.isActive("paragraph")
+        && !editor?.isActive("bulletList")
+        && !editor?.isActive("orderedList"),
+      onClick: () => runEditorCommand((chain) => chain.setParagraph()),
+    },
     {
       label: "H2",
       isActive: editor?.isActive("heading", { level: 2 }),
@@ -279,7 +249,7 @@ function AnnouncementModal({ open, mode, form, saving, onChange, onClose, onSubm
           </label>
 
           <div className="announcementEditorGrid">
-            <label className="announcementField">
+            <div className="announcementField">
               <span>Detail</span>
               <div className="announcementEditorShell">
                 <div className="announcementEditorToolbar">
@@ -288,6 +258,7 @@ function AnnouncementModal({ open, mode, form, saving, onChange, onClose, onSubm
                       key={button.label}
                       type="button"
                       className={`announcementToolbarBtn${button.isActive ? " isActive" : ""}`}
+                      onMouseDown={(event) => event.preventDefault()}
                       onClick={button.onClick}
                       disabled={button.disabled}
                     >
@@ -297,7 +268,7 @@ function AnnouncementModal({ open, mode, form, saving, onChange, onClose, onSubm
                 </div>
                 <EditorContent editor={editor} className="announcementRichEditor" />
               </div>
-            </label>
+            </div>
 
             <div className="announcementField">
               <span>Announcement Image (optional)</span>
@@ -365,7 +336,12 @@ function AnnouncementModal({ open, mode, form, saving, onChange, onClose, onSubm
           <button type="button" className="announcementSecondaryBtn" onClick={onClose} disabled={saving}>
             Close
           </button>
-          <button type="button" className="announcementPrimaryBtn" onClick={onSubmit} disabled={saving}>
+          <button
+            type="button"
+            className="announcementPrimaryBtn"
+            onClick={() => onSubmit(editor ? { html: editor.getHTML(), isEmpty: editor.isEmpty } : null)}
+            disabled={saving}
+          >
             {saving ? "Saving..." : mode === "edit" ? "Update" : "Save"}
           </button>
         </div>
@@ -465,11 +441,12 @@ export default function AnnouncementsPage() {
     reader.readAsDataURL(file);
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (editorContent) => {
     const title = form.title.trim();
-    const detail = form.detail.trim();
+    const detail = sanitizeAnnouncementHtml(editorContent?.html ?? form.detail).trim();
+    const detailText = detail.replace(/<[^>]*>/g, "").replace(/&nbsp;|&#160;|\u00a0/gi, "").trim();
 
-    if (!title || !detail) {
+    if (!title || editorContent?.isEmpty || (!detailText && !/<img\b/i.test(detail))) {
       setErrorMessage("Title and detail are required.");
       showToast("Title and detail are required.", "error");
       return;
@@ -584,7 +561,6 @@ export default function AnnouncementsPage() {
                           )}
                           <div className="announcementTitleContent">
                             <h3>{announcement.title}</h3>
-                            <p className="announcementSummary">{getAnnouncementSummary(announcement.detail)}</p>
                             <div
                               className="announcementBodyPreview"
                               dangerouslySetInnerHTML={{ __html: formatAnnouncementHtml(announcement.detail) }}
@@ -630,8 +606,7 @@ export default function AnnouncementsPage() {
         )}
       </div>
 
-      <AnnouncementModal
-        open={modalOpen}
+      {modalOpen ? <AnnouncementModal
         mode={modalMode}
         form={form}
         saving={saving}
@@ -639,7 +614,7 @@ export default function AnnouncementsPage() {
         onClose={closeModal}
         onSubmit={handleSubmit}
         onUpload={handleUpload}
-      />
+      /> : null}
     </div>
   );
 }

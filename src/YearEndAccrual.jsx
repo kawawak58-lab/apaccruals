@@ -459,7 +459,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     return {
       ...defaultHeaderInfo,
       ...savedHeader,
-      email: savedHeader?.email || currentUser?.email || "",
+      email: currentUser?.email || "",
     };
   });
 
@@ -506,9 +506,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
   const [supplierTotal, setSupplierTotal] = useState(0);
   const supplierLimit = 50;
   const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
-
-  const [emailSuggestions, setEmailSuggestions] = useState([]);
-  const commonDomains = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "bounty.com.ph"];
 
   // Cache for API responses
   const cacheRef = useRef({
@@ -1137,23 +1134,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     return emailRegex.test(email);
   };
 
-  const handleEmailChange = (value) => {
-    setHeaderInfo({ ...headerInfo, email: value });
-    setHeaderErrors((prev) => ({ ...prev, email: !isValidEmail(value) }));
-
-    if (value && !value.includes("@")) {
-      setEmailSuggestions(commonDomains.map((domain) => `${value}@${domain}`));
-    } else {
-      setEmailSuggestions([]);
-    }
-  };
-
-  const selectEmailSuggestion = (suggestion) => {
-    setHeaderInfo({ ...headerInfo, email: suggestion });
-    setHeaderErrors((prev) => ({ ...prev, email: !isValidEmail(suggestion) }));
-    setEmailSuggestions([]);
-  };
-
   const handleSubmit = async (mode = "draft") => {
     if (isSubmitting) return;
 
@@ -1174,7 +1154,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       const headerErrs = {};
 
       // Header validation
-      if (!headerInfo.email || !isValidEmail(headerInfo.email)) headerErrs.email = true;
+      if (!currentUser?.email || !isValidEmail(currentUser.email)) headerErrs.email = true;
       if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
       if (!headerInfo.company) headerErrs.company = true;
       if (!headerInfo.supplier) headerErrs.supplier = true;
@@ -1215,8 +1195,8 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       const controlNumber = await submitAccrual({
         open: mode === "open",
         header: {
-          maker: currentUser?.email || headerInfo.email,
-          requester_email: headerInfo.email,
+          maker: currentUser?.email || "",
+          requester_email: currentUser?.email || "",
           expense_class: headerInfo.expenseclass,
           company: headerInfo.company,
           supplier_code: headerInfo.supplier,
@@ -1275,7 +1255,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
   const accrualWindowStatus = getAccrualWindowStatus(accrualSetup, new Date());
   const isAccrualWindowLocked = accrualSetupLoading || !accrualWindowStatus.isOpen;
-  const isDisabled = !headerInfo.email || !headerInfo.expenseclass || staticDataLoading || isAccrualWindowLocked;
+  const isDisabled = !currentUser?.email || !headerInfo.expenseclass || staticDataLoading || isAccrualWindowLocked;
   const deadlineReminder = useMemo(() => {
     if (!accrualWindowStatus.isOpen || !accrualSetup?.cutoff_date) {
       return null;
@@ -1977,28 +1957,11 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               type="email"
               className={`input ${headerErrors.email ? "inputError" : ""}`}
               placeholder="Your email"
-              value={headerInfo.email}
-              disabled={isAccrualWindowLocked}
-              onChange={(e) => handleEmailChange(e.target.value)}
-              onFocus={() => {
-                if (emailSuggestions.length > 0) setEmailSuggestions(emailSuggestions);
-              }}
+              value={currentUser?.email || ""}
+              disabled
             />
             {headerErrors.email && (
               <div className="errorText">Please enter a valid email</div>
-            )}
-            {emailSuggestions.length > 0 && (
-              <div className="dropdownContainer">
-                {emailSuggestions.map((sugg) => (
-                  <div
-                    key={sugg}
-                    className="dropdownItem"
-                    onClick={() => selectEmailSuggestion(sugg)}
-                  >
-                    {sugg}
-                  </div>
-                ))}
-              </div>
             )}
           </div>
 

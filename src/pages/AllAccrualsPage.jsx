@@ -19,6 +19,24 @@ function formatDateTime(value) {
   return date.toLocaleString();
 }
 
+function formatTableDateTime(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatSupplierName(value) {
+  const cleaned = String(value || "").trim().replace(/^[\s_-]+/, "").trim();
+  return cleaned || "—";
+}
+
 function formatAmount(value) {
   const number = Number(value || 0);
   return number.toLocaleString(undefined, {
@@ -503,7 +521,7 @@ export default function AllAccrualsPage({ currentUser }) {
       });
   }, [dateFrom, dateTo, enrichedSubmissions, search, statusFilter]);
 
-  const submissionTotals = filteredSubmissions.reduce(
+  const submissionTotals = enrichedSubmissions.reduce(
     (totals, submission) => {
       totals.all += 1;
       if (Number(submission.status) === 0) totals.open += 1;
@@ -674,10 +692,9 @@ export default function AllAccrualsPage({ currentUser }) {
         </div>
         <div className="headerActions">
           <label className={`headerFieldGroup searchFieldGroup${searchFocused ? " focused" : ""}`}>
-            <span className="headerFieldLabel">Search</span>
             <input
               className="input headerSearch"
-              placeholder="Search by control no., email, supplier, company..."
+              placeholder="Search control no., email, supplier..."
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               onFocus={() => setSearchFocused(true)}
@@ -717,23 +734,19 @@ export default function AllAccrualsPage({ currentUser }) {
         </div>
       </div>
 
-      <div className="summaryGrid accrualSummaryGrid">
-        <div className="summaryCard">
-          <div className="summaryLabel">Total Submissions</div>
-          <div className="summaryValue">{submissionTotals.all.toLocaleString()}</div>
-        </div>
-        <div className="summaryCard">
-          <div className="summaryLabel">Open</div>
-          <div className="summaryValue">{submissionTotals.open.toLocaleString()}</div>
-        </div>
-        <div className="summaryCard">
-          <div className="summaryLabel">Cancelled</div>
-          <div className="summaryValue">{submissionTotals.cancelled.toLocaleString()}</div>
-        </div>
-        <div className="summaryCard">
-          <div className="summaryLabel">Draft</div>
-          <div className="summaryValue">{submissionTotals.draft.toLocaleString()}</div>
-        </div>
+      <div className="accrualSummaryChips" role="group" aria-label="Filter accruals by status">
+        <button type="button" className={`accrualSummaryChip total${!statusFilter ? " active" : ""}`} aria-pressed={!statusFilter} onClick={() => setStatusFilter("")}>
+          <span>Total</span><strong>{submissionTotals.all.toLocaleString()}</strong>
+        </button>
+        <button type="button" className={`accrualSummaryChip open${statusFilter === "open" ? " active" : ""}`} aria-pressed={statusFilter === "open"} onClick={() => setStatusFilter("open")}>
+          <span>Open</span><strong>{submissionTotals.open.toLocaleString()}</strong>
+        </button>
+        <button type="button" className={`accrualSummaryChip cancelled${statusFilter === "cancelled" ? " active" : ""}`} aria-pressed={statusFilter === "cancelled"} onClick={() => setStatusFilter("cancelled")}>
+          <span>Cancelled</span><strong>{submissionTotals.cancelled.toLocaleString()}</strong>
+        </button>
+        <button type="button" className={`accrualSummaryChip draft${statusFilter === "draft" ? " active" : ""}`} aria-pressed={statusFilter === "draft"} onClick={() => setStatusFilter("draft")}>
+          <span>Draft</span><strong>{submissionTotals.draft.toLocaleString()}</strong>
+        </button>
       </div>
 
       <div className="managementPanel">
@@ -767,7 +780,7 @@ export default function AllAccrualsPage({ currentUser }) {
                 ),
               },
               { key: "control_number", label: "Control No." },
-              { key: "submitted_at", label: "Timestamp", render: (row) => formatDateTime(row.submitted_at) },
+              { key: "submitted_at", label: "Timestamp", render: (row) => formatTableDateTime(row.submitted_at) },
               {
                 key: "status",
                 label: "Status",
@@ -777,27 +790,31 @@ export default function AllAccrualsPage({ currentUser }) {
                 },
                 sortValue: (row) => getAccrualStatusMeta(row.status).label,
               },
-              { key: "company", label: "Company" },
-              { key: "supplier_name", label: "Supplier" },
-              { key: "invoice_no", label: "Invoice No.", render: (row) => row.invoice_no || "-" },
-              { key: "totalGrossAmount", label: "Gross Amount", render: (row) => formatAmount(row.totalGrossAmount) },
+              { key: "company", label: "Company", className: "accrualCompanyColumn", render: (row) => row.company || "—" },
+              { key: "supplier_name", label: "Supplier", className: "accrualSupplierColumn", render: (row) => formatSupplierName(row.supplier_name) },
+              { key: "invoice_no", label: "Invoice No.", className: "accrualInvoiceColumn", render: (row) => row.invoice_no || "—" },
+              { key: "totalGrossAmount", label: "Gross Amount", className: "accrualAmountColumn", render: (row) => formatAmount(row.totalGrossAmount) },
             ]}
             rows={filteredSubmissions}
+            initialSort={{ key: "submitted_at", direction: "desc" }}
+            showRowCount
             emptyText="No accrual submissions found."
             emptyHelperText="Create or upload an accrual to save it as a draft. Review it and select Add to make it Open."
+            onRowClick={(row) => setSelectedSubmission(row)}
             onRowDoubleClick={(row) => setSelectedSubmission(row)}
             rowActions={(row) => (
-              <>
-                <button type="button" className="tableActionBtn" onClick={() => setSelectedSubmission(row)}>
-                  View
-                </button>
-                {canManageDraft(row) ? <button type="button" className="tableActionBtn" onClick={() => setEditingDraft(row)}>Edit</button> : null}
+              <div className="accrualRowActionGroup">
+                {canManageDraft(row) ? (
+                  <button type="button" className="tableActionBtn" disabled={addingDraft} onClick={() => handleAddDraft(row)} onDoubleClick={(event) => event.stopPropagation()}>
+                    {addingDraft ? "Adding..." : "Add"}
+                  </button>
+                ) : null}
                 {canCancelSubmission(row) ? (
-                  <button type="button" className="tableActionBtn danger" onClick={() => openCancelDialog(row)}>
+                  <button type="button" className="tableActionBtn danger" onClick={() => openCancelDialog(row)} onDoubleClick={(event) => event.stopPropagation()}>
                     Cancel
                   </button>
                 ) : null}
-              </>
+              </div>
             )}
           />
         )}

@@ -8,16 +8,22 @@ export default function MaintenanceTable({
   onEdit,
   onDelete,
   rowActions,
+  onRowClick,
   onRowDoubleClick,
   deleteMessage,
   emptyHelperText,
   initialPageSize = 25,
+  initialSort,
+  showRowCount = false,
 }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [menuRowKey, setMenuRowKey] = useState(null);
   const [confirmRow, setConfirmRow] = useState(null);
   const [sortConfig, setSortConfig] = useState(() => {
+    if (initialSort && columns.some((column) => column.key === initialSort.key && column.sortable !== false)) {
+      return { key: initialSort.key, direction: initialSort.direction || "asc" };
+    }
     const firstSortableColumn = columns.find((column) => column.sortable !== false);
     return firstSortableColumn ? { key: firstSortableColumn.key, direction: "asc" } : null;
   });
@@ -34,6 +40,9 @@ export default function MaintenanceTable({
         return current;
       }
 
+      if (initialSort && columns.some((column) => column.key === initialSort.key && column.sortable !== false)) {
+        return { key: initialSort.key, direction: initialSort.direction || "asc" };
+      }
       return { key: firstSortableColumn.key, direction: "asc" };
     });
   }, [columns]);
@@ -178,7 +187,12 @@ export default function MaintenanceTable({
                   return (
                   <tr
                     key={row[rowKey]}
-                    className={onRowDoubleClick || onEdit ? "interactiveRow" : ""}
+                    className={onRowClick || onRowDoubleClick || onEdit ? "interactiveRow" : ""}
+                    onClick={(event) => {
+                      if (onRowClick && !event.target.closest("button, a, input, select, textarea, label")) {
+                        onRowClick(row);
+                      }
+                    }}
                     onDoubleClick={() => {
                       if (onRowDoubleClick) {
                         onRowDoubleClick(row);
@@ -246,13 +260,13 @@ export default function MaintenanceTable({
           </table>
         </div>
 
-        {paginationNeeded ? (
+        {paginationNeeded || (showRowCount && totalRows > 0) ? (
           <div className="tablePagination">
             <div className="tablePaginationMeta">
               <span>
-                Showing {rangeStart}-{rangeEnd} of {totalRows}
+                Showing {rangeStart === rangeEnd ? rangeEnd : `${rangeStart}-${rangeEnd}`} of {totalRows}
               </span>
-              <label className="tablePaginationSize">
+              {paginationNeeded ? <label className="tablePaginationSize">
                 <span>Rows</span>
                 <select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}>
                   {[25, 50, 100].map((size) => (
@@ -261,10 +275,10 @@ export default function MaintenanceTable({
                     </option>
                   ))}
                 </select>
-              </label>
+              </label> : null}
             </div>
 
-            <div className="tablePaginationControls">
+            {paginationNeeded ? <div className="tablePaginationControls">
               <button type="button" className="tablePageBtn" onClick={() => setPage(1)} disabled={page === 1}>
                 First
               </button>
@@ -285,7 +299,7 @@ export default function MaintenanceTable({
               <button type="button" className="tablePageBtn" onClick={() => setPage(totalPages)} disabled={page === totalPages}>
                 Last
               </button>
-            </div>
+            </div> : null}
           </div>
         ) : null}
       </div>

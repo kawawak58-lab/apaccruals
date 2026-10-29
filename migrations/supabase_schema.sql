@@ -1502,3 +1502,55 @@ revoke all on function public.add_accrual_note(bigint, text) from public, anon;
 grant execute on function public.add_accrual_note(bigint, text) to authenticated;
 
 commit;
+
+-- =============================================================================
+-- UPDATE 2026-10-29: Direct-message access for signed-in users
+-- Already ran this schema? Run only this section through COMMIT in SQL Editor.
+-- The sender must be the signed-in app user. Only participants can read a
+-- message, and only its recipient can mark it delivered or read.
+-- =============================================================================
+begin;
+
+create or replace function public.current_messaging_user_id()
+returns bigint
+language sql stable security definer set search_path = public
+as $$
+  select u.id
+  from public.users u
+  where u.auth_user_id = auth.uid()
+  limit 1;
+$$;
+
+revoke all on function public.current_messaging_user_id() from public, anon;
+grant execute on function public.current_messaging_user_id() to authenticated;
+
+alter table public.direct_messages enable row level security;
+revoke all on public.direct_messages from public, anon, authenticated;
+grant select, insert, update (delivered_at, read_at)
+  on public.direct_messages to authenticated;
+
+drop policy if exists "message participants read" on public.direct_messages;
+create policy "message participants read"
+  on public.direct_messages for select to authenticated
+  using (
+    sender_id = public.current_messaging_user_id()
+    or recipient_id = public.current_messaging_user_id()
+  );
+
+drop policy if exists "message sender inserts" on public.direct_messages;
+create policy "message sender inserts"
+  on public.direct_messages for insert to authenticated
+  with check (
+    sender_id = public.current_messaging_user_id()
+    and recipient_id <> sender_id
+    and thread_id = least(sender_id::text, recipient_id::text)
+      || '__' || greatest(sender_id::text, recipient_id::text)
+  );
+
+drop policy if exists "message recipient updates receipts" on public.direct_messages;
+create policy "message recipient updates receipts"
+  on public.direct_messages for update to authenticated
+  using (recipient_id = public.current_messaging_user_id())
+  with check (recipient_id = public.current_messaging_user_id());
+
+commit;

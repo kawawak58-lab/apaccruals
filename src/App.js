@@ -259,6 +259,16 @@ function splitAnnouncementDetail(detail) {
     .filter(Boolean);
 }
 
+function getAnnouncementPreview(detail, limit = 2) {
+  const lines = splitAnnouncementDetail(detail).filter(
+    (line) => !/^(?:dear\s+[^,!]+[,!]?|good\s+(?:day|morning|afternoon|evening)[!,.]?|hello[!,.]?|hi[!,.]?|thank\s+you[!,.]?)$/i.test(line)
+  );
+  const usefulLines = lines.filter((line) =>
+    /\b(?:deadline|cut[ -]?off|due|submit|submission|accept|receipt|invoice|effective|scheduled|by\s+(?:\w+\s+)?\d{1,2}\b|\d{1,2}\s+\w+\s+20\d{2}|\w+\s+\d{1,2},?\s+20\d{2})\b/i.test(line)
+  );
+  return (usefulLines.length ? usefulLines : lines).slice(0, limit);
+}
+
 function escapeAnnouncementHtml(value) {
   return String(value || "")
     .replace(/&/g, "&amp;")
@@ -374,7 +384,7 @@ function AnnouncementCenterModal({ open, announcements, reactions, onClose, onOp
             <div className="announcementCenterList">
               {announcements.map((announcement) => {
                 const selectedReaction = reactions[String(announcement.id)] || "";
-                const previewLines = splitAnnouncementDetail(announcement.detail).slice(0, 3);
+                const previewLines = getAnnouncementPreview(announcement.detail);
 
                 return (
                   <article key={announcement.id} className="announcementCenterItem">
@@ -829,10 +839,13 @@ function TopBar({
         </span>
       </div>
       <div className="topbarActions">
-        <button type="button" className="topbarAnnouncementButton" onClick={onOpenAnnouncements} aria-label="Open announcements">
+        <button type="button" className="topbarAnnouncementButton topbarIconButton" onClick={onOpenAnnouncements} aria-label={`Open announcements${announcementCount ? ` (${announcementCount})` : ""}`} title="Announcements">
           <span className="topbarAnnouncementIcon" aria-hidden="true"><Icon name="announcement" /></span>
-          <span>Announcements</span>
           {announcementCount ? <span className="topbarAnnouncementCount">{announcementCount}</span> : null}
+        </button>
+        <button type="button" className="topbarIconButton topbarMessageButton" onClick={onOpenMessages} aria-label={`Open messages${unreadMessageCount ? ` (${unreadMessageCount} unread)` : ""}`} title="Messages">
+          <span className="topbarAnnouncementIcon" aria-hidden="true"><Icon name="messages" /></span>
+          {unreadMessageCount ? <span className="topbarAnnouncementCount">{unreadMessageCount}</span> : null}
         </button>
         <details
           className="topbarAccountMenu"
@@ -850,19 +863,9 @@ function TopBar({
         >
           <summary className="topbarMenuTrigger" aria-label="Account menu">
             <span className="topbarAccountInitials">{getInitials(currentUser?.display_name)}</span>
-            <span>Account</span>
-            {unreadMessageCount ? <span className="topbarAnnouncementCount">{unreadMessageCount}</span> : null}
-            <span className="topbarMenuChevron" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><path d="m4 6 4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg></span>
           </summary>
           <div className="topbarMenuPanel">
-            <div className="topbarMenuHeading">Workspace</div>
-            <button type="button" onClick={(event) => {
-              event.currentTarget.closest("details").removeAttribute("open");
-              onOpenMessages();
-            }}>
-              <span className="topbarMenuItemIcon" aria-hidden="true"><Icon name="messages" /></span><span>Messages</span>
-              {unreadMessageCount ? <span className="topbarAnnouncementCount">{unreadMessageCount}</span> : null}
-            </button>
+            <div className="topbarMenuHeading">{currentUser?.display_name || currentUser?.email || "Account"}</div>
             <button type="button" className="topbarMenuLogout" onClick={(event) => {
               event.currentTarget.closest("details").removeAttribute("open");
               onLogout();
@@ -937,10 +940,8 @@ function LoginShellLoader() {
   );
 }
 
-function LoginAnnouncementCard({ announcement, featured = false, showFullContent = false, onOpen }) {
-  const previewLines = showFullContent
-    ? splitAnnouncementDetail(announcement.detail)
-    : splitAnnouncementDetail(announcement.detail).slice(0, announcement.image_url ? 2 : 3);
+function LoginAnnouncementCard({ announcement, featured = false, onOpen }) {
+  const previewLines = getAnnouncementPreview(announcement.detail, announcement.image_url ? 1 : 2);
 
   return (
     <div className={`authNewsCard${featured ? "" : " compact"}`}>
@@ -964,7 +965,7 @@ function LoginAnnouncementCard({ announcement, featured = false, showFullContent
           ) : null}
 
           <div className="authNewsTextContent">
-            <div className={`authNewsPreview${showFullContent ? " fullContent" : ""}`}>
+            <div className="authNewsPreview">
               {previewLines.map((line, index) => (
                 <p key={`${announcement.id}-${index}`}>{line}</p>
               ))}
@@ -983,7 +984,6 @@ function LoginAnnouncementCard({ announcement, featured = false, showFullContent
 function LoginScreen({ onLogin, signingIn, announcements, onExpandAnnouncement }) {
   const featuredAnnouncement = announcements[0] || null;
   const additionalAnnouncements = announcements.slice(1);
-  const showFullFeaturedAnnouncement = announcements.length === 1;
 
   return (
     <div className="authScreen">
@@ -1009,7 +1009,6 @@ function LoginScreen({ onLogin, signingIn, announcements, onExpandAnnouncement }
               <LoginAnnouncementCard
                 announcement={featuredAnnouncement}
                 featured
-                showFullContent={showFullFeaturedAnnouncement}
                 onOpen={() => onExpandAnnouncement(featuredAnnouncement)}
               />
               {additionalAnnouncements.length ? (
@@ -1199,6 +1198,7 @@ function AppShell() {
   const currentUserRef = React.useRef(null);
   const sessionUserIdRef = React.useRef(null);
   const messagingRefreshRequestRef = React.useRef(0);
+  const readThroughByThreadRef = React.useRef(new Map());
 
   useEffect(() => {
     currentUserRef.current = currentUser;
@@ -1246,7 +1246,25 @@ function AppShell() {
 
     try {
       setMessageThreadsLoading(true);
-      const threads = await fetchThreadsForUser(currentUser.id);
+      const fetchedThreads = await fetchThreadsForUser(currentUser.id);
+      const threads = fetchedThreads.map((thread) => {
+        const readThroughAt = readThroughByThreadRef.current.get(thread.id);
+        if (!readThroughAt) return thread;
+        const messages = thread.messages.map((message) =>
+          String(message.recipientId) === String(currentUser.id) &&
+          !message.readAt &&
+          new Date(message.createdAt).getTime() <= readThroughAt
+            ? { ...message, readAt: new Date(readThroughAt).toISOString() }
+            : message
+        );
+        return {
+          ...thread,
+          messages,
+          unreadCount: messages.filter(
+            (message) => String(message.recipientId) === String(currentUser.id) && !message.readAt
+          ).length,
+        };
+      });
       if (messagingRefreshRequestRef.current === requestId) {
         setMessageThreads(threads);
       }
@@ -1316,6 +1334,7 @@ function AppShell() {
 
   useEffect(() => {
     if (!currentUser?.id) {
+      readThroughByThreadRef.current.clear();
       setSelectedMessageThreadId("");
       setMessagePresence({});
       setMessageContacts([]);
@@ -1379,11 +1398,17 @@ function AppShell() {
     }
   }, [messageThreads, selectedMessageThreadId]);
 
+  const selectedThreadUnreadCount = messageThreads.find(
+    (thread) => thread.id === selectedMessageThreadId
+  )?.unreadCount || 0;
+
   useEffect(() => {
-    if (!currentUser?.id || !selectedMessageThreadId) {
+    if (!currentUser?.id || !selectedMessageThreadId || selectedThreadUnreadCount === 0) {
       return;
     }
 
+    const readThroughAt = Date.now();
+    readThroughByThreadRef.current.set(selectedMessageThreadId, readThroughAt);
     setMessageThreads((currentThreads) => currentThreads.map((thread) => {
       if (thread.id !== selectedMessageThreadId || thread.unreadCount === 0) {
         return thread;
@@ -1391,7 +1416,7 @@ function AppShell() {
 
       const nextMessages = thread.messages.map((message) => (
         String(message.recipientId) === String(currentUser.id) && !message.readAt
-          ? { ...message, readAt: new Date().toISOString() }
+          ? { ...message, readAt: new Date(readThroughAt).toISOString() }
           : message
       ));
 
@@ -1402,8 +1427,12 @@ function AppShell() {
       };
     }));
 
-    void markThreadAsRead(currentUser.id, selectedMessageThreadId).catch(() => {});
-  }, [currentUser?.id, selectedMessageThreadId]);
+    void markThreadAsRead(currentUser.id, selectedMessageThreadId).catch((error) => {
+      readThroughByThreadRef.current.delete(selectedMessageThreadId);
+      showToast(error.message || "Unable to mark messages as read.", "error");
+      void refreshMessagingThreads();
+    });
+  }, [currentUser?.id, selectedMessageThreadId, selectedThreadUnreadCount, showToast, refreshMessagingThreads]);
 
   useEffect(() => {
     window.localStorage.setItem("accrual-active-view", activeView);
