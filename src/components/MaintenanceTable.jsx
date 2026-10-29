@@ -16,6 +16,8 @@ export default function MaintenanceTable({
   initialSort,
   showRowCount = false,
 }) {
+  const initialSortKey = initialSort?.key;
+  const initialSortDirection = initialSort?.direction;
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [menuRowKey, setMenuRowKey] = useState(null);
@@ -40,12 +42,12 @@ export default function MaintenanceTable({
         return current;
       }
 
-      if (initialSort && columns.some((column) => column.key === initialSort.key && column.sortable !== false)) {
-        return { key: initialSort.key, direction: initialSort.direction || "asc" };
+      if (initialSortKey && columns.some((column) => column.key === initialSortKey && column.sortable !== false)) {
+        return { key: initialSortKey, direction: initialSortDirection || "asc" };
       }
       return { key: firstSortableColumn.key, direction: "asc" };
     });
-  }, [columns]);
+  }, [columns, initialSortKey, initialSortDirection]);
 
   const sortedRows = useMemo(() => {
     if (!sortConfig) {

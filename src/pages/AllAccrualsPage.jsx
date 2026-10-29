@@ -3,7 +3,7 @@ import MaintenanceSkeleton from "../components/MaintenanceSkeleton";
 import MaintenanceTable from "../components/MaintenanceTable";
 import DraftAccrualEditor from "../DraftAccrualEditor";
 import AccrualNotesDialog from "../components/AccrualNotesDialog";
-import { cancelAccrual, fetchAccrualSubmissions, openAccrualDraft } from "../lib/AccrualSubmissions";
+import { cancelAccrual, confirmAccrualSubmission, fetchAccrualSubmissions } from "../lib/AccrualSubmissions";
 import { useToast } from "../lib/toast";
 
 function formatDateTime(value) {
@@ -369,8 +369,8 @@ function FiltersMenu({ dateFrom, dateTo, statusFilter, onRangeChange, onStatusCh
               aria-label="Filter accruals by status"
             >
               <option value="">All</option>
-              <option value="draft">Draft</option>
-              <option value="open">Open</option>
+              <option value="for confirmation">For Confirmation</option>
+              <option value="confirmed">Confirmed</option>
               <option value="cancelled">Cancelled</option>
             </select>
           </label>
@@ -381,7 +381,7 @@ function FiltersMenu({ dateFrom, dateTo, statusFilter, onRangeChange, onStatusCh
 }
 
 function getAccrualStatusMeta(status) {
-  if (Number(status) === 2) return { label: "Draft", className: "warning" };
+  if (Number(status) === 2) return { label: "For Confirmation", className: "warning" };
   if (Number(status) === 1) {
     return {
       label: "Cancelled",
@@ -390,8 +390,8 @@ function getAccrualStatusMeta(status) {
   }
 
   return {
-    label: "Open",
-    className: "success",
+    label: "Confirmed",
+    className: "confirmed",
   };
 }
 
@@ -425,19 +425,20 @@ export default function AllAccrualsPage({ currentUser }) {
   const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("for confirmation");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
   const [submissions, setSubmissions] = useState([]);
   const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [infoSubmission, setInfoSubmission] = useState(null);
   const [notesSubmission, setNotesSubmission] = useState(null);
   const [cancelDialogSubmission, setCancelDialogSubmission] = useState(null);
   const [cancellationRemarks, setCancellationRemarks] = useState("");
   const [cancelSaving, setCancelSaving] = useState(false);
   const [editingDraft, setEditingDraft] = useState(null);
-  const [addingDraft, setAddingDraft] = useState(false);
+  const [confirmingAccrual, setConfirmingAccrual] = useState(false);
   const detailDialogStyle = {
     width: "min(1760px, calc(100vw - 20px))",
     maxWidth: "min(1760px, calc(100vw - 20px))",
@@ -482,7 +483,7 @@ export default function AllAccrualsPage({ currentUser }) {
 
     return enrichedSubmissions
       .filter((submission) => {
-        const submittedDate = submission.submitted_at ? new Date(submission.submitted_at) : null;
+        const submittedDate = submission.created_at ? new Date(submission.created_at) : null;
         const submittedDateKey =
           submittedDate && !Number.isNaN(submittedDate.getTime())
             ? submittedDate.toLocaleDateString("en-CA")
@@ -526,12 +527,12 @@ export default function AllAccrualsPage({ currentUser }) {
   const submissionTotals = enrichedSubmissions.reduce(
     (totals, submission) => {
       totals.all += 1;
-      if (Number(submission.status) === 0) totals.open += 1;
+      if (Number(submission.status) === 0) totals.confirmed += 1;
       if (Number(submission.status) === 1) totals.cancelled += 1;
-      if (Number(submission.status) === 2) totals.draft += 1;
+      if (Number(submission.status) === 2) totals.forConfirmation += 1;
       return totals;
     },
-    { all: 0, open: 0, cancelled: 0, draft: 0 }
+    { all: 0, confirmed: 0, cancelled: 0, forConfirmation: 0 }
   );
 
   const exportRows = useMemo(() => {
@@ -569,7 +570,7 @@ export default function AllAccrualsPage({ currentUser }) {
 
       return lines.map((line) => [
         submission.control_number,
-        formatDateTime(submission.submitted_at),
+        formatDateTime(submission.created_at),
         submission.requester_email,
         submission.expense_class,
         submission.company,
@@ -622,20 +623,23 @@ export default function AllAccrualsPage({ currentUser }) {
     [currentUser]
   );
 
-  const canManageDraft = (submission) => Number(submission?.status) === 2 && canCancelSubmission(submission);
+  const canEditForConfirmation = (submission) => Number(submission?.status) === 2 && canCancelSubmission(submission);
 
-  const handleAddDraft = async (submission) => {
-    if (addingDraft) return;
-    setAddingDraft(true);
+  const handleConfirmAccrual = async (submission) => {
+    if (confirmingAccrual) return;
+    setConfirmingAccrual(true);
     try {
-      await openAccrualDraft(submission.id);
-      setSelectedSubmission((current) => current?.id === submission.id ? { ...current, status: 0, submitted_at: new Date().toISOString() } : current);
-      await loadData();
-      showToast("Accrual added. Status is now Open.", "success");
+      await confirmAccrualSubmission(submission.id);
+      const refreshedRows = await loadData();
+      const refreshedSubmission = refreshedRows?.find((row) => row.id === submission.id);
+      setSelectedSubmission((current) => current?.id === submission.id
+        ? (refreshedSubmission || { ...current, status: 0 })
+        : current);
+      showToast("Accrual confirmed successfully.", "success");
     } catch (error) {
-      showToast(error.message || "Unable to add draft.", "error");
+      showToast(error.message || "Unable to confirm accrual.", "error");
     } finally {
-      setAddingDraft(false);
+      setConfirmingAccrual(false);
     }
   };
   const openCancelDialog = (submission) => {
@@ -669,16 +673,11 @@ export default function AllAccrualsPage({ currentUser }) {
       await cancelAccrual(cancelDialogSubmission.id, trimmedRemarks);
       showToast("Accrual entry cancelled successfully.", "success");
       closeCancelDialog();
-      await loadData();
-      setSelectedSubmission((current) =>
-        current && current.id === cancelDialogSubmission.id
-          ? {
-              ...current,
-              status: 1,
-              cancellation_remarks: trimmedRemarks,
-            }
-          : current
-      );
+      const refreshedRows = await loadData();
+      const refreshedSubmission = refreshedRows?.find((row) => row.id === cancelDialogSubmission.id);
+      setSelectedSubmission((current) => current?.id === cancelDialogSubmission.id
+        ? (refreshedSubmission || { ...current, status: 1, cancellation_remarks: trimmedRemarks })
+        : current);
     } catch (error) {
       showToast(error.message || "Unable to cancel the accrual entry.", "error");
     } finally {
@@ -740,14 +739,14 @@ export default function AllAccrualsPage({ currentUser }) {
         <button type="button" className={`accrualSummaryChip total${!statusFilter ? " active" : ""}`} aria-pressed={!statusFilter} onClick={() => setStatusFilter("")}>
           <span>Total</span><strong>{submissionTotals.all.toLocaleString()}</strong>
         </button>
-        <button type="button" className={`accrualSummaryChip open${statusFilter === "open" ? " active" : ""}`} aria-pressed={statusFilter === "open"} onClick={() => setStatusFilter("open")}>
-          <span>Open</span><strong>{submissionTotals.open.toLocaleString()}</strong>
+        <button type="button" className={`accrualSummaryChip confirmed${statusFilter === "confirmed" ? " active" : ""}`} aria-pressed={statusFilter === "confirmed"} onClick={() => setStatusFilter("confirmed")}>
+          <span>Confirmed</span><strong>{submissionTotals.confirmed.toLocaleString()}</strong>
         </button>
         <button type="button" className={`accrualSummaryChip cancelled${statusFilter === "cancelled" ? " active" : ""}`} aria-pressed={statusFilter === "cancelled"} onClick={() => setStatusFilter("cancelled")}>
           <span>Cancelled</span><strong>{submissionTotals.cancelled.toLocaleString()}</strong>
         </button>
-        <button type="button" className={`accrualSummaryChip draft${statusFilter === "draft" ? " active" : ""}`} aria-pressed={statusFilter === "draft"} onClick={() => setStatusFilter("draft")}>
-          <span>Draft</span><strong>{submissionTotals.draft.toLocaleString()}</strong>
+        <button type="button" className={`accrualSummaryChip forConfirmation${statusFilter === "for confirmation" ? " active" : ""}`} aria-pressed={statusFilter === "for confirmation"} onClick={() => setStatusFilter("for confirmation")}>
+          <span>For Confirmation</span><strong>{submissionTotals.forConfirmation.toLocaleString()}</strong>
         </button>
       </div>
 
@@ -782,7 +781,7 @@ export default function AllAccrualsPage({ currentUser }) {
                 ),
               },
               { key: "control_number", label: "Control No." },
-              { key: "submitted_at", label: "Timestamp", render: (row) => formatTableDateTime(row.submitted_at) },
+              { key: "created_at", label: "Timestamp", render: (row) => formatTableDateTime(row.created_at) },
               {
                 key: "status",
                 label: "Status",
@@ -798,17 +797,17 @@ export default function AllAccrualsPage({ currentUser }) {
               { key: "totalGrossAmount", label: "Gross Amount", className: "accrualAmountColumn", render: (row) => formatAmount(row.totalGrossAmount) },
             ]}
             rows={filteredSubmissions}
-            initialSort={{ key: "submitted_at", direction: "desc" }}
+            initialSort={{ key: "created_at", direction: "desc" }}
             showRowCount
             emptyText="No accrual submissions found."
-            emptyHelperText="Create or upload an accrual to save it as a draft. Review it and select Add to make it Open."
+            emptyHelperText="New and uploaded accruals appear as For Confirmation. Review the details, then confirm them individually."
             onRowClick={(row) => setSelectedSubmission(row)}
             onRowDoubleClick={(row) => setSelectedSubmission(row)}
             rowActions={(row) => (
               <div className="accrualRowActionGroup">
-                {canManageDraft(row) ? (
-                  <button type="button" className="tableActionBtn" disabled={addingDraft} onClick={() => handleAddDraft(row)} onDoubleClick={(event) => event.stopPropagation()}>
-                    {addingDraft ? "Adding..." : "Add"}
+                {canEditForConfirmation(row) ? (
+                  <button type="button" className="tableActionBtn" disabled={confirmingAccrual} onClick={() => handleConfirmAccrual(row)} onDoubleClick={(event) => event.stopPropagation()}>
+                    {confirmingAccrual ? "Confirming..." : "Confirm"}
                   </button>
                 ) : null}
                 {canCancelSubmission(row) ? (
@@ -840,6 +839,13 @@ export default function AllAccrualsPage({ currentUser }) {
               <div className="accrualDetailHeaderActions">
                 <button
                   type="button"
+                  className="tableActionBtn accrualInfoAction"
+                  onClick={() => setInfoSubmission(selectedSubmission)}
+                >
+                  Info
+                </button>
+                <button
+                  type="button"
                   className="tableActionBtn accrualNotesAction"
                   onClick={() => setNotesSubmission(selectedSubmission)}
                 >
@@ -864,7 +870,7 @@ export default function AllAccrualsPage({ currentUser }) {
                 </div>
                 <div className="accrualDetailCard">
                   <div className="summaryLabel">Submitted</div>
-                  <div className="accrualDetailValue">{formatDateTime(selectedSubmission.submitted_at)}</div>
+                  <div className="accrualDetailValue">{formatDateTime(selectedSubmission.created_at)}</div>
                 </div>
                 <div className="accrualDetailCard">
                   <div className="summaryLabel">Requester</div>
@@ -947,9 +953,9 @@ export default function AllAccrualsPage({ currentUser }) {
               </div>
 
               <div className="dialogActions">
-                {canManageDraft(selectedSubmission) ? <>
-                  <button type="button" className="tableActionBtn" disabled={addingDraft} onClick={() => setEditingDraft(selectedSubmission)}>Edit</button>
-                  <button type="button" className="submitBtn" disabled={addingDraft} onClick={() => handleAddDraft(selectedSubmission)}>{addingDraft ? "Adding..." : "Add"}</button>
+                {canEditForConfirmation(selectedSubmission) ? <>
+                  <button type="button" className="tableActionBtn" disabled={confirmingAccrual} onClick={() => setEditingDraft(selectedSubmission)}>Edit</button>
+                  <button type="button" className="submitBtn" disabled={confirmingAccrual} onClick={() => handleConfirmAccrual(selectedSubmission)}>{confirmingAccrual ? "Confirming..." : "Confirm"}</button>
                 </> : null}
                 {canCancelSubmission(selectedSubmission) ? (
                   <button
@@ -960,9 +966,6 @@ export default function AllAccrualsPage({ currentUser }) {
                     Cancel
                   </button>
                 ) : null}
-                <button type="button" className="submitBtn" onClick={() => setSelectedSubmission(null)}>
-                  Close
-                </button>
               </div>
             </div>
           </div>
@@ -977,7 +980,7 @@ export default function AllAccrualsPage({ currentUser }) {
           const refreshedRows = await loadData();
           const refreshedSubmission = refreshedRows?.find((row) => row.id === editingDraft.id);
           if (refreshedSubmission) setSelectedSubmission(refreshedSubmission);
-          showToast("Draft updated successfully.", "success");
+          showToast("Accrual updated successfully.", "success");
         }}
       /> : null}
       {notesSubmission ? (
@@ -986,6 +989,26 @@ export default function AllAccrualsPage({ currentUser }) {
           submission={notesSubmission}
           onClose={() => setNotesSubmission(null)}
         />
+      ) : null}
+
+      {infoSubmission ? (
+        <div className="modalOverlay maintenanceOverlay accrualInfoOverlay">
+          <section className="modalContent maintenanceDialog accrualInfoDialog" role="dialog" aria-modal="true" aria-labelledby="accrualInfoTitle">
+            <div className="dialogHeader">
+              <div>
+                <h2 className="modalTitle" id="accrualInfoTitle">Accrual Info</h2>
+                <p className="dialogDescription">Activity dates for {infoSubmission.control_number}</p>
+              </div>
+              <button type="button" className="dialogClose" onClick={() => setInfoSubmission(null)} aria-label="Close accrual info">×</button>
+            </div>
+            <dl className="accrualInfoList">
+              <div><dt>Submitted</dt><dd>{formatDateTime(infoSubmission.created_at)}</dd></div>
+              <div><dt>Last updated</dt><dd>{infoSubmission.updated_at ? <>{formatDateTime(infoSubmission.updated_at)}<br />{infoSubmission.updated_by || "Unknown"}</> : "Not updated"}</dd></div>
+              <div><dt>Confirmed</dt><dd>{Number(infoSubmission.status) === 0 ? <>{formatDateTime(infoSubmission.confirmed_at)}<br />{infoSubmission.confirmed_by || "Unknown"}</> : "Not confirmed"}</dd></div>
+              <div><dt>Cancelled</dt><dd>{Number(infoSubmission.status) === 1 ? <>{formatDateTime(infoSubmission.cancelled_at)}<br />{infoSubmission.cancelled_by || "Unknown"}</> : "Not cancelled"}</dd></div>
+            </dl>
+          </section>
+        </div>
       ) : null}
 
       {cancelDialogSubmission ? (

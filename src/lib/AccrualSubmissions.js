@@ -21,6 +21,12 @@ export async function fetchAccrualSubmissions(options = {}) {
         cancellation_remarks,
         submitted_at,
         created_at,
+        updated_at,
+        updated_by,
+        confirmed_at,
+        confirmed_by,
+        cancelled_at,
+        cancelled_by,
         accrual_submission_lines (
           id,
           line_number,
@@ -51,9 +57,9 @@ export async function fetchAccrualSubmissions(options = {}) {
   return data || [];
 }
 
-export async function submitAccrual({ header, lineItems, open = false }) {
+export async function submitAccrual({ header, lineItems }) {
   const { data, error } = await supabase.rpc("submit_accrual", {
-    p_header: { ...header, status: open ? 0 : 2 },
+    p_header: { ...header, status: 2 },
     p_line_items: lineItems,
   });
 
@@ -87,8 +93,8 @@ export async function updateAccrualDraft(submissionId, header, lineItems) {
   return data;
 }
 
-export async function openAccrualDraft(submissionId) {
-  const { data, error } = await supabase.rpc("open_accrual_draft", {
+export async function confirmAccrualSubmission(submissionId) {
+  const { data, error } = await supabase.rpc("confirm_accrual_submission", {
     p_submission_id: submissionId,
   });
   if (error) throw error;

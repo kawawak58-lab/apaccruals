@@ -17,3 +17,11 @@ export async function getExpenseClassNames() {
   // Return an array of names
   return data.map(item => item.name);
 }
+
+export async function getExpenseClassRules() {
+  const { data, error } = await supabase
+    .from("expense_classes")
+    .select("id, name, disabled_fields, default_invoice_no");
+  if (error) throw error;
+  return data || [];
+}

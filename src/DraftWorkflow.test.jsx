@@ -2,13 +2,13 @@ import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import AllAccrualsPage from "./pages/AllAccrualsPage";
 import DraftAccrualEditor from "./DraftAccrualEditor";
-import { fetchAccrualSubmissions, openAccrualDraft, updateAccrualDraft } from "./lib/AccrualSubmissions";
+import { fetchAccrualSubmissions, confirmAccrualSubmission, updateAccrualDraft } from "./lib/AccrualSubmissions";
 import { supabase } from "./lib/supabase";
 import { buildAccrualUploadPayloads } from "./lib/accrualBulkUpload";
 
 jest.mock("./lib/supabase", () => ({ supabase: { rpc: jest.fn() } }));
 jest.mock("./lib/AccrualSubmissions", () => ({
-  fetchAccrualSubmissions: jest.fn(), openAccrualDraft: jest.fn(),
+  fetchAccrualSubmissions: jest.fn(), confirmAccrualSubmission: jest.fn(),
   updateAccrualDraft: jest.fn(), cancelAccrual: jest.fn(),
 }));
 const mockToast = jest.fn();
@@ -23,67 +23,70 @@ const draft = {
 beforeEach(() => {
   jest.clearAllMocks();
   fetchAccrualSubmissions.mockResolvedValue([draft]);
-  openAccrualDraft.mockResolvedValue(true);
+  confirmAccrualSubmission.mockResolvedValue(true);
   updateAccrualDraft.mockResolvedValue(true);
 });
 
-test("Add changes a draft to Open and removes edit actions", async () => {
+test("Confirm changes a pending accrual to Confirmed and removes edit actions", async () => {
   render(<AllAccrualsPage currentUser={user} />);
   fireEvent.click(await screen.findByRole("button", { name: "View" }));
   fetchAccrualSubmissions.mockResolvedValue([{ ...draft, status: 0 }]);
-  fireEvent.click(screen.getByRole("button", { name: "Add" }));
-  await waitFor(() => expect(openAccrualDraft).toHaveBeenCalledWith(42));
-  await waitFor(() => expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument());
+  const confirmButtons = screen.getAllByRole("button", { name: "Confirm" });
+  fireEvent.click(confirmButtons[confirmButtons.length - 1]);
+  await waitFor(() => expect(confirmAccrualSubmission).toHaveBeenCalledWith(42));
+  await waitFor(() => expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument());
   expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
 });
 
-test("failed Add keeps the entry editable as a draft", async () => {
-  openAccrualDraft.mockRejectedValue(new Error("Filing period is closed"));
+test("failed confirmation keeps the entry editable", async () => {
+  confirmAccrualSubmission.mockRejectedValue(new Error("The accrual filing period is closed"));
   render(<AllAccrualsPage currentUser={user} />);
   fireEvent.click(await screen.findByRole("button", { name: "View" }));
-  fireEvent.click(screen.getByRole("button", { name: "Add" }));
-  await waitFor(() => expect(mockToast).toHaveBeenCalledWith("Filing period is closed", "error"));
-  expect(screen.getByRole("button", { name: "Add" })).toBeEnabled();
+  const confirmButtons = screen.getAllByRole("button", { name: "Confirm" });
+  fireEvent.click(confirmButtons[confirmButtons.length - 1]);
+  await waitFor(() => expect(mockToast).toHaveBeenCalledWith("The accrual filing period is closed", "error"));
+  const remainingConfirmButtons = screen.getAllByRole("button", { name: "Confirm" });
+  expect(remainingConfirmButtons[remainingConfirmButtons.length - 1]).toBeEnabled();
   expect(screen.getAllByRole("button", { name: "Edit" }).length).toBeGreaterThan(0);
 });
 
-test("Open and Cancelled entries do not offer Edit or Add", async () => {
+test("Confirmed and Cancelled entries do not offer Edit or Confirm", async () => {
   fetchAccrualSubmissions.mockResolvedValue([{ ...draft, status: 0 }, { ...draft, id: 43, status: 1, control_number: "ACT000043" }]);
   render(<AllAccrualsPage currentUser={user} />);
   const viewButtons = await screen.findAllByRole("button", { name: "View" });
   fireEvent.click(viewButtons[0]);
   expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Confirm" })).not.toBeInTheDocument();
 });
 
-test("editing preserves the draft identity and saves header and line changes", async () => {
+test("editing preserves the pending accrual identity and saves header and line changes", async () => {
   const onSaved = jest.fn();
   render(<DraftAccrualEditor submission={draft} onClose={jest.fn()} onSaved={onSaved} />);
   fireEvent.change(screen.getByLabelText("Invoice number"), { target: { value: "INV2" } });
   fireEvent.change(screen.getByLabelText("Gross amount *"), { target: { value: "350.50" } });
-  fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+  fireEvent.click(screen.getByRole("button", { name: "Update" }));
   await waitFor(() => expect(updateAccrualDraft).toHaveBeenCalledWith(42, expect.objectContaining({ invoice_no: "INV2" }), [expect.objectContaining({ gross_amount: 350.5, line_number: 1 })]));
   await waitFor(() => expect(onSaved).toHaveBeenCalled());
-  expect(openAccrualDraft).not.toHaveBeenCalled();
+  expect(confirmAccrualSubmission).not.toHaveBeenCalled();
 });
 
-test("failed draft save leaves the editor and changes available", async () => {
-  updateAccrualDraft.mockRejectedValue(new Error("Only drafts can be edited"));
+test("failed pending accrual update leaves the editor and changes available", async () => {
+  updateAccrualDraft.mockRejectedValue(new Error("Only For Confirmation accruals can be edited"));
   const onSaved = jest.fn();
   render(<DraftAccrualEditor submission={draft} onClose={jest.fn()} onSaved={onSaved} />);
-  fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Only drafts can be edited");
+  fireEvent.click(screen.getByRole("button", { name: "Update" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Only For Confirmation accruals can be edited");
   expect(onSaved).not.toHaveBeenCalled();
 });
 
-test("creation forces Draft even if an old caller supplies Open", async () => {
+test("new submissions are always For Confirmation", async () => {
   supabase.rpc.mockResolvedValue({ data: "ACT000042", error: null });
   const { submitAccrual } = jest.requireActual("./lib/AccrualSubmissions");
-  await submitAccrual({ header: { status: 0 }, lineItems: [] });
+  await submitAccrual({ header: { status: 0 }, lineItems: [{ test: true }] });
   expect(supabase.rpc).toHaveBeenCalledWith("submit_accrual", expect.objectContaining({ p_header: { status: 2 } }));
 });
 
-test("each uploaded accrual group starts as Draft", () => {
+test("each uploaded accrual group starts For Confirmation", () => {
   const groups = buildAccrualUploadPayloads([
     { sequence: 1, requester_email: user.email, gross_amount: "100" },
     { sequence: 1, requester_email: user.email, gross_amount: "200" },
@@ -93,9 +96,9 @@ test("each uploaded accrual group starts as Draft", () => {
   expect(groups.every((group) => group.header.status === 2)).toBe(true);
   expect(groups[0].lineItems).toHaveLength(2);
 });
-test("explicit Add sends Open while ordinary saves remain Draft", async () => {
+test("new submissions cannot be created directly as Confirmed", async () => {
   supabase.rpc.mockResolvedValue({ data: "ACT000042", error: null });
   const { submitAccrual } = jest.requireActual("./lib/AccrualSubmissions");
-  await submitAccrual({ header: { status: 2 }, lineItems: [], open: true });
-  expect(supabase.rpc).toHaveBeenCalledWith("submit_accrual", expect.objectContaining({ p_header: { status: 0 } }));
+  await submitAccrual({ header: { status: 0 }, lineItems: [{ test: true }] });
+  expect(supabase.rpc).toHaveBeenCalledWith("submit_accrual", expect.objectContaining({ p_header: { status: 2 } }));
 });

@@ -32,6 +32,7 @@ export default function UploadDataDialog({
   title,
   description,
   templateColumns,
+  previewOnlyColumns = [],
   templateSampleRow,
   templateFileName,
   templateDownloadHandler,
@@ -73,10 +74,16 @@ export default function UploadDataDialog({
   const [uploadRecovery, setUploadRecovery] = useState(null);
   const [uploadMode, setUploadMode] = useState("upload");
 
-  const previewColumns = useMemo(
-    () => templateColumns.map((column) => ({ key: column, label: toTitleLabel(column) })),
-    [templateColumns]
-  );
+  const previewColumns = useMemo(() => {
+    const columns = [];
+    templateColumns.forEach((column) => {
+      columns.push({ key: column, label: toTitleLabel(column) });
+      previewOnlyColumns
+        .filter((previewColumn) => previewColumn.after === column)
+        .forEach((previewColumn) => columns.push(previewColumn));
+    });
+    return columns;
+  }, [previewOnlyColumns, templateColumns]);
   const previewPageSize = 10;
   const previewPageCount = Math.max(1, Math.ceil(previewRows.length / previewPageSize));
   const paginatedPreviewRows = useMemo(() => {
@@ -156,6 +163,7 @@ export default function UploadDataDialog({
   };
 
   const handleFileChange = async (file) => {
+    const processingStartedAt = Date.now();
     setErrorMessage("");
     setResultMessage("");
     setSelectedFile(file || null);
@@ -180,6 +188,10 @@ export default function UploadDataDialog({
     setParsing(true);
 
     try {
+      // Let the browser paint the busy state before CPU-heavy workbook parsing starts.
+      // Give React and the browser a full paint before parsing Excel/CSV or
+      // starting the reference-table lookups in validateRows.
+      await new Promise((resolve) => window.setTimeout(resolve, 80));
       const { headers, rows } = await parseUploadFile(file);
 
       const nextMissingColumns = templateColumns.filter((column) => !headers.includes(column));
@@ -229,6 +241,11 @@ export default function UploadDataDialog({
       setErrorMessage(error.message || "Upload failed.");
       showToast(error.message || "Upload failed.", "error");
     } finally {
+      const minimumBusyTimeMs = 350;
+      const remainingBusyTime = minimumBusyTimeMs - (Date.now() - processingStartedAt);
+      if (remainingBusyTime > 0) {
+        await new Promise((resolve) => window.setTimeout(resolve, remainingBusyTime));
+      }
       setParsing(false);
     }
   };
@@ -335,7 +352,7 @@ export default function UploadDataDialog({
       {!errorModalOpen && !resultModalOpen && !previewModalOpen ? (
         <div className="modalOverlay maintenanceOverlay">
           <div className="modalContent maintenanceDialog uploadDialog">
-        {isUploading ? (
+        {isUploading || parsing ? (
           <div className="uploadMotionOverlay" aria-hidden="true">
             <div className="uploadCarLoader">
               <span>
@@ -356,10 +373,18 @@ export default function UploadDataDialog({
               <span />
             </div>
             <div className="uploadMotionText">
-              <div>{uploadMode === "rollback" ? "Rolling back saved rows..." : "Uploading data..."}</div>
-              <div className="uploadMotionMeta">
-                {uploadProgress.current.toLocaleString()} / {uploadProgress.total.toLocaleString()} row(s)
+              <div>
+                {parsing
+                  ? "Reading file and checking data..."
+                  : uploadMode === "rollback" ? "Rolling back saved rows..." : "Uploading data..."}
               </div>
+              {parsing ? (
+                <div className="uploadMotionMeta">Preparing the file preview. Please wait.</div>
+              ) : (
+                <div className="uploadMotionMeta">
+                  {uploadProgress.current.toLocaleString()} / {uploadProgress.total.toLocaleString()} row(s)
+                </div>
+              )}
             </div>
           </div>
         ) : null}

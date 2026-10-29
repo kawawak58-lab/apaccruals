@@ -1,18 +1,13 @@
-export const NON_DEDUCTIBLE_EXPENSE = "Non-deductible expense (no valid receipt/invoice)";
-
 export const ACCRUAL_UPLOAD_COLUMNS = [
   "sequence",
   "requester_email",
   "expense_class",
   "company",
   "supplier_code",
-  "supplier_name",
   "invoice_no",
   "gross_amount",
   "glaccount_code",
-  "glaccount_name",
   "profitcenter_code",
-  "profitcenter_name",
   "transaction_type",
   "vat",
   "tax_code",
@@ -29,9 +24,8 @@ export function buildAccrualUploadTemplateSample({
   profitCenters = [],
 }) {
   const expenseClass =
-    expenseClasses.find((value) => value !== NON_DEDUCTIBLE_EXPENSE) ||
     expenseClasses[0] ||
-    "Deductible Expense (with valid receipt/invoice)";
+    "";
   const company = companies[0] || "Example Company";
   const primarySupplier = suppliers[0] || { suppliercode: "", suppliername: "" };
   const secondarySupplier = suppliers[1] || primarySupplier;
@@ -49,8 +43,8 @@ export function buildAccrualUploadTemplateSample({
     supplier_code: primarySupplier.suppliercode || "",
     supplier_name: primarySupplier.suppliername || "",
     invoice_no: "INV-001",
-    vat: expenseClass === NON_DEDUCTIBLE_EXPENSE ? "" : "Vatable",
-    tax_code: expenseClass === NON_DEDUCTIBLE_EXPENSE ? "" : taxCodes[0] || "Input VAT",
+    vat: "Vatable",
+    tax_code: taxCodes[0] || "Input VAT",
   };
 
   return [

@@ -378,6 +378,20 @@ textarea.input {
   background-repeat: no-repeat;
 }
 
+.input:disabled,
+.inputItem:disabled,
+.select:disabled {
+  color: #64748b;
+  background-color: #f3f5fa;
+  border-color: #d5dce8;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.select:disabled {
+  background-image: none;
+}
+
 .inputError {
   border-color: #dc2626 !important;
   box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.12);
@@ -1164,29 +1178,20 @@ textarea.input {
   .formSection .input, .formSection .select, .formSection input, .formSection select, .formSection textarea { min-height: 46px; font-size: 16px; box-sizing: border-box; }
   .deadlineReminder { padding: 12px 14px; border-radius: 10px; }
 }
-.formHeaderActions .topSaveDraftBtn { min-height: 44px; min-width: 110px; display: inline-flex; align-items: center; justify-content: center; padding: 10px 16px; border-radius: 8px; font-size: 14px; line-height: 1.2; margin: 0; }
 .accrualEntryFooter { display: flex; justify-content: flex-end; gap: 12px; }
 .accrualEntryFooter button { min-width: 110px; min-height: 44px; margin: 0; padding: 10px 18px; border-radius: 8px; font-size: 14px; }
 @media (max-width: 640px) {
   .formHeaderActions .topUploadBtn { grid-column: 1 / -1; }
-  .formHeaderActions .topSaveDraftBtn, .formHeaderActions .topSubmitBtn { min-width: 0; width: 100%; }
+  .formHeaderActions .topSubmitBtn { min-width: 0; width: 100%; }
   .accrualEntryFooter button { flex: 1; min-width: 0; }
 }
-/* Distinguish import, draft, and final Add actions. */
+/* Distinguish import and final Add actions. */
 .formHeaderActions .topUploadBtn {
   background: #ccfbf1;
   border: 1px solid #14b8a6;
   color: #115e59;
 }
 .formHeaderActions .topUploadBtn:hover { background: #99f6e4; border-color: #0d9488; }
-.formHeaderActions .topSaveDraftBtn,
-.accrualEntryFooter > .tableActionBtn {
-  background: #fef3c7;
-  border: 1px solid #f59e0b;
-  color: #92400e;
-}
-.formHeaderActions .topSaveDraftBtn:hover,
-.accrualEntryFooter > .tableActionBtn:hover { background: #fde68a; border-color: #d97706; }
 .formHeaderActions .topSubmitBtn,
 .accrualEntryFooter > .submitBtn {
   background: #1d4ed8;
@@ -1197,6 +1202,7 @@ textarea.input {
 .accrualEntryFooter > .submitBtn:hover { background: #1e40af; border-color: #1e40af; }
 .supplierSectionHeading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .supplierSectionHeading .missingSupplierLink { flex-shrink: 0; }
+.optionalFieldLabel { margin-left: 4px; color: #64748b; font-size: 11px; font-weight: 500; }
 @media (max-width: 640px) {
   .supplierSectionHeading { flex-direction: column; align-items: stretch; gap: 12px; }
 }

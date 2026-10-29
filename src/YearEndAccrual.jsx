@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import "./YearEndAccrualForm.css";
-import { getExpenseClassNames } from "./lib/ExpenseClasses";
+import { getExpenseClassNames, getExpenseClassRules } from "./lib/ExpenseClasses";
 import { getTaxCodeNames } from "./lib/TaxCodes";
 import { getTransactionTypeNames } from "./lib/TransactionTypes";
 import { getCompanyNames } from "./lib/Companies";
@@ -17,7 +17,6 @@ import { supabase } from "./lib/supabase";
 import { formatDisplayDate, getAccrualSetup, getAccrualWindowStatus } from "./lib/AccrualSetup";
 import {
   ACCRUAL_UPLOAD_COLUMNS,
-  NON_DEDUCTIBLE_EXPENSE,
   buildAccrualUploadPayloads,
   buildAccrualUploadTemplateSample,
 } from "./lib/accrualBulkUpload";
@@ -495,8 +494,19 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
   // ---------- Dropdown data with caching ----------
   const [companies, setCompanies] = useState([]);
   const [expenseClass, setExpenseClass] = useState([]);
+  const [expenseClassRules, setExpenseClassRules] = useState([]);
   const [transactionTypes, setTransactionTypes] = useState([]);
   const [taxCodes, setTaxCodes] = useState([]);
+  const selectedExpenseClassRule = useMemo(
+    () => expenseClassRules.find((rule) => String(rule.name).trim().toLowerCase() === String(headerInfo.expenseclass).trim().toLowerCase()),
+    [expenseClassRules, headerInfo.expenseclass]
+  );
+  const disabledExpenseFields = selectedExpenseClassRule?.disabled_fields || [];
+  const requiresSupplier = !disabledExpenseFields.includes("supplier");
+  const requiresInvoice = !disabledExpenseFields.includes("invoice_no");
+  const requiresProfitCenter = !disabledExpenseFields.includes("profit_center");
+  const requiresVat = !disabledExpenseFields.includes("vat");
+  const requiresTaxCode = !disabledExpenseFields.includes("tax_code");
 
   const [suppliers, setSuppliers] = useState([]);
   const [supplierSearch, setSupplierSearch] = useState(
@@ -511,6 +521,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
   const cacheRef = useRef({
     companies: null,
     expenseClass: null,
+    expenseClassRules: null,
     transactionTypes: null,
     taxCodes: null,
   });
@@ -520,7 +531,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addConfirmOpen, setAddConfirmOpen] = useState(false);
-  const [createdAsOpen, setCreatedAsOpen] = useState(false);
   const previousAccrualWindowLockedRef = useRef(true);
 
   // Track previous search values to prevent duplicate requests
@@ -553,6 +563,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       if (cacheRef.current.companies) {
         setCompanies(cacheRef.current.companies);
         setExpenseClass(cacheRef.current.expenseClass);
+        setExpenseClassRules(cacheRef.current.expenseClassRules);
         setTransactionTypes(cacheRef.current.transactionTypes);
         setTaxCodes(cacheRef.current.taxCodes);
         setStaticDataLoading(false);
@@ -566,8 +577,9 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           setStaticDataLoading(true);
           setStaticDataError(false);
 
-          const [expenseList, transactionList, taxList, companiesList] = await Promise.all([
+          const [expenseList, expenseRules, transactionList, taxList, companiesList] = await Promise.all([
             getExpenseClassNames(),
+            getExpenseClassRules(),
             getTransactionTypeNames(),
             getTaxCodeNames(),
             getCompanyNames()
@@ -585,12 +597,14 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           cacheRef.current = {
             companies: companiesList,
             expenseClass: expenseList,
+            expenseClassRules: expenseRules,
             transactionTypes: transactionList,
             taxCodes: taxList,
           };
 
           setCompanies(companiesList);
           setExpenseClass(expenseList);
+          setExpenseClassRules(expenseRules);
           setTransactionTypes(transactionList);
           setTaxCodes(taxList);
           setStaticDataLoading(false);
@@ -1134,7 +1148,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     return emailRegex.test(email);
   };
 
-  const handleSubmit = async (mode = "draft") => {
+  const handleSubmit = async () => {
     if (isSubmitting) return;
 
     const currentAccrualWindowStatus = getAccrualWindowStatus(accrualSetup, new Date());
@@ -1157,9 +1171,9 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       if (!currentUser?.email || !isValidEmail(currentUser.email)) headerErrs.email = true;
       if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
       if (!headerInfo.company) headerErrs.company = true;
-      if (!headerInfo.supplier) headerErrs.supplier = true;
+      if (requiresSupplier && !headerInfo.supplier) headerErrs.supplier = true;
 
-      if (headerInfo.expenseclass !== NON_DEDUCTIBLE_EXPENSE && !headerInfo.invoiceNo) {
+      if (requiresInvoice && !headerInfo.invoiceNo && !selectedExpenseClassRule?.default_invoice_no) {
         headerErrs.invoiceNo = true;
       }
 
@@ -1172,12 +1186,10 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
         if (!item.transType) errors.transType = true;
         if (!item.glaccount) errors.glaccount = true;
         if (!item.remarks) errors.remarks = true;
-        if (!item.profitcenter) errors.profitcenter = true;
+        if (requiresProfitCenter && !item.profitcenter) errors.profitcenter = true;
 
-        if (headerInfo.expenseclass !== NON_DEDUCTIBLE_EXPENSE) {
-          if (!item.vat) errors.vat = true;
-          if (!item.taxCode) errors.taxCode = true;
-        }
+        if (requiresVat && !item.vat) errors.vat = true;
+        if (requiresTaxCode && !item.taxCode) errors.taxCode = true;
         return errors;
       });
 
@@ -1193,7 +1205,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       }
 
       const controlNumber = await submitAccrual({
-        open: mode === "open",
         header: {
           maker: currentUser?.email || "",
           requester_email: currentUser?.email || "",
@@ -1201,7 +1212,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           company: headerInfo.company,
           supplier_code: headerInfo.supplier,
           supplier_name: headerInfo.supplierName,
-          invoice_no: headerInfo.invoiceNo || null,
+          invoice_no: headerInfo.invoiceNo || selectedExpenseClassRule?.default_invoice_no || null,
           status: 2,
         },
         lineItems: lineItems.map((item, index) => ({
@@ -1219,10 +1230,9 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       });
 
       // Success
-      setCreatedAsOpen(mode === "open");
       setModalMessage(controlNumber);
       setShowModal(true);
-      showToast(`${mode === "open" ? "Accrual added as Open" : "Draft saved successfully"}. Control number: ${controlNumber}`, "success");
+      showToast(`Accrual submitted for confirmation. Control number: ${controlNumber}`, "success");
 
       // Reset form
       setHeaderInfo({
@@ -1405,6 +1415,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
       const companySet = new Set(companies.map((value) => normalizeKey(value)));
       const expenseClassSet = new Set(expenseClass.map((value) => normalizeKey(value)));
+      const expenseClassRuleMap = new Map(expenseClassRules.map((rule) => [normalizeKey(rule.name), rule]));
       const transactionTypeSet = new Set(transactionTypes.map((value) => normalizeKey(value)));
       const taxCodeSet = new Set(taxCodes.map((value) => normalizeKey(value)));
       const supplierByCompanyAndCode = new Map(
@@ -1461,7 +1472,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           glByCode.set(codeKey, [existing, nextMatch]);
         }
       });
-      const glCodeSet = new Set(glRows.map((row) => normalizeKey(row.glaccountcode)));
       const profitCenterByCompanyAndCode = new Map(
         profitCenterRows.map((row) => [
           `${normalizeKey(row.company)}::${normalizeKey(row.profitcentercode)}`,
@@ -1489,7 +1499,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           profitCenterByCode.set(codeKey, [existing, nextMatch]);
         }
       });
-      const profitCenterCodeSet = new Set(profitCenterRows.map((row) => normalizeKey(row.profitcentercode)));
       const fileRowKeys = new Set();
       const sequenceHeaderMap = new Map();
 
@@ -1501,12 +1510,15 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
         const companyValue = normalizeValue(row.company);
         const supplierCode = normalizeValue(row.supplier_code);
         const supplierName = normalizeValue(row.supplier_name);
-        const invoiceNo = normalizeValue(row.invoice_no);
+        let invoiceNo = normalizeValue(row.invoice_no);
+        const expenseClassRule = expenseClassRuleMap.get(normalizeKey(expenseClassValue));
+        if (!invoiceNo && expenseClassRule?.default_invoice_no) {
+          invoiceNo = normalizeValue(expenseClassRule.default_invoice_no);
+          nextRow.invoice_no = invoiceNo;
+        }
         const grossAmount = normalizeValue(row.gross_amount);
         const glCode = normalizeValue(row.glaccount_code);
-        const glName = normalizeValue(row.glaccount_name);
         const profitCenterCode = normalizeValue(row.profitcenter_code);
-        const profitCenterName = normalizeValue(row.profitcenter_name);
         const transactionTypeValue = normalizeValue(row.transaction_type);
         const vatValue = normalizeValue(row.vat);
         const taxCodeValue = normalizeValue(row.tax_code);
@@ -1521,9 +1533,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           invoiceNo,
           grossAmount,
           glCode,
-          glName,
           profitCenterCode,
-          profitCenterName,
           transactionTypeValue,
           vatValue,
           taxCodeValue,
@@ -1566,7 +1576,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           nextRow.__errors.push("Company does not exist");
         }
 
-        if (!supplierCode) {
+        if (!supplierCode && !(expenseClassRule?.disabled_fields || []).includes("supplier")) {
           nextRow.__errors.push("Missing supplier code");
         }
         if (companyValue && supplierCode) {
@@ -1583,7 +1593,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           }
         }
 
-        if (expenseClassValue && expenseClassValue !== NON_DEDUCTIBLE_EXPENSE && !invoiceNo) {
+        if (expenseClassValue && !(expenseClassRule?.disabled_fields || []).includes("invoice_no") && !invoiceNo) {
           nextRow.__errors.push("Invoice no. is required for this expense class");
         }
 
@@ -1597,22 +1607,20 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           nextRow.__errors.push("Missing GL account code");
         }
         if (glCode) {
-          const normalizedGlCode = normalizeKey(glCode);
           const glMatch =
             (companyValue && resolveCompanyCodeMatch(companyValue, glCode, glByCompanyAndCode, glByCode)) ||
             resolveAnyCodeMatch(glCode, glByCode);
-          if (!glCodeSet.has(normalizedGlCode)) {
-            nextRow.__errors.push("GL account does not exist");
+          if (!glMatch) {
+            nextRow.__errors.push("GL account does not exist in the master list");
           } else {
-            nextRow.glaccount_name = glMatch?.name || glName;
+            nextRow.glaccount_name = glMatch.name;
           }
         }
 
-        if (!profitCenterCode) {
+        if (!profitCenterCode && !(expenseClassRule?.disabled_fields || []).includes("profit_center")) {
           nextRow.__errors.push("Missing profit center code");
         }
         if (profitCenterCode) {
-          const normalizedProfitCenterCode = normalizeKey(profitCenterCode);
           const profitCenterMatch =
             (companyValue &&
               resolveCompanyCodeMatch(
@@ -1622,10 +1630,10 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
                 profitCenterByCode
               )) ||
             resolveAnyCodeMatch(profitCenterCode, profitCenterByCode);
-          if (!profitCenterCodeSet.has(normalizedProfitCenterCode)) {
-            nextRow.__errors.push("Profit center does not exist");
+          if (!profitCenterMatch) {
+            nextRow.__errors.push("Profit center does not exist in the master list");
           } else {
-            nextRow.profitcenter_name = profitCenterMatch?.name || profitCenterName;
+            nextRow.profitcenter_name = profitCenterMatch.name;
           }
         }
 
@@ -1635,13 +1643,15 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           nextRow.__errors.push("Transaction type does not exist");
         }
 
-        if (expenseClassValue !== NON_DEDUCTIBLE_EXPENSE) {
+        if (!(expenseClassRule?.disabled_fields || []).includes("vat")) {
           if (!vatValue) {
             nextRow.__errors.push("Missing VAT");
           } else if (!["vatable", "non-vatable"].includes(normalizeKey(vatValue))) {
             nextRow.__errors.push("VAT must be Vatable or Non-Vatable");
           }
+        }
 
+        if (!(expenseClassRule?.disabled_fields || []).includes("tax_code")) {
           if (!taxCodeValue) {
             nextRow.__errors.push("Missing tax code");
           } else if (!taxCodeSet.has(normalizeKey(taxCodeValue))) {
@@ -1676,6 +1686,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       accrualWindowStatus.reason,
       companies,
       expenseClass,
+      expenseClassRules,
       staticDataLoading,
       taxCodes,
       transactionTypes,
@@ -1836,6 +1847,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     cacheRef.current = {
       companies: null,
       expenseClass: null,
+      expenseClassRules: null,
       transactionTypes: null,
       taxCodes: null,
     };
@@ -1883,7 +1895,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           <section className="filingStatusPage">
             <div className="filingPageHeading">
               <h1>New Accrual</h1>
-              <p>Save and review drafts before adding your year-end accrual entries.</p>
+              <p>New accrual entry is unavailable while the filing period is closed.</p>
             </div>
             <div className="filingStatusCard" aria-live="polite">
               <div className="filingStatusContent">
@@ -1912,7 +1924,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           <div className="formHeaderBar">
             <div>
               <h1 className="h1">New Accrual</h1>
-              <p className="headerText">Save your accrual as a draft. Review it in All Accruals, then select Add to make it Open.</p>
+              <p className="headerText">Enter the accrual details and submit it for confirmation.</p>
             </div>
             <div className="formHeaderActions">
               <button
@@ -1922,14 +1934,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
                 disabled={staticDataLoading || isAccrualWindowLocked}
               >
                 Upload Accruals
-              </button>
-              <button
-                type="button"
-                className="tableActionBtn topSaveDraftBtn"
-                onClick={() => handleSubmit("draft")}
-                disabled={isSubmitting || isAccrualWindowLocked}
-              >
-                {isSubmitting ? "Saving..." : "Save Draft"}
               </button>
               <button type="button" className="submitBtn topSubmitBtn" disabled={isSubmitting || isAccrualWindowLocked} onClick={() => setAddConfirmOpen(true)}>Add</button>
             </div>
@@ -1974,7 +1978,14 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               value={headerInfo.expenseclass}
               disabled={isAccrualWindowLocked}
               onChange={(e) => {
-                setHeaderInfo({ ...headerInfo, expenseclass: e.target.value });
+                const nextRule = expenseClassRules.find((rule) => rule.name === e.target.value);
+                setHeaderInfo((current) => ({
+                  ...current,
+                  expenseclass: e.target.value,
+                  invoiceNo: nextRule?.default_invoice_no
+                    ? current.invoiceNo || nextRule.default_invoice_no
+                    : current.invoiceNo === selectedExpenseClassRule?.default_invoice_no ? "" : current.invoiceNo,
+                }));
                 setHeaderErrors((prev) => ({ ...prev, expenseclass: false }));
               }}
             >
@@ -2039,7 +2050,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               </button>
           </div>
           <div className="formGroup" style={{ position: "relative" }}>
-            <label className="label">Supplier <span className="required">*</span></label>
+            <label className="label">Supplier {requiresSupplier ? <span className="required">*</span> : null}</label>
             <input
               type="text"
               className={`input ${headerErrors.supplier ? "inputError" : ""}`}
@@ -2055,7 +2066,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
                 setHeaderErrors((prev) => ({ ...prev, supplier: false }));
               }}
               onFocus={() => setShowSupplierDropdown(supplierSearch.length >= 2)}
-              disabled={isDisabled}
+              disabled={isDisabled || !requiresSupplier}
             />
             {headerErrors.supplier && (
               <div className="errorText">Supplier is Required.</div>
@@ -2109,12 +2120,12 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           </div>
           <div className="formGroup">
             <label className="label">
-              Invoice No. <span className="required">*</span>
+              Invoice No. {requiresInvoice ? <span className="required">*</span> : null}
             </label>
             <input
               type="text"
               className={`input ${headerErrors.invoiceNo ? "inputError" : ""}`}
-              disabled={isDisabled}
+              disabled={isDisabled || !requiresInvoice}
               placeholder="Enter invoice number"
               value={headerInfo.invoiceNo}
               onChange={(e) => {
@@ -2274,11 +2285,11 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               {/* PROFIT CENTER */}
               <div className="formGroup1" style={{ position: "relative" }}>
                 <label className="label">
-                  Profit Center Code <span className="required">*</span>
+                  Profit Center Code {requiresProfitCenter ? <span className="required">*</span> : null}
                 </label>
                 <input
                   type="text"
-                  disabled={isDisabled}
+                  disabled={isDisabled || !requiresProfitCenter}
                   className={`inputItem ${lineItemErrors[index]?.profitcenter ? "inputError" : ""}`}
                   placeholder="Type to search Profit Center Code."
                   value={item.profitSearch}
@@ -2375,15 +2386,14 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
                 <FieldTip>Choose the transaction type that best matches the source document or accrual scenario.</FieldTip>
               </div>
 
-              {headerInfo.expenseclass !== NON_DEDUCTIBLE_EXPENSE && (
-                <>
+              <>
                   {/* VAT */}
                   <div className="formGroup1">
-                    <label className="label"> VAT <span className="required">*</span> </label>
+                    <label className="label"> VAT {requiresVat ? <span className="required">*</span> : null} </label>
                     <select
                       className={`select ${lineItemErrors[index]?.vat ? "inputError" : ""}`}
                       value={item.vat}
-                      disabled={isDisabled}
+                      disabled={isDisabled || !requiresVat}
                       onChange={(e) => {
                         updateLineItem(item.id, "vat", e.target.value);
                         setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, vat: false } : err));
@@ -2398,11 +2408,11 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
                   {/* Tax Code */}
                   <div className="formGroup1">
-                    <label className="label"> Tax Code <span className="required">*</span> </label>
+                    <label className="label"> Tax Code {requiresTaxCode ? <span className="required">*</span> : null} </label>
                     <select
                       className={`select ${lineItemErrors[index]?.taxCode ? "inputError" : ""}`}
                       value={item.taxCode}
-                      disabled={isDisabled}
+                      disabled={isDisabled || !requiresTaxCode}
                       onChange={(e) => {
                         updateLineItem(item.id, "taxCode", e.target.value);
                         setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, taxCode: false } : err));
@@ -2413,8 +2423,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
                     </select>
                     {lineItemErrors[index]?.taxCode && <div className="errorText">Tax Code is required</div>}
                   </div>
-                </>
-              )}
+              </>
 
               <div className="formGroup1">
                 <label className="label">Remarks <span className="required">*</span> </label>
@@ -2436,18 +2445,6 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     </div>
 
     <div className="formFooter accrualEntryFooter">
-      <button
-        type="button"
-        className="tableActionBtn"
-        onClick={() => handleSubmit("draft")}
-        disabled={isSubmitting || isAccrualWindowLocked}
-        style={{
-          opacity: isSubmitting || isAccrualWindowLocked ? 0.6 : 1,
-          cursor: isSubmitting || isAccrualWindowLocked ? "not-allowed" : "pointer",
-        }}
-      >
-        {isSubmitting ? "Saving..." : "Save Draft"}
-      </button>
       <button type="button" className="submitBtn" disabled={isSubmitting || isAccrualWindowLocked} onClick={() => setAddConfirmOpen(true)}>Add</button>
     </div>
           </>
@@ -2457,11 +2454,10 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
       <div className="modalOverlay maintenanceOverlay">
         <section className="modalContent maintenanceDialog addAccrualConfirm" role="dialog" aria-modal="true" aria-labelledby="addAccrualConfirmTitle">
           <h2 id="addAccrualConfirmTitle" className="modalTitle">Add this accrual?</h2>
-          <p>This will save your accrual as <strong>Open</strong> immediately. You will no longer be able to edit it.</p>
-          <p>Choose <strong>Save Draft</strong> on the form if you want to review or edit it later.</p>
+          <p>This will submit your accrual as <strong>For Confirmation</strong>. You can edit it until it is confirmed.</p>
           <div className="dialogActions">
             <button type="button" className="tableActionBtn" autoFocus onClick={() => setAddConfirmOpen(false)}>Go back</button>
-            <button type="button" className="submitBtn" onClick={() => { setAddConfirmOpen(false); handleSubmit("open"); }}>Add accrual</button>
+            <button type="button" className="submitBtn" onClick={() => { setAddConfirmOpen(false); handleSubmit(); }}>Submit for confirmation</button>
           </div>
         </section>
       </div>
@@ -2652,7 +2648,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               fontFamily: "'Google Sans', sans-serif",
             }}
           >
-            {createdAsOpen ? "Accrual added" : "Draft saved"}
+            Submitted for confirmation
           </h2>
           <p
             style={{
@@ -2662,7 +2658,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               lineHeight: "1.6",
             }}
           >
-            {createdAsOpen ? "Your accrual control number:" : "Your draft control number:"}
+            Your accrual control number:
           </p>
           <div
             style={{
@@ -2684,7 +2680,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
               lineHeight: "1.6",
             }}
           >
-            {createdAsOpen ? "Your accrual is now Open. View it in All Accruals. Open entries can no longer be edited." : "Review your draft in All Accruals. You can edit it, then select Add to change its status to Open."}
+            Review your accrual in All Accruals. You can edit it until it is confirmed.
           </p>
           <button
             onClick={() => setShowModal(false)}
@@ -2704,8 +2700,13 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     <UploadDataDialog
       open={uploadOpen}
       title="Upload Accruals"
-      description="Upload accruals as drafts using a CSV file. Review each draft in All Accruals, then select Add to make it Open."
+      description="Upload accruals from a CSV file. Each entry will be submitted as For Confirmation and can be edited until confirmed."
       templateColumns={ACCRUAL_UPLOAD_COLUMNS}
+      previewOnlyColumns={[
+        { key: "supplier_name", label: "Supplier Name", after: "supplier_code" },
+        { key: "glaccount_name", label: "GL Account Name", after: "glaccount_code" },
+        { key: "profitcenter_name", label: "Profit Center Name", after: "profitcenter_code" },
+      ]}
       templateSampleRow={buildAccrualUploadTemplateSample({
         expenseClasses: expenseClass,
         companies,

@@ -2624,12 +2624,12 @@ a {
 }
 .accrualSummaryChip span { font-size: 11px; font-weight: 700; letter-spacing: .035em; text-transform: uppercase; }
 .accrualSummaryChip strong { color: #0f172a; font-size: 18px; line-height: 1; font-variant-numeric: tabular-nums; }
-.accrualSummaryChip.open { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
-.accrualSummaryChip.open strong { color: #1d4ed8; }
+.accrualSummaryChip.confirmed { background: #ecfdf5; border-color: #a7f3d0; color: #047857; }
+.accrualSummaryChip.confirmed strong { color: #047857; }
 .accrualSummaryChip.cancelled { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
 .accrualSummaryChip.cancelled strong { color: #b91c1c; }
-.accrualSummaryChip.draft { background: #fffbeb; border-color: #fde68a; color: #a16207; }
-.accrualSummaryChip.draft strong { color: #a16207; }
+.accrualSummaryChip.forConfirmation { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+.accrualSummaryChip.forConfirmation strong { color: #1d4ed8; }
 .accrualSummaryChip.active { box-shadow: 0 0 0 2px rgba(37, 99, 235, .16), 0 3px 8px rgba(15, 23, 42, .08); border-color: #2563eb; transform: translateY(-1px); }
 .accrualSummaryChip:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
 
@@ -3886,6 +3886,11 @@ a {
   color: #1d4ed8;
 }
 
+.statusPill.confirmed {
+  background: #d1fae5;
+  color: #047857;
+}
+
 .statusPill.warning {
   background: #fef3c7;
   color: #a16207;
@@ -4478,8 +4483,8 @@ a {
 
 .maintenanceOverlay {
   background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   padding: 16px;
   overflow: auto;
 }
@@ -6483,6 +6488,25 @@ a {
   white-space: normal;
 }
 
+.maintenanceCheckboxGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.maintenanceCheckboxOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #334155;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .maintenanceEntryDialog .input,
 .maintenanceEntryDialog .select {
   min-height: 46px;
@@ -6718,6 +6742,18 @@ a {
 .accrualDetailDialog .modalTitle { margin: 0; padding: 0; }
 .accrualDetailHeaderActions { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
 .accrualDetailHeaderActions .accrualNotesAction { min-height: 36px; height: 36px; padding: 0 14px; }
+.accrualDetailHeaderActions .accrualInfoAction { min-height: 36px; height: 36px; padding: 0 14px; }
+.accrualInfoOverlay {
+  z-index: 10020;
+  background: rgba(15, 23, 42, 0.16);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.modalContent.maintenanceDialog.accrualInfoDialog { width: min(460px, calc(100vw - 32px)); padding: 22px; text-align: left; }
+.accrualInfoList { display: grid; gap: 10px; margin: 20px 0 0; }
+.accrualInfoList > div { display: flex; justify-content: space-between; gap: 20px; padding: 12px; border: 1px solid #dbe4f0; border-radius: 9px; background: #f8fafc; }
+.accrualInfoList dt { color: #64748b; font-weight: 700; }
+.accrualInfoList dd { margin: 0; color: #0f172a; text-align: right; }
 /* Phone layouts prioritize readable content and touch targets. */
 @media (max-width: 640px) {
   .appTopbar { height: 52px; min-height: 52px; flex-basis: 52px; padding: 0 12px; gap: 8px; }
@@ -6827,6 +6863,16 @@ a {
   background: #e2e8f0;
   border-color: #94a3b8;
 }
+.accrualDetailDialog .dialogActions button.danger:last-child {
+  order: 0;
+  background: #dc2626;
+  border-color: #dc2626;
+  color: #fff;
+}
+.accrualDetailDialog .dialogActions button.danger:last-child:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+}
 
 @media (max-width: 720px) {
   .uploadDialog .dialogForm {
@@ -6928,7 +6974,8 @@ a {
 .allAccrualsPage .maintenanceTable th:nth-child(3),
 .allAccrualsPage .maintenanceTable td:nth-child(3) { width: 190px; }
 .allAccrualsPage .maintenanceTable th:nth-child(4),
-.allAccrualsPage .maintenanceTable td:nth-child(4) { width: 90px; }
+.allAccrualsPage .maintenanceTable td:nth-child(4) { width: 120px; }
+.allAccrualsPage .maintenanceTable th:nth-child(4) { width: 120px; }
 .allAccrualsPage .maintenanceTable th:nth-child(5),
 .allAccrualsPage .maintenanceTable td:nth-child(5) { width: 150px; }
 .allAccrualsPage .maintenanceTable th:nth-child(6),
@@ -6972,12 +7019,19 @@ a {
   font-variant-numeric: tabular-nums;
 }
 .allAccrualsPage .maintenanceTable .statusPill {
-  width: 78px;
+  width: 108px;
+  min-width: 0;
+  max-width: 100%;
   min-height: 26px;
   box-sizing: border-box;
   justify-content: center;
   padding: 0 6px;
+  font-size: 11px;
   white-space: nowrap;
+}
+.allAccrualsPage .maintenanceTable .statusPill.warning {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 .allAccrualsPage .maintenanceTable tbody tr.interactiveRow:hover { background: #eef4ff; }
 .allAccrualsPage .maintenanceTable td:nth-child(2),

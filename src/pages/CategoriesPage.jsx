@@ -32,8 +32,36 @@ export const categoryConfigs = {
     table: "expense_classes",
     orderBy: "name",
     searchColumns: ["name"],
-    fields: [{ name: "name", label: "Expense Classification", required: true }],
-    columns: [{ key: "name", label: "Expense Classification" }],
+    fields: [
+      { name: "name", label: "Expense Classification", required: true, span: 2 },
+      {
+        name: "disabled_fields",
+        label: "Fields to disable",
+        type: "checkboxGroup",
+        options: [
+          { value: "supplier", label: "Supplier" },
+          { value: "invoice_no", label: "Invoice number" },
+          { value: "profit_center", label: "Profit center" },
+          { value: "vat", label: "VAT" },
+          { value: "tax_code", label: "Tax code" },
+        ],
+        span: 2,
+      },
+      { name: "default_invoice_no", label: "Default invoice number", required: false },
+    ],
+    defaults: { disabled_fields: [], default_invoice_no: "" },
+    columns: [
+      { key: "name", label: "Expense Classification" },
+      {
+        key: "disabled_fields",
+        label: "Disabled Fields",
+        render: (row) => {
+          const labels = { supplier: "Supplier", invoice_no: "Invoice number", profit_center: "Profit center", vat: "VAT", tax_code: "Tax code" };
+          return (row.disabled_fields || []).map((field) => labels[field] || field).join(", ") || "None";
+        },
+      },
+      { key: "default_invoice_no", label: "Default Invoice", render: (row) => row.default_invoice_no || "—" },
+    ],
     uploadColumns: ["name"],
     uploadFileName: "expense-classifications-template.csv",
     uploadSampleRow: { name: "Travel" },
@@ -77,6 +105,8 @@ export default function CategoriesPage({ categoryKey = "companies" }) {
 
   const config = useMemo(() => categoryConfigs[categoryKey] || categoryConfigs.companies, [categoryKey]);
 
+  const resetFormValues = () => ({ id: null, ...(config.defaults || {}) });
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setErrorMessage("");
@@ -108,7 +138,12 @@ export default function CategoriesPage({ categoryKey = "companies" }) {
 
     try {
       const payload = config.fields.reduce((next, field) => {
-        next[field.name] = (formValues[field.name] || "").trim();
+        const value = formValues[field.name];
+        next[field.name] = field.type === "checkbox"
+          ? Boolean(value)
+          : field.type === "checkboxGroup"
+            ? (Array.isArray(value) ? value : [])
+            : String(value || "").trim();
         return next;
       }, {});
 
@@ -119,7 +154,7 @@ export default function CategoriesPage({ categoryKey = "companies" }) {
       }
 
       setDialogOpen(false);
-      setFormValues({ id: null });
+      setFormValues(resetFormValues());
       showToast(formValues.id ? `${config.singular} updated successfully.` : `${config.singular} created successfully.`, "success");
       await loadData();
     } catch (error) {
@@ -226,7 +261,7 @@ export default function CategoriesPage({ categoryKey = "companies" }) {
             type="button"
             className="submitBtn"
             onClick={() => {
-              setFormValues({ id: null });
+              setFormValues(resetFormValues());
               setDialogOpen(true);
             }}
           >
@@ -263,7 +298,7 @@ export default function CategoriesPage({ categoryKey = "companies" }) {
         onChange={(name, value) => setFormValues((current) => ({ ...current, [name]: value }))}
         onClose={() => {
           setDialogOpen(false);
-          setFormValues({ id: null });
+          setFormValues(resetFormValues());
         }}
         onSubmit={submitDialog}
         submitLabel={formValues.id ? "Update" : "Create"}

@@ -42,16 +42,18 @@ export default function MaintenanceDialog({
             <div className="dialogGrid">
               {fields.map((field) => {
                 const value = values[field.name] ?? "";
+                const FieldWrapper = field.type === "checkboxGroup" ? "div" : "label";
                 const commonProps = {
                   id: field.name,
-                  value,
-                  onChange: (event) => onChange(field.name, event.target.value),
+                  value: field.type === "checkbox" ? undefined : value,
+                  checked: field.type === "checkbox" ? Boolean(value) : undefined,
+                  onChange: (event) => onChange(field.name, field.type === "checkbox" ? event.target.checked : event.target.value),
                   placeholder: field.placeholder || "",
                   required: field.required,
                 };
 
                 return (
-                  <label key={field.name} className={`dialogField${field.span === 2 ? " spanTwo" : ""}`}>
+                  <FieldWrapper key={field.name} className={`dialogField${field.span === 2 ? " spanTwo" : ""}`}>
                     <span className="label">
                       {field.label}
                       {field.required ? <span className="required"> *</span> : null}
@@ -69,12 +71,32 @@ export default function MaintenanceDialog({
                           </option>
                         ))}
                       </select>
+                    ) : field.type === "checkboxGroup" ? (
+                      <div className="maintenanceCheckboxGroup">
+                        {(field.options || []).map((option) => (
+                          <label key={option.value} className="maintenanceCheckboxOption">
+                            <input
+                              type="checkbox"
+                              checked={(Array.isArray(value) ? value : []).includes(option.value)}
+                              onChange={(event) => {
+                                const selected = new Set(Array.isArray(value) ? value : []);
+                                if (event.target.checked) selected.add(option.value);
+                                else selected.delete(option.value);
+                                onChange(field.name, Array.from(selected));
+                              }}
+                            />
+                            {option.label}
+                          </label>
+                        ))}
+                      </div>
+                    ) : field.type === "checkbox" ? (
+                      <input type="checkbox" {...commonProps} />
                     ) : field.type === "textarea" ? (
                       <textarea className="input" rows={4} {...commonProps} />
                     ) : (
                       <input className="input" type={field.type || "text"} {...commonProps} />
                     )}
-                  </label>
+                  </FieldWrapper>
                 );
               })}
             </div>
