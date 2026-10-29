@@ -176,8 +176,8 @@ function BrandLogo() {
   return (
     <img
       className="brandLogoSvg"
-      src={`${process.env.PUBLIC_URL || ""}/favicon.svg`}
-      alt="Accrual Mgr logo"
+      src={`${process.env.PUBLIC_URL || ""}/bounty.jpg`}
+      alt="Bounty logo"
     />
   );
 }
@@ -752,8 +752,8 @@ function Sidebar({
             <BrandLogo />
           </div>
           <div className="brandText">
-            <div className="brandTitle">Accrual Manager</div>
-            <div className="brandSubtitle">Finance workspace</div>
+            <div className="brandTitle">Bounty Accrual Engine</div>
+            <div className="brandSubtitle">BAE</div>
           </div>
         </div>
         <button
@@ -920,8 +920,8 @@ function LoginShellLoader() {
               <BrandLogo />
             </div>
             <div>
-              <div className="authLoginEyebrow">Workspace</div>
-              <div className="authLoginBrand">Accrual Mgr</div>
+              <div className="authLoginEyebrow">BAE</div>
+              <div className="authLoginBrand">Bounty Accrual Engine</div>
             </div>
           </div>
 
@@ -1041,8 +1041,8 @@ function LoginScreen({ onLogin, signingIn, announcements, onExpandAnnouncement }
               <BrandLogo />
             </div>
             <div>
-              <div className="authLoginEyebrow">Workspace</div>
-              <div className="authLoginBrand">Accrual Mgr</div>
+              <div className="authLoginEyebrow">BAE</div>
+              <div className="authLoginBrand">Bounty Accrual Engine</div>
             </div>
           </div>
 
