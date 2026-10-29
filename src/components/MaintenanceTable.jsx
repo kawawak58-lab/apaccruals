@@ -142,7 +142,8 @@ export default function MaintenanceTable({
                   const sortArrow = isSorted ? (sortConfig.direction === "asc" ? "↑" : "↓") : "↕";
 
                   return (
-                    <th key={column.key}>
+                    <th key={column.key} className={column.className} aria-label={column.hideHeader ? column.label : undefined}>
+                      {column.hideHeader ? null : (
                       <button
                         type="button"
                         className={`columnSortButton${column.sortable === false ? " disabled" : ""}`}
@@ -153,6 +154,7 @@ export default function MaintenanceTable({
                         <span>{column.label}</span>
                         {column.sortable === false ? null : <span className="sortArrow">{sortArrow}</span>}
                       </button>
+                      )}
                     </th>
                   );
                 })}
@@ -189,7 +191,7 @@ export default function MaintenanceTable({
                     }}
                   >
                     {columns.map((column) => (
-                      <td key={column.key} data-label={column.label}>{column.render ? column.render(row) : row[column.key] ?? "-"}</td>
+                      <td key={column.key} className={column.className} data-label={column.label}>{column.render ? column.render(row) : row[column.key] ?? "-"}</td>
                     ))}
                     {(onEdit || onDelete || rowActions) && (
                       <td className="tableActions" data-label="Actions">

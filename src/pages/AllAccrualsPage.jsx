@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import MaintenanceSkeleton from "../components/MaintenanceSkeleton";
 import MaintenanceTable from "../components/MaintenanceTable";
 import DraftAccrualEditor from "../DraftAccrualEditor";
+import AccrualNotesDialog from "../components/AccrualNotesDialog";
 import { cancelAccrual, fetchAccrualSubmissions, openAccrualDraft } from "../lib/AccrualSubmissions";
 import { useToast } from "../lib/toast";
 
@@ -413,6 +414,7 @@ export default function AllAccrualsPage({ currentUser }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [submissions, setSubmissions] = useState([]);
   const [selectedSubmission, setSelectedSubmission] = useState(null);
+  const [notesSubmission, setNotesSubmission] = useState(null);
   const [cancelDialogSubmission, setCancelDialogSubmission] = useState(null);
   const [cancellationRemarks, setCancellationRemarks] = useState("");
   const [cancelSaving, setCancelSaving] = useState(false);
@@ -738,10 +740,32 @@ export default function AllAccrualsPage({ currentUser }) {
         {errorMessage ? <div className="inlineError">{errorMessage}</div> : null}
 
         {loading ? (
-          <MaintenanceSkeleton columns={7} rows={8} />
+          <MaintenanceSkeleton columns={8} rows={8} />
         ) : (
           <MaintenanceTable
             columns={[
+              {
+                key: "notes",
+                label: "Notes",
+                sortable: false,
+                hideHeader: true,
+                className: "accrualNotesColumn",
+                render: (row) => (
+                  <button
+                    type="button"
+                    className="accrualNotesIconButton"
+                    onClick={(event) => { event.stopPropagation(); setNotesSubmission(row); }}
+                    onDoubleClick={(event) => event.stopPropagation()}
+                    aria-label={`Notes for ${row.control_number}`}
+                    title={`Notes for ${row.control_number}`}
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M5 4.5h14v15H5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                      <path d="M8 8h8M8 11h8M8 14h6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                ),
+              },
               { key: "control_number", label: "Control No." },
               { key: "submitted_at", label: "Timestamp", render: (row) => formatDateTime(row.submitted_at) },
               {
@@ -789,6 +813,13 @@ export default function AllAccrualsPage({ currentUser }) {
           showToast("Draft updated successfully.", "success");
         }}
       /> : null}
+      {notesSubmission ? (
+        <AccrualNotesDialog
+          key={notesSubmission.id}
+          submission={notesSubmission}
+          onClose={() => setNotesSubmission(null)}
+        />
+      ) : null}
       {selectedSubmission ? (
         <div className="modalOverlay maintenanceOverlay">
           <div className="modalContent maintenanceDialog accrualDetailDialog" style={detailDialogStyle}>
@@ -905,6 +936,7 @@ export default function AllAccrualsPage({ currentUser }) {
               </div>
 
               <div className="dialogActions">
+                <button type="button" className="tableActionBtn accrualNotesAction" onClick={() => { setNotesSubmission(selectedSubmission); setSelectedSubmission(null); }}>Notes</button>
                 {canManageDraft(selectedSubmission) ? <>
                   <button type="button" className="tableActionBtn" disabled={addingDraft} onClick={() => { setEditingDraft(selectedSubmission); setSelectedSubmission(null); }}>Edit</button>
                   <button type="button" className="submitBtn" disabled={addingDraft} onClick={() => handleAddDraft(selectedSubmission)}>{addingDraft ? "Adding..." : "Add"}</button>

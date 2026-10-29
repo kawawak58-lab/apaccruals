@@ -94,3 +94,23 @@ export async function openAccrualDraft(submissionId) {
   if (error) throw error;
   return data;
 }
+
+export async function fetchAccrualNotes(submissionId) {
+  const { data, error } = await supabase
+    .from("accrual_notes")
+    .select("id, submission_id, author_id, author_name, author_email, body, created_at")
+    .eq("submission_id", submissionId)
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function addAccrualNote(submissionId, body) {
+  const { data, error } = await supabase.rpc("add_accrual_note", {
+    p_submission_id: submissionId,
+    p_body: body,
+  });
+  if (error) throw error;
+  return data;
+}
