@@ -10,6 +10,7 @@ export default function MaintenanceTable({
   rowActions,
   onRowClick,
   onRowDoubleClick,
+  rowClassName,
   deleteMessage,
   emptyHelperText,
   initialPageSize = 25,
@@ -189,7 +190,10 @@ export default function MaintenanceTable({
                   return (
                   <tr
                     key={row[rowKey]}
-                    className={onRowClick || onRowDoubleClick || onEdit ? "interactiveRow" : ""}
+                    className={[
+                      onRowClick || onRowDoubleClick || onEdit ? "interactiveRow" : "",
+                      rowClassName?.(row) || "",
+                    ].filter(Boolean).join(" ")}
                     onClick={(event) => {
                       if (onRowClick && !event.target.closest("button, a, input, select, textarea, label")) {
                         onRowClick(row);

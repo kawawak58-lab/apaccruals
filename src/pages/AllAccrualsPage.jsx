@@ -873,6 +873,7 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
             ]}
             rows={filteredSubmissions}
             initialSort={{ key: "created_at", direction: "desc" }}
+            rowClassName={(row) => selectedConfirmationIds.includes(row.id) ? "confirmationSelectedRow" : ""}
             showRowCount
             emptyText="No accrual submissions found."
             emptyHelperText="New and uploaded accruals appear as For Confirmation. Review the details, then confirm them individually or select at least two to confirm together."

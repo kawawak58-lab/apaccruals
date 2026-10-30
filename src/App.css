@@ -7916,6 +7916,11 @@ a {
   background: #1d4ed8;
 }
 
+.allAccrualsPage .accrualConfirmCheckbox:hover:not(:disabled) {
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .14);
+}
+
 .allAccrualsPage .accrualConfirmCheckbox:checked::after {
   content: "";
   width: 4px;
@@ -7934,6 +7939,15 @@ a {
   flex: 0 0 30px;
   width: 30px;
   height: 30px;
+}
+
+.allAccrualsPage .maintenanceTable tbody tr.confirmationSelectedRow {
+  background: #eaf2ff;
+  box-shadow: inset 3px 0 #2563eb;
+}
+
+.allAccrualsPage .maintenanceTable tbody tr.confirmationSelectedRow:hover {
+  background: #dceaff;
 }
 
 @media (max-width: 640px) {
