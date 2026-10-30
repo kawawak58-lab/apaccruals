@@ -266,7 +266,7 @@ export default function AccrualEntryTable({
         <div className="accrualEntryHeadingText">
           <h2 className="accrualEntrySectionLabel">Entry</h2>
           <p className="accrualEntrySubmittingAs">
-            Submitting as <strong>{currentUser?.email || ""}</strong><span className="accrualEntryMetaDot"> · </span><span className="accrualEntryRequiredMark">*</span> Required<span className="accrualEntryMetaDot"> · </span>Rows with the same Seq. share one accrual
+            Submitting as <strong>{currentUser?.email || ""}</strong><span className="accrualEntryMetaDot"> · </span><span className="accrualEntryRequiredMark">*</span> Required<span className="accrualEntryMetaDot"> · </span>Rows with the same Seq. number constitute one (1) invoice or accrual.
           </p>
         </div>
         <div className="accrualEntryTableActions">

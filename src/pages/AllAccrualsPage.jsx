@@ -439,6 +439,8 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
   const [cancelSaving, setCancelSaving] = useState(false);
   const [editingDraft, setEditingDraft] = useState(null);
   const [confirmingAccrual, setConfirmingAccrual] = useState(false);
+  const [selectedConfirmationIds, setSelectedConfirmationIds] = useState([]);
+  const [confirmationPreview, setConfirmationPreview] = useState(null);
   const detailDialogStyle = {
     width: "min(1760px, calc(100vw - 20px))",
     maxWidth: "min(1760px, calc(100vw - 20px))",
@@ -473,6 +475,10 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    setSelectedConfirmationIds([]);
+  }, [dateFrom, dateTo, search, statusFilter]);
 
   const enrichedSubmissions = useMemo(() => (
     submissions.map((submission) => {
@@ -634,20 +640,63 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
   );
 
   const canEditForConfirmation = (submission) => Number(submission?.status) === 2 && canCancelSubmission(submission);
+  const selectedConfirmationSubmissions = filteredSubmissions.filter((submission) =>
+    selectedConfirmationIds.includes(submission.id) && canEditForConfirmation(submission)
+  );
 
-  const handleConfirmAccrual = async (submission) => {
-    if (confirmingAccrual) return;
+  const toggleConfirmationSelection = (submissionId) => {
+    setSelectedConfirmationIds((current) => current.includes(submissionId)
+      ? current.filter((id) => id !== submissionId)
+      : [...current, submissionId]);
+  };
+
+  const openConfirmationPreview = (selectedRows) => {
+    if (confirmingAccrual || !selectedRows.length) return;
+    setConfirmationPreview({ submissions: selectedRows });
+  };
+
+  const handleBulkConfirm = () => {
+    if (selectedConfirmationSubmissions.length < 2) return;
+    openConfirmationPreview(selectedConfirmationSubmissions);
+  };
+
+  const handleConfirmPreview = async () => {
+    const selectedRows = confirmationPreview?.submissions || [];
+    if (confirmingAccrual || !selectedRows.length) return;
     setConfirmingAccrual(true);
     try {
-      await confirmAccrualSubmission(submission.id);
+      const results = await Promise.allSettled(
+        selectedRows.map(({ id }) => confirmAccrualSubmission(id))
+      );
+      const confirmedIds = selectedRows
+        .filter((_, index) => results[index].status === "fulfilled")
+        .map(({ id }) => id);
+      const failedRows = selectedRows.filter((_, index) => results[index].status === "rejected");
+      const confirmedCount = confirmedIds.length;
+      const failedCount = results.length - confirmedCount;
       const refreshedRows = await loadData();
-      const refreshedSubmission = refreshedRows?.find((row) => row.id === submission.id);
-      setSelectedSubmission((current) => current?.id === submission.id
-        ? (refreshedSubmission || { ...current, status: 0 })
-        : current);
-      showToast("Accrual confirmed successfully.", "success");
+      if (selectedRows.length === 1 && confirmedCount === 1) {
+        const refreshedSubmission = refreshedRows?.find((row) => row.id === selectedRows[0].id);
+        setSelectedSubmission((current) => current?.id === selectedRows[0].id
+          ? (refreshedSubmission || { ...current, status: 0 })
+          : current);
+      } else if (confirmedIds.length) {
+        setSelectedSubmission((current) => confirmedIds.includes(current?.id) ? null : current);
+      }
+      setSelectedConfirmationIds(failedRows.map(({ id }) => id));
+      setConfirmationPreview(failedRows.length ? { submissions: failedRows } : null);
+      if (failedCount) {
+        showToast(
+          confirmedCount
+            ? `${confirmedCount} accruals confirmed; ${failedCount} could not be confirmed.`
+            : "Unable to confirm the selected accruals.",
+          "error"
+        );
+      } else {
+        showToast(`${confirmedCount} accruals confirmed successfully.`, "success");
+      }
     } catch (error) {
-      showToast(error.message || "Unable to confirm accrual.", "error");
+      showToast(error.message || "Unable to confirm the selected accruals.", "error");
     } finally {
       setConfirmingAccrual(false);
     }
@@ -773,24 +822,37 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
                 label: "Notes",
                 sortable: false,
                 hideHeader: true,
-                className: "accrualNotesColumn",
+                className: `accrualNotesColumn${statusFilter === "for confirmation" ? " accrualSelectableNotesColumn" : ""}`,
                 render: (row) => (
-                  <button
-                    type="button"
-                    className="accrualNotesIconButton"
-                    onClick={(event) => { event.stopPropagation(); setNotesSubmission(row); }}
-                    onDoubleClick={(event) => event.stopPropagation()}
-                    aria-label={`Notes for ${row.control_number}${row.notesCount ? `, ${row.notesCount} ${row.notesCount === 1 ? "note" : "notes"}` : ""}`}
-                    title={`${row.notesCount || 0} ${row.notesCount === 1 ? "note" : "notes"}`}
-                  >
-                    <span className="accrualNotesIconWrap">
-                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M5 4.5h14v15H5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-                        <path d="M8 8h8M8 11h8M8 14h6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                      </svg>
-                      {row.notesCount > 0 ? <span className="accrualNotesTableBadge" aria-hidden="true">{row.notesCount > 99 ? "99+" : row.notesCount}</span> : null}
-                    </span>
-                  </button>
+                  <div className="accrualNotesCellActions">
+                    {statusFilter === "for confirmation" && canEditForConfirmation(row) ? (
+                      <input
+                        type="checkbox"
+                        className="accrualConfirmCheckbox"
+                        checked={selectedConfirmationIds.includes(row.id)}
+                        onChange={() => toggleConfirmationSelection(row.id)}
+                        onClick={(event) => event.stopPropagation()}
+                        aria-label={`Select ${row.control_number} for confirmation`}
+                        disabled={confirmingAccrual}
+                      />
+                    ) : null}
+                    <button
+                      type="button"
+                      className="accrualNotesIconButton"
+                      onClick={(event) => { event.stopPropagation(); setNotesSubmission(row); }}
+                      onDoubleClick={(event) => event.stopPropagation()}
+                      aria-label={`Notes for ${row.control_number}${row.notesCount ? `, ${row.notesCount} ${row.notesCount === 1 ? "note" : "notes"}` : ""}`}
+                      title={`${row.notesCount || 0} ${row.notesCount === 1 ? "note" : "notes"}`}
+                    >
+                      <span className="accrualNotesIconWrap">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <path d="M5 4.5h14v15H5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                          <path d="M8 8h8M8 11h8M8 14h6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                        </svg>
+                        {row.notesCount > 0 ? <span className="accrualNotesTableBadge" aria-hidden="true">{row.notesCount > 99 ? "99+" : row.notesCount}</span> : null}
+                      </span>
+                    </button>
+                  </div>
                 ),
               },
               { key: "control_number", label: "Control No." },
@@ -813,7 +875,7 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
             initialSort={{ key: "created_at", direction: "desc" }}
             showRowCount
             emptyText="No accrual submissions found."
-            emptyHelperText="New and uploaded accruals appear as For Confirmation. Review the details, then confirm them individually."
+            emptyHelperText="New and uploaded accruals appear as For Confirmation. Review the details, then confirm them individually or select at least two to confirm together."
             onRowClick={(row) => setSelectedSubmission(row)}
             onRowDoubleClick={(row) => setSelectedSubmission(row)}
             rowActions={(row) => (
@@ -823,8 +885,8 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
                     <button type="button" className="tableActionBtn" disabled={confirmingAccrual} onClick={(event) => { event.stopPropagation(); if (onEditAccrual) onEditAccrual(row); else setEditingDraft(row); }} onDoubleClick={(event) => event.stopPropagation()}>
                       Edit
                     </button>
-                    <button type="button" className="tableActionBtn" disabled={confirmingAccrual} onClick={(event) => { event.stopPropagation(); handleConfirmAccrual(row); }} onDoubleClick={(event) => event.stopPropagation()}>
-                      {confirmingAccrual ? "Confirming..." : "Confirm"}
+                    <button type="button" className="tableActionBtn" disabled={confirmingAccrual} onClick={(event) => { event.stopPropagation(); openConfirmationPreview([row]); }} onDoubleClick={(event) => event.stopPropagation()}>
+                      Confirm
                     </button>
                   </>
                 ) : null}
@@ -838,6 +900,15 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
           />
         )}
       </div>
+
+      {statusFilter === "for confirmation" && selectedConfirmationSubmissions.length >= 2 ? (
+        <div className="accrualBulkConfirmBar">
+          <span>{selectedConfirmationSubmissions.length} accruals selected</span>
+          <button type="button" className="submitBtn" onClick={handleBulkConfirm} disabled={confirmingAccrual}>
+            {confirmingAccrual ? "Confirming..." : `Confirm ${selectedConfirmationSubmissions.length} accruals`}
+          </button>
+        </div>
+      ) : null}
 
       {selectedSubmission ? (
         <div className="modalOverlay maintenanceOverlay">
@@ -973,7 +1044,7 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
               <div className="dialogActions">
                 {canEditForConfirmation(selectedSubmission) ? <>
                   <button type="button" className="tableActionBtn" disabled={confirmingAccrual} onClick={() => { if (onEditAccrual) onEditAccrual(selectedSubmission); else setEditingDraft(selectedSubmission); }}>Edit</button>
-                  <button type="button" className="submitBtn" disabled={confirmingAccrual} onClick={() => handleConfirmAccrual(selectedSubmission)}>{confirmingAccrual ? "Confirming..." : "Confirm"}</button>
+                  <button type="button" className="submitBtn" disabled={confirmingAccrual} onClick={() => openConfirmationPreview([selectedSubmission])}>Confirm</button>
                 </> : null}
                 {canCancelSubmission(selectedSubmission) ? (
                   <button
@@ -987,6 +1058,69 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
               </div>
             </div>
           </div>
+        </div>
+      ) : null}
+      {confirmationPreview ? (
+        <div className="modalOverlay maintenanceOverlay accrualConfirmPreviewOverlay">
+          <section className="modalContent maintenanceDialog accrualConfirmPreviewDialog" role="dialog" aria-modal="true" aria-labelledby="accrualConfirmPreviewTitle">
+            <div className="dialogHeader accrualConfirmPreviewHeader">
+              <div>
+                <span className="accrualConfirmPreviewEyebrow">Review submission</span>
+                <h2 className="modalTitle" id="accrualConfirmPreviewTitle">
+                  Confirm {confirmationPreview.submissions.length === 1 ? "this accrual" : `${confirmationPreview.submissions.length} accruals`}?
+                </h2>
+                <p className="dialogDescription">Check the details before changing the status to Confirmed.</p>
+              </div>
+              <button type="button" className="dialogClose" onClick={() => setConfirmationPreview(null)} aria-label="Close confirmation preview" disabled={confirmingAccrual}>×</button>
+            </div>
+            <div className="accrualConfirmPreviewContent">
+              <div className="accrualConfirmPreviewEntries">
+                {confirmationPreview.submissions.map((submission) => {
+                  const lines = submission.accrual_submission_lines || [];
+                  const total = lines.reduce((sum, line) => sum + Number(line.gross_amount || 0), 0);
+                  return (
+                    <article className="accrualConfirmPreviewEntry" key={submission.id}>
+                      <div className="accrualConfirmPreviewEntryTop">
+                        <strong>{submission.control_number}</strong>
+                        <span>{formatAmount(total)}</span>
+                      </div>
+                      <div className="accrualConfirmPreviewEntryGrid">
+                        <span><b>Company</b>{submission.company || "—"}</span>
+                        <span><b>Supplier</b>{formatSupplierName(submission.supplier_name)}</span>
+                        <span><b>Invoice</b>{submission.invoice_no || "—"}</span>
+                        <span><b>Line items</b>{lines.length}</span>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+              {confirmationPreview.submissions.length === 1 ? (
+                <div className="accrualConfirmPreviewLines">
+                  <h3>Line item preview</h3>
+                  {(confirmationPreview.submissions[0].accrual_submission_lines || []).map((line) => (
+                    <article className="accrualConfirmPreviewLine" key={line.id}>
+                      <div className="accrualConfirmPreviewLineTop">
+                        <strong>Line {line.line_number}</strong>
+                        <strong>{formatAmount(line.gross_amount)}</strong>
+                      </div>
+                      <div className="accrualConfirmPreviewLineDetails">
+                        <span><b>GL account</b>{line.glaccount_code}{line.glaccount_name ? ` · ${line.glaccount_name}` : ""}</span>
+                        <span><b>Profit center</b>{line.profitcenter_code || "—"}{line.profitcenter_name ? ` · ${line.profitcenter_name}` : ""}</span>
+                        <span><b>Transaction type</b>{line.transaction_type || "—"}</span>
+                        <span><b>Remarks</b>{line.remarks || "—"}</span>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="dialogActions accrualConfirmPreviewActions">
+              <button type="button" className="tableActionBtn" onClick={() => setConfirmationPreview(null)} disabled={confirmingAccrual}>No, go back</button>
+              <button type="button" className="submitBtn" onClick={handleConfirmPreview} disabled={confirmingAccrual}>
+                {confirmingAccrual ? "Confirming..." : confirmationPreview.submissions.length === 1 ? "Yes, confirm accrual" : `Yes, confirm ${confirmationPreview.submissions.length}`}
+              </button>
+            </div>
+          </section>
         </div>
       ) : null}
       {editingDraft ? <DraftAccrualEditor
