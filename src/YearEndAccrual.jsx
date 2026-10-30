@@ -25,23 +25,6 @@ import {
 import { downloadAccrualTemplateWorkbook } from "./lib/accrualTemplateWorkbook";
 import { getAccrualSequenceKey, groupAccrualRowsBySequence } from "./lib/accrualEntryGroups";
 
-// Debounce hook to prevent excessive API calls
-function useDebounce(value, delay) {
-  const [debouncedValue, setDebouncedValue] = useState(value);
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [value, delay]);
-
-  return debouncedValue;
-}
-
 function AccrualFormSkeleton({ retryCount, maxRetries }) {
   return (
     <div className="body">
@@ -307,10 +290,6 @@ function ClosedChickenIllustration() {
       </g>
     </svg>
   );
-}
-
-function FieldTip({ children }) {
-  return <div className="fieldTip">{children}</div>;
 }
 
 const ACCRUAL_DRAFT_STORAGE_KEY = "year-end-accrual:draft";
