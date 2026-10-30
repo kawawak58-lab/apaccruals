@@ -10,8 +10,10 @@ import { getGLAccounts } from "./lib/GlAccount";
 import { useToast } from "./lib/toast";
 import { useAppView } from "./lib/appView";
 import { findExactLookup } from "./accrualLookup";
-import { submitAccrual } from "./lib/AccrualSubmissions";
+import { submitAccrual, updateAccrualDraft } from "./lib/AccrualSubmissions";
 import UploadDataDialog from "./components/UploadDataDialog";
+import AccrualEntryTable from "./components/AccrualEntryTable";
+import AccrualCutoffNotice from "./components/AccrualCutoffNotice";
 import { fetchCollection } from "./lib/adminCrud";
 import { supabase } from "./lib/supabase";
 import { formatDisplayDate, getAccrualSetup, getAccrualWindowStatus } from "./lib/AccrualSetup";
@@ -21,6 +23,7 @@ import {
   buildAccrualUploadTemplateSample,
 } from "./lib/accrualBulkUpload";
 import { downloadAccrualTemplateWorkbook } from "./lib/accrualTemplateWorkbook";
+import { getAccrualSequenceKey, groupAccrualRowsBySequence } from "./lib/accrualEntryGroups";
 
 // Debounce hook to prevent excessive API calls
 function useDebounce(value, delay) {
@@ -312,8 +315,7 @@ function FieldTip({ children }) {
 
 const ACCRUAL_DRAFT_STORAGE_KEY = "year-end-accrual:draft";
 
-const defaultHeaderInfo = {
-  email: "",
+const defaultAccrualFields = {
   expenseclass: "",
   company: "",
   supplier: "",
@@ -324,6 +326,13 @@ const defaultHeaderInfo = {
 function createEmptyLineItem(id) {
   return {
     id,
+    sequence: String(id),
+    ...defaultAccrualFields,
+    supplierSearch: "",
+    suppliers: [],
+    supplierTotal: 0,
+    supplierPage: 1,
+    showSupplierDropdown: false,
     grossAmount: "",
     transType: "",
     vat: "",
@@ -352,6 +361,13 @@ function hydrateDraftLineItem(item, fallbackId) {
   return {
     ...base,
     id: Number.isFinite(Number(item?.id)) ? Number(item.id) : fallbackId,
+    sequence: String(item?.sequence ?? item?.line_number ?? fallbackId),
+    expenseclass: String(item?.expenseclass ?? ""),
+    company: String(item?.company ?? ""),
+    supplier: String(item?.supplier ?? ""),
+    supplierName: String(item?.supplierName ?? ""),
+    invoiceNo: String(item?.invoiceNo ?? ""),
+    supplierSearch: String(item?.supplierSearch ?? ""),
     grossAmount: String(item?.grossAmount || ""),
     transType: String(item?.transType || ""),
     vat: String(item?.vat || ""),
@@ -374,9 +390,36 @@ function hydrateDraftLineItem(item, fallbackId) {
   };
 }
 
+function lineItemsFromSubmission(submission) {
+  return [...(submission?.accrual_submission_lines || [])]
+    .sort((left, right) => Number(left.line_number || 0) - Number(right.line_number || 0))
+    .map((line, index) => hydrateDraftLineItem({
+      id: index + 1,
+      sequence: "1",
+      expenseclass: submission.expense_class,
+      company: submission.company,
+      supplier: submission.supplier_code,
+      supplierName: submission.supplier_name,
+      supplierSearch: submission.supplier_code,
+      invoiceNo: submission.invoice_no,
+      grossAmount: line.gross_amount,
+      transType: line.transaction_type,
+      vat: line.vat,
+      taxCode: line.tax_code,
+      glaccount: line.glaccount_code,
+      glaccountName: line.glaccount_name,
+      glSearch: line.glaccount_code,
+      profitcenter: line.profitcenter_code,
+      profitcenterName: line.profitcenter_name,
+      profitSearch: line.profitcenter_code,
+      remarks: line.remarks,
+    }, index + 1));
+}
+
 function lineItemHasDraftContent(item) {
   return Boolean(
-    item?.grossAmount ||
+    item?.expenseclass || item?.company || item?.supplier || item?.supplierName ||
+      item?.invoiceNo || item?.supplierSearch || item?.grossAmount ||
       item?.transType ||
       item?.vat ||
       item?.taxCode ||
@@ -402,9 +445,17 @@ function readAccrualDraft() {
     }
 
     const parsedDraft = JSON.parse(rawDraft);
+    const legacyHeader = { ...defaultAccrualFields, ...(parsedDraft?.headerInfo || {}) };
     const lineItems = Array.isArray(parsedDraft?.lineItems)
       ? parsedDraft.lineItems.map((item, index) => hydrateDraftLineItem(item, index + 1))
       : [createEmptyLineItem(1)];
+    if (lineItems.length && parsedDraft?.headerInfo) {
+      lineItems[0] = {
+        ...lineItems[0],
+        ...Object.fromEntries(Object.keys(defaultAccrualFields).map((key) => [key, lineItems[0][key] || legacyHeader[key]])),
+        supplierSearch: lineItems[0].supplierSearch || String(parsedDraft?.supplierSearch || ""),
+      };
+    }
 
     const nextLineItemCounter = lineItems.reduce(
       (maxId, item) => Math.max(maxId, Number(item.id) || 0),
@@ -412,11 +463,6 @@ function readAccrualDraft() {
     );
 
     return {
-      headerInfo: {
-        ...defaultHeaderInfo,
-        ...(parsedDraft?.headerInfo || {}),
-      },
-      supplierSearch: String(parsedDraft?.supplierSearch || ""),
       lineItems: lineItems.length > 0 ? lineItems : [createEmptyLineItem(1)],
       lineItemCounter:
         Number.isFinite(Number(parsedDraft?.lineItemCounter)) &&
@@ -438,43 +484,54 @@ function clearAccrualDraft() {
   window.localStorage.removeItem(ACCRUAL_DRAFT_STORAGE_KEY);
 }
 
-function hasDraftContent({ headerInfo, supplierSearch, lineItems }) {
+function hasDraftContent({ lineItems }) {
   return Boolean(
-    supplierSearch ||
-      Object.entries(headerInfo || {}).some(
-        ([field, value]) => field !== "email" && String(value || "").trim()
-      ) ||
-      (lineItems || []).some((item) => lineItemHasDraftContent(item))
+    (lineItems || []).some((item) => lineItemHasDraftContent(item))
   );
 }
 
-export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) {
+function summarizeAccrualGroup(group) {
+  const item = group.headerItem;
+  return {
+    sequence: Number.isInteger(Number(group.sequenceKey)) ? `Seq. ${group.sequenceKey}` : "Entry",
+    expenseClass: item.expenseclass || "—",
+    company: item.company || "—",
+    supplier: item.supplier || "—",
+    supplierName: item.supplierName || "—",
+    invoiceNo: item.invoiceNo || "—",
+    entryCount: group.items.length,
+    grossAmount: group.items.reduce((total, lineItem) => {
+      const amount = Number(lineItem.grossAmount || 0);
+      return total + (Number.isFinite(amount) ? amount : 0);
+    }, 0),
+  };
+}
+
+function formatAccrualCurrency(value) {
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value) || 0);
+}
+
+export default function YearEndAccrualForm({ currentUser, onFullscreenChange, editingSubmission, onEditCancel, onEditSaved }) {
   const { setActiveView } = useAppView();
   const { showToast } = useToast();
   const savedDraftRef = useRef(readAccrualDraft());
-  // ---------- Header ----------
-  const [headerInfo, setHeaderInfo] = useState(() => {
-    const savedHeader = savedDraftRef.current?.headerInfo;
-    return {
-      ...defaultHeaderInfo,
-      ...savedHeader,
-      email: currentUser?.email || "",
-    };
-  });
-
-  // ---------- Line Items ----------
-  const [headerErrors, setHeaderErrors] = useState({});
+  // Each table row is an independent accrual submission.
   const [lineItems, setLineItems] = useState(
-    () => savedDraftRef.current?.lineItems || [createEmptyLineItem(1)]
+    () => editingSubmission ? lineItemsFromSubmission(editingSubmission) : savedDraftRef.current?.lineItems || [createEmptyLineItem(1)]
   );
-  const [lineItemErrors, setLineItemErrors] = useState([{}]);
+  const [lineItemErrors, setLineItemErrors] = useState(() => editingSubmission ? lineItemsFromSubmission(editingSubmission).map(() => ({})) : [{}]);
   const [lineItemCounter, setLineItemCounter] = useState(
-    () => savedDraftRef.current?.lineItemCounter || 1
+    () => editingSubmission ? Math.max(1, editingSubmission.accrual_submission_lines?.length || 1) : savedDraftRef.current?.lineItemCounter || 1
   );
 
   // ---------- Modal ----------
   const [showModal, setShowModal] = useState(false);
-  const [modalMessage, setModalMessage] = useState("");
+  const [submittedAccrualGroups, setSubmittedAccrualGroups] = useState([]);
   const [showSupplierEnrollmentModal, setShowSupplierEnrollmentModal] = useState(false);
   const [showSupplierEnrollmentNotice, setShowSupplierEnrollmentNotice] = useState(false);
   const [supplierEnrollmentNotice, setSupplierEnrollmentNotice] = useState({
@@ -497,25 +554,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
   const [expenseClassRules, setExpenseClassRules] = useState([]);
   const [transactionTypes, setTransactionTypes] = useState([]);
   const [taxCodes, setTaxCodes] = useState([]);
-  const selectedExpenseClassRule = useMemo(
-    () => expenseClassRules.find((rule) => String(rule.name).trim().toLowerCase() === String(headerInfo.expenseclass).trim().toLowerCase()),
-    [expenseClassRules, headerInfo.expenseclass]
-  );
-  const disabledExpenseFields = selectedExpenseClassRule?.disabled_fields || [];
-  const requiresSupplier = !disabledExpenseFields.includes("supplier");
-  const requiresInvoice = !disabledExpenseFields.includes("invoice_no");
-  const requiresProfitCenter = !disabledExpenseFields.includes("profit_center");
-  const requiresVat = !disabledExpenseFields.includes("vat");
-  const requiresTaxCode = !disabledExpenseFields.includes("tax_code");
-
-  const [suppliers, setSuppliers] = useState([]);
-  const [supplierSearch, setSupplierSearch] = useState(
-    () => savedDraftRef.current?.supplierSearch || ""
-  );
-  const [supplierPage, setSupplierPage] = useState(1);
-  const [supplierTotal, setSupplierTotal] = useState(0);
   const supplierLimit = 50;
-  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
 
   // Cache for API responses
   const cacheRef = useRef({
@@ -526,15 +565,22 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     taxCodes: null,
   });
 
-  // Debounce supplier search
-  const debouncedSupplierSearch = useDebounce(supplierSearch, 500);
   const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addConfirmOpen, setAddConfirmOpen] = useState(false);
+  const [expandedPreviewGroups, setExpandedPreviewGroups] = useState(() => new Set());
+  const accrualSubmissionPreview = useMemo(
+    () => groupAccrualRowsBySequence(lineItems).map((group) => ({
+      ...summarizeAccrualGroup(group),
+      sequenceKey: group.sequenceKey,
+      items: group.items,
+    })),
+    [lineItems]
+  );
   const previousAccrualWindowLockedRef = useRef(true);
 
   // Track previous search values to prevent duplicate requests
-  const prevSupplierSearchRef = useRef("");
+  const prevSupplierSearchRef = useRef({});
   const prevGLSearchesRef = useRef({});
   const prevProfitSearchesRef = useRef({});
 
@@ -714,15 +760,21 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
   }, [loadAccrualSetup]);
 
   useEffect(() => {
+    if (editingSubmission) return undefined;
     if (typeof window === "undefined") {
       return undefined;
     }
 
     const nextDraft = {
-      headerInfo,
-      supplierSearch,
       lineItems: lineItems.map((item) => ({
         id: item.id,
+        sequence: item.sequence,
+        expenseclass: item.expenseclass,
+        company: item.company,
+        supplier: item.supplier,
+        supplierName: item.supplierName,
+        invoiceNo: item.invoiceNo,
+        supplierSearch: item.supplierSearch,
         grossAmount: item.grossAmount,
         transType: item.transType,
         vat: item.vat,
@@ -750,58 +802,223 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     }, 300);
 
     return () => window.clearTimeout(timeoutId);
-  }, [headerInfo, supplierSearch, lineItems, lineItemCounter]);
-
-  const latestLookupRef = useRef(null);
-  latestLookupRef.current = { company: headerInfo.company, supplierSearch };
+  }, [editingSubmission, lineItems, lineItemCounter]);
 
   // Supplier search
   useEffect(() => {
-    if (!headerInfo.company || debouncedSupplierSearch.length < 2) return;
-
-    const searchKey = `${headerInfo.company}-${debouncedSupplierSearch}-${supplierPage}`;
-    if (prevSupplierSearchRef.current === searchKey) return;
-
-    prevSupplierSearchRef.current = searchKey;
+    const activeRows = lineItems.filter((item) => item.company && item.supplierSearch?.trim().length >= 2);
+    if (!activeRows.length) return undefined;
     let cancelled = false;
-
-    const fetchSuppliers = async () => {
+    const timer = window.setTimeout(async () => {
       try {
-        const { suppliers: fetchedSuppliers, total } = await getSuppliers(
-          headerInfo.company,
-          debouncedSupplierSearch,
-          supplierPage,
-          supplierLimit
-        );
-
-        const exact = supplierPage === 1 ? await findExactLookup({
-          rows: fetchedSuppliers, total, search: debouncedSupplierSearch,
-          company: headerInfo.company, table: "suppliers", codeColumn: "suppliercode",
-          nameColumn: "suppliername", codeKey: "supplier",
-        }) : null;
-        if (cancelled || latestLookupRef.current.company !== headerInfo.company || latestLookupRef.current.supplierSearch !== debouncedSupplierSearch) return;
-        if (exact) {
-          setHeaderInfo((current) => ({ ...current, supplier: exact.code, supplierName: exact.name }));
-          setShowSupplierDropdown(false);
+        for (const row of activeRows) {
+          const searchKey = `${row.company}-${row.supplierSearch}-${row.supplierPage}`;
+          if (prevSupplierSearchRef.current[row.id] === searchKey) continue;
+          prevSupplierSearchRef.current[row.id] = searchKey;
+          const { suppliers: fetchedSuppliers, total } = await getSuppliers(
+            row.company, row.supplierSearch, row.supplierPage, supplierLimit
+          );
+          const exact = row.supplierPage === 1 ? await findExactLookup({
+            rows: fetchedSuppliers, total, search: row.supplierSearch,
+            company: row.company, table: "suppliers", codeColumn: "suppliercode",
+            nameColumn: "suppliername", codeKey: "supplier",
+          }) : null;
+          if (cancelled) return;
+          setLineItems((items) => items.map((item) => item.id === row.id && item.company === row.company && item.supplierSearch === row.supplierSearch
+            ? {
+                ...item,
+                supplier: exact?.code || item.supplier,
+                supplierName: exact?.name || item.supplierName,
+                suppliers: row.supplierPage === 1 ? fetchedSuppliers : [...(item.suppliers || []), ...fetchedSuppliers],
+                supplierTotal: total,
+                showSupplierDropdown: exact ? false : item.showSupplierDropdown,
+              }
+            : item));
         }
-
-        setSuppliers(prev =>
-          supplierPage === 1
-            ? fetchedSuppliers
-            : [...prev, ...fetchedSuppliers]
-        );
-        setSupplierTotal(total);
       } catch (err) {
         console.warn("Supplier fetch failed", err);
       }
-    };
+    }, 350);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [lineItems]);
 
-    fetchSuppliers();
+  const handleSupplierSearchChange = (lineId, value) => {
+    delete prevSupplierSearchRef.current[lineId];
+    setLineItems((rows) => {
+      const target = rows.find((row) => row.id === lineId);
+      if (!target) return rows;
+      const sequenceKey = getAccrualSequenceKey(target.sequence, target.id);
+      return rows.map((row) => {
+        if (getAccrualSequenceKey(row.sequence, row.id) !== sequenceKey) return row;
+        return {
+          ...row,
+          supplier: "",
+          supplierName: "",
+          ...(row.id === lineId ? {
+            supplierSearch: value,
+            suppliers: [],
+            supplierTotal: 0,
+            supplierPage: 1,
+            showSupplierDropdown: value.trim().length >= 2,
+          } : {
+            supplierSearch: "",
+            suppliers: [],
+            supplierTotal: 0,
+            supplierPage: 1,
+            showSupplierDropdown: false,
+          }),
+        };
+      });
+    });
+  };
 
-    return () => {
-      cancelled = true;
-    };
-  }, [headerInfo.company, debouncedSupplierSearch, supplierPage]);
+  const handleSequenceChange = (lineId, value) => {
+    const rowIndex = lineItems.findIndex((row) => row.id === lineId);
+    if (rowIndex < 0) return false;
+    const valueText = String(value ?? "").trim();
+    const requestedSequence = Number(valueText);
+    const otherSequences = new Set(lineItems
+      .filter((row) => row.id !== lineId)
+      .map((row) => Number(row.sequence))
+      .filter((sequence) => Number.isInteger(sequence) && sequence > 0));
+    const highestOtherSequence = Math.max(0, ...otherSequences);
+    const validPositiveSequence = Number.isInteger(requestedSequence) && requestedSequence > 0;
+    const sequenceAlreadyExists = otherSequences.has(requestedSequence);
+    const fillsExistingGap = validPositiveSequence && requestedSequence <= highestOtherSequence && !sequenceAlreadyExists;
+    const nextSequenceIsContiguous = validPositiveSequence && requestedSequence === highestOtherSequence + 1 &&
+      Array.from({ length: highestOtherSequence }, (_, index) => index + 1).every((sequence) => otherSequences.has(sequence));
+
+    if (valueText && !sequenceAlreadyExists && !fillsExistingGap && !nextSequenceIsContiguous) {
+      setLineItemErrors((errors) => errors.map((error, index) => index === rowIndex
+        ? { ...error, sequence: true }
+        : error));
+      return false;
+    }
+
+    const nextKey = getAccrualSequenceKey(value, lineId);
+    const source = lineItems.find((row) => row.id !== lineId && getAccrualSequenceKey(row.sequence, row.id) === nextKey);
+    const resetRow = { ...createEmptyLineItem(lineId), sequence: value };
+    const copiedHeader = source ? {
+      ...Object.fromEntries(Object.keys(defaultAccrualFields).map((field) => [field, source[field] || ""])),
+      supplierSearch: source.supplierSearch || source.supplier || "",
+    } : {};
+    const nextRow = { ...resetRow, ...copiedHeader };
+    const remainingRows = lineItems.filter((row) => row.id !== lineId);
+    const lastMatchingIndex = source
+      ? remainingRows.reduce((lastIndex, row, index) => (
+        getAccrualSequenceKey(row.sequence, row.id) === nextKey ? index : lastIndex
+      ), -1)
+      : -1;
+    const insertIndex = lastMatchingIndex >= 0
+      ? lastMatchingIndex + 1
+      : Math.min(rowIndex, remainingRows.length);
+    const insertedRows = [
+      ...remainingRows.slice(0, insertIndex),
+      nextRow,
+      ...remainingRows.slice(insertIndex),
+    ];
+    const nextRows = valueText ? insertedRows
+      .map((row, index) => ({ row, index, sequence: Number(row.sequence) }))
+      .sort((left, right) => {
+        const leftValid = Number.isInteger(left.sequence) && left.sequence > 0;
+        const rightValid = Number.isInteger(right.sequence) && right.sequence > 0;
+        if (leftValid && rightValid && left.sequence !== right.sequence) return left.sequence - right.sequence;
+        if (leftValid !== rightValid) return leftValid ? -1 : 1;
+        return left.index - right.index;
+      })
+      .map(({ row }) => row)
+      : insertedRows;
+    setLineItems(nextRows);
+    setLineItemErrors((errors) => {
+      const errorsById = new Map(lineItems.map((row, index) => [row.id, errors[index] || {}]));
+      return nextRows.map((row) => row.id === lineId ? {} : errorsById.get(row.id) || {});
+    });
+    delete prevSupplierSearchRef.current[lineId];
+    delete prevGLSearchesRef.current[lineId];
+    delete prevProfitSearchesRef.current[lineId];
+    return true;
+  };
+
+  const updateHeaderField = (lineId, field, value) => {
+    setLineItems((rows) => {
+      const target = rows.find((row) => row.id === lineId);
+      if (!target) return rows;
+      const sequenceKey = getAccrualSequenceKey(target.sequence, target.id);
+      return rows.map((row) => getAccrualSequenceKey(row.sequence, row.id) === sequenceKey
+        ? { ...row, [field]: value }
+        : row);
+    });
+  };
+
+  const handleExpenseClassChange = (lineId, expenseclass) => {
+    setLineItems((rows) => {
+      const target = rows.find((row) => row.id === lineId);
+      if (!target) return rows;
+      const sequenceKey = getAccrualSequenceKey(target.sequence, target.id);
+      const nextRule = expenseClassRules.find((entry) => String(entry.name).trim().toLowerCase() === String(expenseclass).trim().toLowerCase());
+      // The selected expense class owns the default invoice number. Reset it
+      // when the class changes so a previous value does not mask the new default.
+      const invoiceNo = String(nextRule?.default_invoice_no ?? "").trim();
+      return rows.map((row) => getAccrualSequenceKey(row.sequence, row.id) === sequenceKey
+        ? { ...row, expenseclass, invoiceNo }
+        : row);
+    });
+  };
+
+  const handleCompanyChange = (lineId, company) => {
+    delete prevSupplierSearchRef.current[lineId];
+    delete prevGLSearchesRef.current[lineId];
+    delete prevProfitSearchesRef.current[lineId];
+    setLineItems((rows) => {
+      const target = rows.find((row) => row.id === lineId);
+      if (!target) return rows;
+      const sequenceKey = getAccrualSequenceKey(target.sequence, target.id);
+      return rows.map((row) => getAccrualSequenceKey(row.sequence, row.id) === sequenceKey ? {
+      ...row,
+      company,
+      supplier: "",
+      supplierName: "",
+      supplierSearch: "",
+      suppliers: [],
+      supplierPage: 1,
+      supplierTotal: 0,
+      showSupplierDropdown: false,
+      glaccount: "",
+      glaccountName: "",
+      glSearch: "",
+      glAccounts: [],
+      glPage: 1,
+      glTotal: 0,
+      showGLDropdown: false,
+      profitcenter: "",
+      profitcenterName: "",
+      profitSearch: "",
+      profitCenters: [],
+      profitPage: 1,
+      profitTotal: 0,
+      showProfitDropdown: false,
+      } : row);
+    });
+  };
+
+  const selectSupplier = (lineId, supplier) => {
+    setLineItems((rows) => {
+      const target = rows.find((row) => row.id === lineId);
+      if (!target) return rows;
+      const sequenceKey = getAccrualSequenceKey(target.sequence, target.id);
+      return rows.map((row) => getAccrualSequenceKey(row.sequence, row.id) === sequenceKey ? {
+      ...row,
+      supplier: supplier.supplier,
+      supplierName: supplier.name,
+      supplierSearch: supplier.supplier,
+      showSupplierDropdown: false,
+      } : row);
+    });
+  };
+
+  const loadMoreSuppliers = (lineId) => {
+    setLineItems((rows) => rows.map((row) => row.id === lineId ? { ...row, supplierPage: row.supplierPage + 1 } : row));
+  };
 
   // GL Account search handler
   const handleGLSearchChange = useCallback((lineId, value) => {
@@ -821,6 +1038,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
         .filter((lineItem) => lineItem.glSearch && lineItem.glSearch.length >= 2)
         .map((lineItem) => ({
           id: lineItem.id,
+          company: lineItem.company,
           glSearch: lineItem.glSearch,
           glPage: lineItem.glPage,
         })),
@@ -829,11 +1047,12 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
   // Fetch GL accounts
   useEffect(() => {
-    if (!headerInfo.company || activeGLRequests.length === 0) return;
+    if (activeGLRequests.length === 0) return;
 
     const fetchGLForLines = async () => {
       for (const line of activeGLRequests) {
-        const searchKey = `${headerInfo.company}-${line.glSearch}-${line.glPage}`;
+        if (!line.company) continue;
+        const searchKey = `${line.company}-${line.glSearch}-${line.glPage}`;
         
         if (prevGLSearchesRef.current[line.id] === searchKey) {
           continue;
@@ -843,7 +1062,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
         try {
           const { glAccounts: fetchedGLAccounts, total } = await getGLAccounts(
-            headerInfo.company,
+            line.company,
             line.glSearch,
             line.glPage,
             50
@@ -851,12 +1070,11 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
           const exact = line.glPage === 1 ? await findExactLookup({
             rows: fetchedGLAccounts, total, search: line.glSearch,
-            company: headerInfo.company, table: "glaccounts", codeColumn: "glaccountcode", nameColumn: "glaccountname",
+            company: line.company, table: "glaccounts", codeColumn: "glaccountcode", nameColumn: "glaccountname",
           }) : null;
-          if (latestLookupRef.current.company !== headerInfo.company) continue;
           setLineItems(prev =>
             prev.map(li =>
-              li.id === line.id && li.glSearch === line.glSearch
+              li.id === line.id && li.company === line.company && li.glSearch === line.glSearch
                 ? {
                     ...li,
                     glAccounts: line.glPage === 1 
@@ -878,7 +1096,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
     const debounceTimer = setTimeout(fetchGLForLines, 500);
     return () => clearTimeout(debounceTimer);
-  }, [activeGLRequests, headerInfo.company]);
+  }, [activeGLRequests]);
 
   // Profit Center search handler
   const handleProfitSearchChange = useCallback((lineId, value) => {
@@ -898,6 +1116,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
         .filter((lineItem) => lineItem.profitSearch && lineItem.profitSearch.length >= 2)
         .map((lineItem) => ({
           id: lineItem.id,
+          company: lineItem.company,
           profitSearch: lineItem.profitSearch,
           profitPage: lineItem.profitPage,
         })),
@@ -906,11 +1125,12 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
   // Fetch Profit Centers
   useEffect(() => {
-    if (!headerInfo.company || activeProfitRequests.length === 0) return;
+    if (activeProfitRequests.length === 0) return;
 
     const fetchProfitForLines = async () => {
       for (const line of activeProfitRequests) {
-        const searchKey = `${headerInfo.company}-${line.profitSearch}-${line.profitPage}`;
+        if (!line.company) continue;
+        const searchKey = `${line.company}-${line.profitSearch}-${line.profitPage}`;
         
         if (prevProfitSearchesRef.current[line.id] === searchKey) {
           continue;
@@ -920,7 +1140,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
         try {
           const { profitCenters: fetchedProfitCenters, total } = await getProfitCenters(
-            headerInfo.company,
+            line.company,
             line.profitSearch,
             line.profitPage,
             50
@@ -928,12 +1148,11 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
           const exact = line.profitPage === 1 ? await findExactLookup({
             rows: fetchedProfitCenters, total, search: line.profitSearch,
-            company: headerInfo.company, table: "profitcenters", codeColumn: "profitcentercode", nameColumn: "profitcentername",
+            company: line.company, table: "profitcenters", codeColumn: "profitcentercode", nameColumn: "profitcentername",
           }) : null;
-          if (latestLookupRef.current.company !== headerInfo.company) continue;
           setLineItems(prev =>
             prev.map(li =>
-              li.id === line.id && li.profitSearch === line.profitSearch
+              li.id === line.id && li.company === line.company && li.profitSearch === line.profitSearch
                 ? {
                     ...li,
                     profitCenters: line.profitPage === 1 
@@ -955,7 +1174,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
     const debounceTimer = setTimeout(fetchProfitForLines, 500);
     return () => clearTimeout(debounceTimer);
-  }, [activeProfitRequests, headerInfo.company]);
+  }, [activeProfitRequests]);
 
   const loadMoreGLAccounts = (lineId) => {
     setLineItems(prev =>
@@ -977,17 +1196,48 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     );
   };
 
-  const addLineItem = () => {
+  const addLineItemAfter = (lineId) => {
+    const target = lineItems.find((item) => item.id === lineId);
+    if (!target) return;
     const newId = lineItemCounter + 1;
     setLineItemCounter(newId);
-    setLineItems((prev) => [...prev, createEmptyLineItem(newId)]);
+    const newItem = {
+      ...createEmptyLineItem(newId),
+      sequence: target.sequence,
+      ...Object.fromEntries(Object.keys(defaultAccrualFields).map((field) => [field, target[field] || ""])),
+      supplierSearch: target.supplierSearch || target.supplier || "",
+    };
+    const targetIndex = lineItems.findIndex((item) => item.id === lineId);
+    setLineItems((prev) => {
+      const currentIndex = prev.findIndex((item) => item.id === lineId);
+      if (currentIndex < 0) return prev;
+      return [...prev.slice(0, currentIndex + 1), newItem, ...prev.slice(currentIndex + 1)];
+    });
+    setLineItemErrors((prev) => [...prev.slice(0, targetIndex + 1), {}, ...prev.slice(targetIndex + 1)]);
+    return newId;
+  };
+
+  const addNextSequenceLineItem = () => {
+    const usedSequences = new Set(lineItems
+      .map((item) => Number(item.sequence))
+      .filter((sequence) => Number.isInteger(sequence) && sequence > 0));
+    let nextSequence = 1;
+    while (usedSequences.has(nextSequence)) nextSequence += 1;
+
+    const newId = lineItemCounter + 1;
+    setLineItemCounter(newId);
+    const newItem = { ...createEmptyLineItem(newId), sequence: String(nextSequence) };
+    setLineItems((prev) => [...prev, newItem]);
     setLineItemErrors((prev) => [...prev, {}]);
+    return newId;
   };
 
   const removeLineItem = (id) => {
     if (lineItems.length > 1) {
+      const removedIndex = lineItems.findIndex((item) => item.id === id);
       setLineItems((prev) => prev.filter((item) => item.id !== id));
-      setLineItemErrors((prev) => prev.slice(0, -1));
+      setLineItemErrors((prev) => prev.filter((_, index) => index !== removedIndex));
+      delete prevSupplierSearchRef.current[id];
       delete prevGLSearchesRef.current[id];
       delete prevProfitSearchesRef.current[id];
     }
@@ -1031,21 +1281,11 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     );
   };
 
-  const selectSupplier = (supplier) => {
-    setHeaderInfo({
-      ...headerInfo,
-      supplier: supplier.supplier,
-      supplierName: supplier.name,
-    });
-    setSupplierSearch(supplier.supplier);
-    setShowSupplierDropdown(false);
-  };
-
   const handleManageSuppliers = () => {
     setSupplierEnrollmentForm({
-      suppliercode: headerInfo.supplier || "",
-      suppliername: headerInfo.supplierName || "",
-      company: headerInfo.company || "",
+      suppliercode: "",
+      suppliername: "",
+      company: "",
     });
     setShowSupplierEnrollmentModal(true);
   };
@@ -1148,11 +1388,49 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     return emailRegex.test(email);
   };
 
+  const validateLineItems = () => {
+    const newLineItemErrors = lineItems.map((item) => {
+      const rule = expenseClassRules.find((entry) => String(entry.name).trim().toLowerCase() === String(item.expenseclass || "").trim().toLowerCase());
+      const disabledFields = rule?.disabled_fields || [];
+      const notRequiredFields = rule?.not_required_fields || [];
+      const errors = {};
+      const amount = String(item.grossAmount ?? "").trim();
+      if (!Number.isInteger(Number(item.sequence)) || Number(item.sequence) < 1) errors.sequence = true;
+      if (!item.expenseclass) errors.expenseclass = true;
+      if (!item.company) errors.company = true;
+      if (!disabledFields.includes("supplier") && !notRequiredFields.includes("supplier") && (!item.supplier || !item.supplierName)) errors.supplier = true;
+      if (!disabledFields.includes("invoice_no") && !notRequiredFields.includes("invoice_no") && !item.invoiceNo && !rule?.default_invoice_no) errors.invoiceNo = true;
+      if (!amount || !Number.isFinite(Number(amount))) errors.grossAmount = true;
+      if (!item.transType) errors.transType = true;
+      if (!item.glaccount) errors.glaccount = true;
+      if (!item.remarks) errors.remarks = true;
+      if (!disabledFields.includes("profit_center") && !notRequiredFields.includes("profit_center") && !item.profitcenter) errors.profitcenter = true;
+      if (!disabledFields.includes("vat") && !notRequiredFields.includes("vat") && !item.vat) errors.vat = true;
+      if (!disabledFields.includes("tax_code") && !notRequiredFields.includes("tax_code") && !item.taxCode) errors.taxCode = true;
+      return errors;
+    });
+
+    setLineItemErrors(newLineItemErrors);
+    return !newLineItemErrors.some((errors) => Object.keys(errors).length > 0);
+  };
+
+  const openSubmissionPreview = () => {
+    if (!currentUser?.email || !isValidEmail(currentUser.email)) {
+      showToast("A valid requester email is required to submit accruals.", "error");
+      return;
+    }
+    if (!validateLineItems()) {
+      showToast("Please fill in all required fields.", "error");
+      return;
+    }
+    setAddConfirmOpen(true);
+  };
+
   const handleSubmit = async () => {
     if (isSubmitting) return;
 
     const currentAccrualWindowStatus = getAccrualWindowStatus(accrualSetup, new Date());
-    if (accrualSetupLoading || !currentAccrualWindowStatus.isOpen) {
+    if (!editingSubmission && (accrualSetupLoading || !currentAccrualWindowStatus.isOpen)) {
       showToast(
         accrualSetupLoading
           ? "Please wait while the accrual setup is loading."
@@ -1165,135 +1443,138 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
     setIsSubmitting(true);
 
     try {
-      const headerErrs = {};
-
-      // Header validation
-      if (!currentUser?.email || !isValidEmail(currentUser.email)) headerErrs.email = true;
-      if (!headerInfo.expenseclass) headerErrs.expenseclass = true;
-      if (!headerInfo.company) headerErrs.company = true;
-      if (requiresSupplier && !headerInfo.supplier) headerErrs.supplier = true;
-
-      if (requiresInvoice && !headerInfo.invoiceNo && !selectedExpenseClassRule?.default_invoice_no) {
-        headerErrs.invoiceNo = true;
+      if (!currentUser?.email || !isValidEmail(currentUser.email)) {
+        showToast("A valid requester email is required to submit accruals.", "error");
+        return;
       }
 
-      setHeaderErrors(headerErrs);
-
-      // Line item validation
-      const newLineItemErrors = lineItems.map(item => {
-        const errors = {};
-        if (!item.grossAmount) errors.grossAmount = true;
-        if (!item.transType) errors.transType = true;
-        if (!item.glaccount) errors.glaccount = true;
-        if (!item.remarks) errors.remarks = true;
-        if (requiresProfitCenter && !item.profitcenter) errors.profitcenter = true;
-
-        if (requiresVat && !item.vat) errors.vat = true;
-        if (requiresTaxCode && !item.taxCode) errors.taxCode = true;
-        return errors;
-      });
-
-      setLineItemErrors(newLineItemErrors);
-
-      // Check for errors
-      if (
-        Object.keys(headerErrs).length > 0 ||
-        newLineItemErrors.some(err => Object.keys(err).length > 0)
-      ) {
+      if (!validateLineItems()) {
         showToast("Please fill in all required fields.", "error");
         return;
       }
 
-      const controlNumber = await submitAccrual({
-        header: {
-          maker: currentUser?.email || "",
-          requester_email: currentUser?.email || "",
-          expense_class: headerInfo.expenseclass,
-          company: headerInfo.company,
-          supplier_code: headerInfo.supplier,
-          supplier_name: headerInfo.supplierName,
-          invoice_no: headerInfo.invoiceNo || selectedExpenseClassRule?.default_invoice_no || null,
-          status: 2,
-        },
-        lineItems: lineItems.map((item, index) => ({
-          line_number: index + 1,
-          gross_amount: Number(item.grossAmount || 0),
-          glaccount_code: item.glaccount,
-          glaccount_name: item.glaccountName || null,
-          profitcenter_code: item.profitcenter,
-          profitcenter_name: item.profitcenterName || null,
-          transaction_type: item.transType,
-          vat: item.vat || null,
-          tax_code: item.taxCode || null,
-          remarks: item.remarks,
-        })),
-      });
+      const newLineItemErrors = lineItems.map(() => ({}));
 
-      // Success
-      setModalMessage(controlNumber);
-      setShowModal(true);
-      showToast(`Accrual submitted for confirmation. Control number: ${controlNumber}`, "success");
+      if (editingSubmission) {
+        const firstItem = lineItems[0];
+        const rule = expenseClassRules.find((entry) => String(entry.name).trim().toLowerCase() === String(firstItem.expenseclass).trim().toLowerCase());
+        await updateAccrualDraft(
+          editingSubmission.id,
+          {
+            requester_email: editingSubmission.requester_email || editingSubmission.maker || currentUser.email,
+            expense_class: firstItem.expenseclass,
+            company: firstItem.company,
+            supplier_code: firstItem.supplier || "",
+            supplier_name: firstItem.supplierName || "",
+            invoice_no: firstItem.invoiceNo || rule?.default_invoice_no || "",
+          },
+          lineItems.map((lineItem, index) => ({
+            line_number: index + 1,
+            gross_amount: Number(lineItem.grossAmount || 0),
+            glaccount_code: lineItem.glaccount,
+            glaccount_name: lineItem.glaccountName || null,
+            profitcenter_code: lineItem.profitcenter || "",
+            profitcenter_name: lineItem.profitcenterName || null,
+            transaction_type: lineItem.transType,
+            vat: lineItem.vat || null,
+            tax_code: lineItem.taxCode || null,
+            remarks: lineItem.remarks,
+          }))
+        );
+        setAddConfirmOpen(false);
+        showToast("Accrual updated successfully.", "success");
+        onEditSaved?.();
+        return;
+      }
 
-      // Reset form
-      setHeaderInfo({
-        email: currentUser?.email || "",
-        expenseclass: "",
-        company: "",
-        supplier: "",
-        supplierName: "",
-        invoiceNo: "",
-      });
+      const submissionGroups = groupAccrualRowsBySequence(lineItems);
 
-      setHeaderErrors({});
-      setSupplierSearch("");
-      setLineItems([createEmptyLineItem(1)]);
-      setLineItemErrors([{}]);
-      setLineItemCounter(1);
-      clearAccrualDraft();
+      const controlNumbers = [];
+      let failedRow = null;
+      let submissionError = null;
+      for (let groupIndex = 0; groupIndex < submissionGroups.length; groupIndex += 1) {
+        const group = submissionGroups[groupIndex];
+        const item = group.headerItem;
+        const rule = expenseClassRules.find((entry) => String(entry.name).trim().toLowerCase() === String(item.expenseclass).trim().toLowerCase());
+        try {
+          const controlNumber = await submitAccrual({
+            header: {
+              maker: currentUser.email,
+              requester_email: currentUser.email,
+              expense_class: item.expenseclass,
+              company: item.company,
+              supplier_code: item.supplier || "",
+              supplier_name: item.supplierName || "",
+              invoice_no: item.invoiceNo || rule?.default_invoice_no || null,
+              status: 2,
+            },
+            lineItems: group.items.map((lineItem, lineIndex) => ({
+              line_number: lineIndex + 1,
+              gross_amount: Number(lineItem.grossAmount || 0),
+              glaccount_code: lineItem.glaccount,
+              glaccount_name: lineItem.glaccountName || null,
+              profitcenter_code: lineItem.profitcenter || "",
+              profitcenter_name: lineItem.profitcenterName || null,
+              transaction_type: lineItem.transType,
+              vat: lineItem.vat || null,
+              tax_code: lineItem.taxCode || null,
+              remarks: lineItem.remarks,
+            })),
+          });
+          if (!controlNumber) throw new Error("Submission did not return a control number.");
+          controlNumbers.push({
+            ids: group.items.map((lineItem) => lineItem.id),
+            number: controlNumber,
+            ...summarizeAccrualGroup(group),
+          });
+        } catch (error) {
+          failedRow = groupIndex;
+          submissionError = error;
+          break;
+        }
+      }
 
-      prevSupplierSearchRef.current = "";
-      prevGLSearchesRef.current = {};
-      prevProfitSearchesRef.current = {};
+      if (controlNumbers.length) {
+        const submittedIds = new Set(controlNumbers.flatMap((entry) => entry.ids));
+        const remainingItems = lineItems.filter((item) => !submittedIds.has(item.id));
+        const remainingErrors = newLineItemErrors.filter((_, index) => !submittedIds.has(lineItems[index]?.id));
+        setSubmittedAccrualGroups(controlNumbers.map(({ number, ...group }) => ({
+          ...group,
+          controlNumber: number,
+        })));
+        setAddConfirmOpen(false);
+        setShowModal(true);
+        showToast(`${controlNumbers.length} accrual group${controlNumbers.length === 1 ? "" : "s"} submitted for confirmation.`, "success");
+        if (remainingItems.length) {
+          setLineItems(remainingItems);
+          setLineItemErrors(remainingErrors);
+          if (failedRow !== null) showToast(`Sequence ${submissionGroups[failedRow].sequenceKey} and later sequences were not submitted: ${submissionError?.message || "Please retry."}`, "error");
+        } else {
+          setLineItems([createEmptyLineItem(1)]);
+          setLineItemErrors([{}]);
+          setLineItemCounter(1);
+          clearAccrualDraft();
+        }
+        controlNumbers.flatMap(({ ids }) => ids).forEach((id) => {
+          delete prevSupplierSearchRef.current[id];
+          delete prevGLSearchesRef.current[id];
+          delete prevProfitSearchesRef.current[id];
+        });
+      } else if (submissionError) {
+        throw submissionError;
+      }
 
     } catch (error) {
       console.error("Submission error:", error);
-      showToast("Unable to submit. Please try again later.", "error");
+      showToast(error.message || "Unable to submit. Please try again later.", "error");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const accrualWindowStatus = getAccrualWindowStatus(accrualSetup, new Date());
-  const isAccrualWindowLocked = accrualSetupLoading || !accrualWindowStatus.isOpen;
-  const isDisabled = !currentUser?.email || !headerInfo.expenseclass || staticDataLoading || isAccrualWindowLocked;
-  const deadlineReminder = useMemo(() => {
-    if (!accrualWindowStatus.isOpen || !accrualSetup?.cutoff_date) {
-      return null;
-    }
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const cutoffDate = new Date(`${accrualSetup.cutoff_date}T00:00:00`);
-    const diffInDays = Math.round((cutoffDate.getTime() - today.getTime()) / 86400000);
-
-    if (diffInDays < 0 || diffInDays > 5) {
-      return null;
-    }
-
-    return {
-      tone: diffInDays <= 1 ? "urgent" : "warning",
-      label: diffInDays <= 1 ? "Final cutoff notice" : "Upcoming cutoff",
-      text:
-        diffInDays === 0
-          ? `Today is the last day to submit accruals before the cutoff on ${formatDisplayDate(
-              accrualSetup.cutoff_date
-            )}.`
-          : `${diffInDays} day${diffInDays === 1 ? "" : "s"} remain before the submission cutoff on ${formatDisplayDate(
-              accrualSetup.cutoff_date
-            )}.`,
-    };
-  }, [accrualSetup?.cutoff_date, accrualWindowStatus.isOpen]);
-
+  const isAccrualWindowLocked = !editingSubmission && (accrualSetupLoading || !accrualWindowStatus.isOpen);
+  const isDisabled = !currentUser?.email || staticDataLoading || isAccrualWindowLocked;
   useEffect(() => {
     if (!onFullscreenChange) {
       return undefined;
@@ -1576,7 +1857,9 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           nextRow.__errors.push("Company does not exist");
         }
 
-        if (!supplierCode && !(expenseClassRule?.disabled_fields || []).includes("supplier")) {
+        const disabledFields = expenseClassRule?.disabled_fields || [];
+        const notRequiredFields = expenseClassRule?.not_required_fields || [];
+        if (!supplierCode && !disabledFields.includes("supplier") && !notRequiredFields.includes("supplier")) {
           nextRow.__errors.push("Missing supplier code");
         }
         if (companyValue && supplierCode) {
@@ -1593,7 +1876,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           }
         }
 
-        if (expenseClassValue && !(expenseClassRule?.disabled_fields || []).includes("invoice_no") && !invoiceNo) {
+        if (expenseClassValue && !disabledFields.includes("invoice_no") && !notRequiredFields.includes("invoice_no") && !invoiceNo) {
           nextRow.__errors.push("Invoice no. is required for this expense class");
         }
 
@@ -1617,7 +1900,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           }
         }
 
-        if (!profitCenterCode && !(expenseClassRule?.disabled_fields || []).includes("profit_center")) {
+        if (!profitCenterCode && !disabledFields.includes("profit_center") && !notRequiredFields.includes("profit_center")) {
           nextRow.__errors.push("Missing profit center code");
         }
         if (profitCenterCode) {
@@ -1643,18 +1926,18 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           nextRow.__errors.push("Transaction type does not exist");
         }
 
-        if (!(expenseClassRule?.disabled_fields || []).includes("vat")) {
-          if (!vatValue) {
+        if (!disabledFields.includes("vat")) {
+          if (!vatValue && !notRequiredFields.includes("vat")) {
             nextRow.__errors.push("Missing VAT");
-          } else if (!["vatable", "non-vatable"].includes(normalizeKey(vatValue))) {
+          } else if (vatValue && !["vatable", "non-vatable"].includes(normalizeKey(vatValue))) {
             nextRow.__errors.push("VAT must be Vatable or Non-Vatable");
           }
         }
 
-        if (!(expenseClassRule?.disabled_fields || []).includes("tax_code")) {
-          if (!taxCodeValue) {
+        if (!disabledFields.includes("tax_code")) {
+          if (!taxCodeValue && !notRequiredFields.includes("tax_code")) {
             nextRow.__errors.push("Missing tax code");
-          } else if (!taxCodeSet.has(normalizeKey(taxCodeValue))) {
+          } else if (taxCodeValue && !taxCodeSet.has(normalizeKey(taxCodeValue))) {
             nextRow.__errors.push("Tax code does not exist");
           }
         }
@@ -1920,544 +2203,121 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
           </section>
         ) : (
           <>
-        <div className="formHeader">
-          <div className="formHeaderBar">
-            <div>
-              <h1 className="h1">New Accrual</h1>
-              <p className="headerText">Enter the accrual details and submit it for confirmation.</p>
-            </div>
-            <div className="formHeaderActions">
-              <button
-                type="button"
-                className="tableActionBtn topUploadBtn"
-                onClick={() => setUploadOpen(true)}
-                disabled={staticDataLoading || isAccrualWindowLocked}
-              >
-                Upload Accruals
-              </button>
-              <button type="button" className="submitBtn topSubmitBtn" disabled={isSubmitting || isAccrualWindowLocked} onClick={() => setAddConfirmOpen(true)}>Add</button>
-            </div>
+        <AccrualCutoffNotice cutoffDate={accrualSetup.cutoff_date} />
+        <div className="accrualPageHeaderRow">
+          <div className="accrualPageHeadingText">
+            <h1 className="h1 accrualPageTitle">{editingSubmission ? "Edit Accrual" : "New Accrual"}</h1>
+            <p>{editingSubmission ? `Update the entries for ${editingSubmission.control_number}. Changes remain For Confirmation until confirmed.` : "Record year-end accruals for expenses incurred but not yet invoiced or paid."}</p>
           </div>
+          {!editingSubmission ? <button
+            type="button"
+            className="tableActionBtn accrualHeaderUploadBtn"
+            onClick={() => setUploadOpen(true)}
+            disabled={staticDataLoading || isAccrualWindowLocked}
+          >
+            <svg aria-hidden="true" viewBox="0 0 20 20" width="16" height="16" fill="none">
+              <path d="M10 13V3m0 0L6.5 6.5M10 3l3.5 3.5M4 12.5v3h12v-3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Upload Accruals
+          </button> : null}
         </div>
 
-        {deadlineReminder ? (
-          <div className={`deadlineReminder${deadlineReminder.tone === "urgent" ? " urgent" : ""}`}>
-            <div className="deadlineReminderLabel">{deadlineReminder.label}</div>
-            <div className="deadlineReminderText">{deadlineReminder.text}</div>
-          </div>
-        ) : null}
+        <AccrualEntryTable
+          lineItems={lineItems}
+          isEditingExistingAccrual={Boolean(editingSubmission)}
+          currentUser={currentUser}
+          expenseClass={expenseClass}
+          expenseClassRules={expenseClassRules}
+          companies={companies}
+          transactionTypes={transactionTypes}
+          taxCodes={taxCodes}
+          lineItemErrors={lineItemErrors}
+          isDisabled={isDisabled}
+          isAccrualWindowLocked={isAccrualWindowLocked}
+          handleSupplierSearchChange={handleSupplierSearchChange}
+          selectSupplier={selectSupplier}
+          loadMoreSuppliers={loadMoreSuppliers}
+          handleManageSuppliers={handleManageSuppliers}
+          updateLineItem={updateLineItem}
+          handleGLSearchChange={handleGLSearchChange}
+          selectGLAccount={selectGLAccount}
+          loadMoreGLAccounts={loadMoreGLAccounts}
+          handleProfitSearchChange={handleProfitSearchChange}
+          selectProfitCenter={selectProfitCenter}
+          loadMoreProfitCenters={loadMoreProfitCenters}
+          handleCompanyChange={handleCompanyChange}
+          handleSequenceChange={handleSequenceChange}
+          handleExpenseClassChange={handleExpenseClassChange}
+          updateHeaderField={updateHeaderField}
+          setLineItems={setLineItems}
+          setLineItemErrors={setLineItemErrors}
+          addLineItemAfter={addLineItemAfter}
+          addNextSequenceLineItem={addNextSequenceLineItem}
+          removeLineItem={removeLineItem}
+        />
 
-        {/* Email & Company */}
-        <div className="formSection sectionCard">
-          <div className="cardHeading">
-            <h2 className="cardTitle">General Information</h2>
-            <p className="cardSubtitle">Set the requester, expense classification, and company details.</p>
-          </div>
-          <div className="formGroup">
-            <label className="label">
-              Email <span className="required">*</span>
-            </label>
-            <input
-              type="email"
-              className={`input ${headerErrors.email ? "inputError" : ""}`}
-              placeholder="Your email"
-              value={currentUser?.email || ""}
-              disabled
-            />
-            {headerErrors.email && (
-              <div className="errorText">Please enter a valid email</div>
-            )}
-          </div>
 
-          <div className="formGroup">
-            <label className="label">
-              Expense Classifications <span className="required">*</span>
-            </label>
-            <select
-              className={`select ${headerErrors.expenseclass ? "inputError" : ""}`}
-              value={headerInfo.expenseclass}
-              disabled={isAccrualWindowLocked}
-              onChange={(e) => {
-                const nextRule = expenseClassRules.find((rule) => rule.name === e.target.value);
-                setHeaderInfo((current) => ({
-                  ...current,
-                  expenseclass: e.target.value,
-                  invoiceNo: nextRule?.default_invoice_no
-                    ? current.invoiceNo || nextRule.default_invoice_no
-                    : current.invoiceNo === selectedExpenseClassRule?.default_invoice_no ? "" : current.invoiceNo,
-                }));
-                setHeaderErrors((prev) => ({ ...prev, expenseclass: false }));
-              }}
-            >
-              <option value="">Choose</option>
-              {expenseClass.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-            {headerErrors.expenseclass && (
-              <div className="errorText">Expense Classification is Required</div>
-            )}
-          </div>
 
-          <div className="formGroup">
-            <label className="label">
-              Company Charging <span className="required">*</span>
-            </label>
-            <select
-              className={`select ${headerErrors.company ? "inputError" : ""}`}
-              disabled={isDisabled}
-              value={headerInfo.company}
-              onChange={(e) => {
-                const newCompany = e.target.value;
-                setHeaderInfo({
-                  ...headerInfo,
-                  company: newCompany,
-                  supplier: "",
-                  supplierName: "",
-                });
-                setSupplierSearch("");  
-                setSuppliers([]); 
-                setSupplierPage(1);
-                prevSupplierSearchRef.current = "";
-                setHeaderErrors((prev) => ({ ...prev, company: false }));
-              }}
-            >
-              <option value="">Choose</option>
-              {companies.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-            {headerErrors.company && (
-              <div className="errorText">Company Charging is Required</div>
-            )}
-          </div>
-        </div>
-
-        {/* Supplier */}
-        <div className="formSection sectionCard">
-          <div className="cardHeading supplierSectionHeading">
-            <div>
-              <h2 className="cardTitle">Supplier Information</h2>
-              <p className="cardSubtitle">Search the supplier master and confirm the selected vendor.</p>
-            </div>
-            <button
-                type="button"
-                className="missingSupplierLink"
-                onClick={handleManageSuppliers}
-                disabled={isAccrualWindowLocked}
-              >
-                Request Supplier Enrollment
-              </button>
-          </div>
-          <div className="formGroup" style={{ position: "relative" }}>
-            <label className="label">Supplier {requiresSupplier ? <span className="required">*</span> : null}</label>
-            <input
-              type="text"
-              className={`input ${headerErrors.supplier ? "inputError" : ""}`}
-              placeholder="Type to search supplier..."
-              value={supplierSearch}
-              onChange={(e) => {
-                setSupplierSearch(e.target.value);
-                setHeaderInfo((prev) => ({ ...prev, supplier: "", supplierName: "" }));
-                setSuppliers([]);
-                prevSupplierSearchRef.current = "";
-                setSupplierPage(1);
-                setShowSupplierDropdown(e.target.value.length >= 2);
-                setHeaderErrors((prev) => ({ ...prev, supplier: false }));
-              }}
-              onFocus={() => setShowSupplierDropdown(supplierSearch.length >= 2)}
-              disabled={isDisabled || !requiresSupplier}
-            />
-            {headerErrors.supplier && (
-              <div className="errorText">Supplier is Required.</div>
-            )}
-            {showSupplierDropdown && supplierSearch.length >= 2 && (
-              <div className="dropdownContainer">
-                {suppliers.map((s) => (
-                  <div
-                    key={s.supplier}
-                    className="dropdownItem"
-                    onClick={() => selectSupplier(s)}
-                  >
-                    {s.supplier} - {s.name}
-                  </div>
-                ))}
-
-                {suppliers.length < supplierTotal && (
-                  <div
-                    className="dropdownLoadMore"
-                    onClick={() => setSupplierPage((prev) => prev + 1)}
-                  >
-                    Load more...
-                  </div>
-                )}
-
-                {suppliers.length === 0 && (
-                  <div className="dropdownEmpty">
-                    No supplier found matching "{supplierSearch}"
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="formGroup">
-            <label className="label">Supplier Name</label>
-            <input
-              type="text"
-              className="inputDisabled"
-              value={headerInfo.supplierName}
-              disabled
-            />
-          </div>
-        </div>
-
-        {/* Invoice No */}
-        <div className="formSection sectionCard">
-          <div className="cardHeading">
-            <h2 className="cardTitle">Invoice Details</h2>
-            <p className="cardSubtitle">Capture the invoice reference tied to this accrual request.</p>
-          </div>
-          <div className="formGroup">
-            <label className="label">
-              Invoice No. {requiresInvoice ? <span className="required">*</span> : null}
-            </label>
-            <input
-              type="text"
-              className={`input ${headerErrors.invoiceNo ? "inputError" : ""}`}
-              disabled={isDisabled || !requiresInvoice}
-              placeholder="Enter invoice number"
-              value={headerInfo.invoiceNo}
-              onChange={(e) => {
-                setHeaderInfo({ ...headerInfo, invoiceNo: e.target.value });
-                setHeaderErrors((prev) => ({ ...prev, invoiceNo: false }));
-              }}
-            />
-            {headerErrors.invoiceNo && (
-              <div className="errorText">Required</div>
-            )}
-          </div>
-        </div>
-
-        {/* Line Items */}
-        <div className="formSection sectionCard lineItemsPanel">
-          <div className="cardHeading">
-            <h2 className="cardTitle">Accrual Line Items</h2>
-            <p className="cardSubtitle">Add the accounting, tax, and remarks lines for this entry.</p>
-          </div>
-          <div className="lineItemsHeader">
-            <div className="lineItemsGuidance">
-              <div className="lineItemsGuidanceTitle">Guided tips for accurate line items</div>
-              <div className="lineItemsGuidanceText">
-                Keep one line per accounting treatment, then use remarks to explain the business purpose or timing difference.
-              </div>
-            </div>
-            <button
-              type="button"
-              className="addBtn"
-              onClick={addLineItem}
-              disabled={isDisabled}
-            >
-              + Add Line Item
-            </button>
-          </div>
-          <div className="lineItemsContainer">
-            {lineItems.map((item, index) => {
-            const filteredGL = item.glAccounts || [];
-            const filteredProfit = item.profitCenters || [];
-
-            return (
-              <div key={item.id} className="lineItemCard">
-                <div className="lineItemHeader">
-                  <div className="lineItemTitle">Line Item #{index + 1}</div>
-                  {lineItems.length > 1 && (
-                    <button
-                      type="button"
-                      className="removeBtn"
-                      onClick={() => removeLineItem(item.id)}
-                    >
-                      ✕ Remove
-                    </button>
-                  )}
-                </div>
-
-                <div className="lineItemGrid">
-                  {/* Gross Amount */}
-                  <div className="formGroup1">
-                    <label className="label">
-                      Gross Amount <span className="required">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      className={`input ${lineItemErrors[index]?.grossAmount ? "inputError" : ""}`}
-                      placeholder="0.00"
-                      value={item.grossAmount}
-                      disabled={isDisabled}
-                      onChange={(e) => updateLineItem(item.id, "grossAmount", e.target.value)}
-                    />
-                    {lineItemErrors[index]?.grossAmount && (
-                      <div className="errorText">Gross Amount is required</div>
-                    )}
-                  </div>
-
-                  {/* GL Account */}
-              <div className="formGroup1" style={{ position: "relative" }}>
-                <label className="label">
-                  GL Account <span className="required">*</span>
-                </label>
-                <input
-                  type="text"
-                  className={`inputItem ${lineItemErrors[index]?.glaccount ? "inputError" : ""}`}
-                  disabled={isDisabled}
-                  placeholder="Type to search GL Account."
-                  value={item.glSearch}
-                  onChange={(e) => handleGLSearchChange(item.id, e.target.value)}
-                  onFocus={() =>
-                    setLineItems(prev =>
-                      prev.map(li =>
-                        li.id === item.id
-                          ? { ...li, showGLDropdown: (item.glSearch || "").length >= 2 }
-                          : li
-                      )
-                    )
-                  }
-                />
-                {lineItemErrors[index]?.glaccount && <div className="errorText">GL Account is required</div>}
-                {item.showGLDropdown && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      right: 0,
-                      maxHeight: 200,
-                      overflowY: "auto",
-                      backgroundColor: "white",
-                      border: "1px solid #ddd",
-                      borderRadius: 4,
-                      marginTop: 4,
-                      zIndex: 1000,
-                      boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-                    }}
-                  >
-                    {filteredGL.length > 0 ? (
-                      filteredGL.map((g) => (
-                        <div
-                          key={g.code}
-                          onClick={() => selectGLAccount(item.id, g)}
-                          style={{ padding: "8px 12px", cursor: "pointer", borderBottom: "1px solid #f0f0f0" }}
-                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
-                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
-                        >
-                          {g.code} - {g.name}
-                        </div>
-                      ))
-                    ) : (
-                      <div style={{ padding: 12, color: "#666", fontSize: 14, fontStyle: "italic" }}>
-                        No GL accounts found matching "{item.glSearch}"
-                      </div>
-                    )}
-
-                    {filteredGL.length < item.glTotal && (
-                      <div
-                        style={{
-                          padding: "8px",
-                          textAlign: "center",
-                          cursor: "pointer",
-                          fontWeight: "500",
-                          color: "#007bff",
-                        }}
-                        onClick={() => loadMoreGLAccounts(item.id)}
-                      >
-                        Load more...
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="formGroup1">
-                <label className="label">GL Account Name</label>
-                <input type="text" className="inputItemDisabled" value={item.glaccountName} disabled />
-              </div>
-
-              {/* PROFIT CENTER */}
-              <div className="formGroup1" style={{ position: "relative" }}>
-                <label className="label">
-                  Profit Center Code {requiresProfitCenter ? <span className="required">*</span> : null}
-                </label>
-                <input
-                  type="text"
-                  disabled={isDisabled || !requiresProfitCenter}
-                  className={`inputItem ${lineItemErrors[index]?.profitcenter ? "inputError" : ""}`}
-                  placeholder="Type to search Profit Center Code."
-                  value={item.profitSearch}
-                  onChange={(e) => handleProfitSearchChange(item.id, e.target.value)}
-                  onFocus={() =>
-                    setLineItems(prev =>
-                      prev.map(li =>
-                        li.id === item.id
-                          ? { ...li, showProfitDropdown: (item.profitSearch || "").length >= 2 }
-                          : li
-                      )
-                    )
-                  }
-                />
-                {lineItemErrors[index]?.profitcenter && <div className="errorText">Profit Center is required</div>}
-                {item.showProfitDropdown && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: 0,
-                      right: 0,
-                      maxHeight: 200,
-                      overflowY: "auto",
-                      backgroundColor: "white",
-                      border: "1px solid #ddd",
-                      borderRadius: 4,
-                      marginTop: 4,
-                      zIndex: 1000,
-                      boxShadow: "0 4px 6px rgba(0,0,0,0.1)",
-                    }}
-                  >
-                    {filteredProfit.length > 0 ? (
-                      filteredProfit.map((p) => (
-                        <div
-                          key={p.code}
-                          onClick={() => selectProfitCenter(item.id, p)}
-                          style={{
-                            padding: "8px 12px",
-                            cursor: "pointer",
-                            borderBottom: "1px solid #f0f0f0",
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f5f5f5")}
-                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "white")}
-                        >
-                          {p.code} - {p.name}
-                        </div>
-                      ))
-                    ) : (
-                      <div style={{ padding: 12, color: "#666", fontSize: 14, fontStyle: "italic" }}>
-                        No Profit Center found matching "{item.profitSearch}"
-                      </div>
-                    )}
-
-                    {filteredProfit.length < item.profitTotal && (
-                      <div
-                        style={{
-                          padding: "8px",
-                          textAlign: "center",
-                          cursor: "pointer",
-                          fontWeight: "500",
-                          color: "#007bff",
-                        }}
-                        onClick={() => loadMoreProfitCenters(item.id)}
-                      >
-                        Load more...
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="formGroup1">
-                <label className="label">Profit Center Name</label>
-                <input type="text" className="inputItemDisabled" value={item.profitcenterName} disabled />
-              </div>
-
-              {/* Transaction Type */}
-              <div className="formGroup1">
-                <label className="label"> Transaction Type <span className="required">*</span> </label>
-                <select
-                  className={`select ${lineItemErrors[index]?.transType ? "inputError" : ""}`}
-                  value={item.transType}
-                  disabled={isDisabled}
-                  onChange={(e) => {
-                    updateLineItem(item.id, "transType", e.target.value);
-                    setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, transType: false } : err));
-                  }}
-                >
-                  <option value="">Choose</option>
-                  {transactionTypes.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-                {lineItemErrors[index]?.transType && <div className="errorText">Transaction Type is required</div>}
-                <FieldTip>Choose the transaction type that best matches the source document or accrual scenario.</FieldTip>
-              </div>
-
-              <>
-                  {/* VAT */}
-                  <div className="formGroup1">
-                    <label className="label"> VAT {requiresVat ? <span className="required">*</span> : null} </label>
-                    <select
-                      className={`select ${lineItemErrors[index]?.vat ? "inputError" : ""}`}
-                      value={item.vat}
-                      disabled={isDisabled || !requiresVat}
-                      onChange={(e) => {
-                        updateLineItem(item.id, "vat", e.target.value);
-                        setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, vat: false } : err));
-                      }}
-                    >
-                      <option value="">Choose</option>
-                      <option value="Vatable">Vatable</option>
-                      <option value="Non-Vatable">Non-Vatable</option>
-                    </select>
-                    {lineItemErrors[index]?.vat && <div className="errorText">VAT is required</div>}
-                  </div>
-
-                  {/* Tax Code */}
-                  <div className="formGroup1">
-                    <label className="label"> Tax Code {requiresTaxCode ? <span className="required">*</span> : null} </label>
-                    <select
-                      className={`select ${lineItemErrors[index]?.taxCode ? "inputError" : ""}`}
-                      value={item.taxCode}
-                      disabled={isDisabled || !requiresTaxCode}
-                      onChange={(e) => {
-                        updateLineItem(item.id, "taxCode", e.target.value);
-                        setLineItemErrors(prev => prev.map((err, i) => i === index ? { ...err, taxCode: false } : err));
-                      }}
-                    >
-                      <option value="">Choose</option>
-                      {taxCodes.map((tc) => <option key={tc} value={tc}>{tc}</option>)}
-                    </select>
-                    {lineItemErrors[index]?.taxCode && <div className="errorText">Tax Code is required</div>}
-                  </div>
-              </>
-
-              <div className="formGroup1">
-                <label className="label">Remarks <span className="required">*</span> </label>
-                <textarea
-                  className={`input ${lineItemErrors[index]?.remarks ? "inputError" : ""}`}
-                  rows={2}
-                  disabled={isDisabled}
-                  value={item.remarks}
-                  onChange={(e) => updateLineItem(item.id, "remarks", e.target.value)}
-                ></textarea>
-                {lineItemErrors[index]?.remarks && <div className="errorText">Remarks are required</div>}
-              </div>
-            </div>
-          </div>
-        );
-      })}
-          </div>
-          
-    </div>
-
-    <div className="formFooter accrualEntryFooter">
-      <button type="button" className="submitBtn" disabled={isSubmitting || isAccrualWindowLocked} onClick={() => setAddConfirmOpen(true)}>Add</button>
+    <div className="accrualEntryFooter">
+      {editingSubmission ? <button type="button" className="tableActionBtn" disabled={isSubmitting} onClick={onEditCancel}>Cancel</button> : null}
+      <button type="button" className="submitBtn" disabled={isSubmitting || isAccrualWindowLocked} onClick={openSubmissionPreview}>{editingSubmission ? "Save Changes" : "Add"}</button>
     </div>
           </>
         )}
 
     {addConfirmOpen ? (
       <div className="modalOverlay maintenanceOverlay">
-        <section className="modalContent maintenanceDialog addAccrualConfirm" role="dialog" aria-modal="true" aria-labelledby="addAccrualConfirmTitle">
-          <h2 id="addAccrualConfirmTitle" className="modalTitle">Add this accrual?</h2>
-          <p>This will submit your accrual as <strong>For Confirmation</strong>. You can edit it until it is confirmed.</p>
-          <div className="dialogActions">
-            <button type="button" className="tableActionBtn" autoFocus onClick={() => setAddConfirmOpen(false)}>Go back</button>
-            <button type="button" className="submitBtn" onClick={() => { setAddConfirmOpen(false); handleSubmit(); }}>Submit for confirmation</button>
+        <section className="modalContent maintenanceDialog accrualSubmissionDialog" role="dialog" aria-modal="true" aria-labelledby="addAccrualConfirmTitle">
+          <header className="accrualSubmissionHeader">
+            <span className="accrualSubmissionEyebrow">{editingSubmission ? "Review changes" : "Review submission"}</span>
+            <h2 id="addAccrualConfirmTitle">{editingSubmission ? "Save accrual changes?" : "Submit accruals?"}</h2>
+            <p>{editingSubmission ? `This updates ${editingSubmission.control_number}. Its control number stays the same, and the accrual remains For Confirmation.` : "Each Seq. group creates one accrual and receives one control number. The actual numbers will be assigned when you submit."}</p>
+          </header>
+          <div className="accrualSubmissionBody">
+            <div className="accrualSubmissionStats" aria-label="Submission totals">
+              <div><span>{editingSubmission ? "Accrual" : "Accruals"}</span><strong>{accrualSubmissionPreview.length}</strong></div>
+              <div><span>Entries</span><strong>{lineItems.length}</strong></div>
+            </div>
+            <div className="accrualSubmissionTableWrap">
+              <table className="accrualSubmissionTable">
+                <colgroup>{[155, 250, 170, 250, 150, 90, 160, 190].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
+                <thead><tr><th>Group / entries</th><th>Expense classification</th><th>Company</th><th>Supplier</th><th>Invoice no.</th><th>Entries</th><th>Gross amount</th><th>Control number</th></tr></thead>
+                <tbody>{accrualSubmissionPreview.map((group) => {
+                  const isExpanded = expandedPreviewGroups.has(group.sequenceKey);
+                  return <React.Fragment key={group.sequenceKey}>
+                    <tr>
+                      <td data-label="Group"><div className="accrualPreviewGroupCell"><span className="accrualSequenceBadge">{group.sequence}</span>{group.entryCount > 1 && <button type="button" className="accrualPreviewToggle" aria-expanded={isExpanded} onClick={() => setExpandedPreviewGroups((previous) => { const next = new Set(previous); if (next.has(group.sequenceKey)) next.delete(group.sequenceKey); else next.add(group.sequenceKey); return next; })}>{isExpanded ? "Hide entries" : `View ${group.entryCount} entries`}<span aria-hidden="true">{isExpanded ? "−" : "+"}</span></button>}</div></td>
+                      <td data-label="Expense classification" title={group.expenseClass}>{group.expenseClass}</td>
+                      <td data-label="Company" title={group.company}>{group.company}</td>
+                      <td data-label="Supplier" title={[group.supplier, group.supplierName].filter(Boolean).join(" · ")}><strong>{group.supplier}</strong><small>{group.supplierName}</small></td>
+                      <td data-label="Invoice no." title={group.invoiceNo}>{group.invoiceNo}</td>
+                      <td data-label="Entries">{group.entryCount}</td>
+                      <td data-label="Gross amount" className="accrualSubmissionAmount">{formatAccrualCurrency(group.grossAmount)}</td>
+                      <td data-label="Control number"><span className="accrualPendingControl">{editingSubmission?.control_number || "Assigned on submit"}</span></td>
+                    </tr>
+                    {isExpanded && <tr className="accrualPreviewDetailRow"><td colSpan={8}><div className="accrualPreviewEntries">{group.items.map((entry, index) => <article className="accrualPreviewEntry" key={entry.id || index}>
+                      <div className="accrualPreviewEntryHeading"><strong>Entry {index + 1}</strong><strong>{formatAccrualCurrency(entry.grossAmount)}</strong></div>
+                      <dl>
+                        <div><dt>GL account</dt><dd>{entry.glaccount || "—"}{entry.glaccountName ? ` · ${entry.glaccountName}` : ""}</dd></div>
+                        <div><dt>Profit center</dt><dd>{entry.profitcenter || "—"}{entry.profitcenterName ? ` · ${entry.profitcenterName}` : ""}</dd></div>
+                        <div><dt>Transaction type</dt><dd>{entry.transType || "—"}</dd></div>
+                        <div><dt>VAT / tax code</dt><dd>{[entry.vat, entry.taxCode].filter(Boolean).join(" · ") || "—"}</dd></div>
+                        <div className="accrualPreviewRemark"><dt>Remarks</dt><dd>{entry.remarks || "—"}</dd></div>
+                      </dl>
+                    </article>)}</div></td></tr>}
+                  </React.Fragment>;
+                })}</tbody>
+              </table>
+            </div>
+            <p className="accrualSubmissionNote">{editingSubmission ? "Your changes will keep this accrual in " : "Submitted accruals will be marked "}<strong>For Confirmation</strong>{editingSubmission ? " status and keep the same control number." : " and can be edited until confirmed."}</p>
+          </div>
+          {isSubmitting && <div className="accrualSubmissionProgress" role="status"><span className="accrualSubmitSpinner" aria-hidden="true" />{editingSubmission ? "Saving changes to the existing accrual..." : "Creating accruals and assigning control numbers..."}</div>}
+          <div className="dialogActions accrualSubmissionActions">
+            <button type="button" className="tableActionBtn" autoFocus disabled={isSubmitting} onClick={() => setAddConfirmOpen(false)}>Go back</button>
+            <button type="button" className={`submitBtn${isSubmitting ? " isLoading" : ""}`} aria-busy={isSubmitting} disabled={isSubmitting} onClick={handleSubmit}>
+              {isSubmitting && <span className="accrualSubmitSpinner" aria-hidden="true" />}
+              {isSubmitting ? (editingSubmission ? "Saving..." : "Submitting...") : (editingSubmission ? "Save changes" : `Submit ${accrualSubmissionPreview.length} accrual${accrualSubmissionPreview.length === 1 ? "" : "s"}`)}
+            </button>
           </div>
         </section>
       </div>
@@ -2611,89 +2471,39 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange }) 
 
     {/* Modal */}
     {showModal && (
-      <div className="modalOverlay">
-        <div className="modalContent">
-          <div
-            style={{
-              width: "64px",
-              height: "64px",
-              borderRadius: "50%",
-              background: "linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              margin: "0 auto 24px",
-              boxShadow: "0 4px 12px rgba(76, 175, 80, 0.3)",
-            }}
-          >
-            <svg
-              width="32"
-              height="32"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="white"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
+      <div className="modalOverlay maintenanceOverlay">
+        <section className="modalContent maintenanceDialog accrualSubmissionDialog accrualSubmissionSuccess" role="dialog" aria-modal="true" aria-labelledby="accrualSubmittedTitle">
+          <header className="accrualSubmissionHeader accrualSuccessHeader">
+            <span className="accrualSuccessIcon" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4 4L19 6" /></svg></span>
+            <div><span className="accrualSubmissionEyebrow">Submission complete</span><h2 id="accrualSubmittedTitle">Submitted for confirmation</h2><p>{submittedAccrualGroups.length} accrual{submittedAccrualGroups.length === 1 ? " was" : "s were"} created and can be edited until confirmed.</p></div>
+          </header>
+          <div className="accrualSubmissionBody">
+            <div className="accrualSubmissionStats" aria-label="Submitted totals">
+              <div><span>Control numbers</span><strong>{submittedAccrualGroups.length}</strong></div>
+              <div><span>Entries</span><strong>{submittedAccrualGroups.reduce((total, group) => total + group.entryCount, 0)}</strong></div>
+              <div><span>Total gross amount</span><strong>{formatAccrualCurrency(submittedAccrualGroups.reduce((total, group) => total + group.grossAmount, 0))}</strong></div>
+            </div>
+            <div className="accrualSubmissionTableWrap">
+              <table className="accrualSubmissionTable accrualSubmittedTable">
+                <thead><tr><th>Control number</th><th>Group</th><th>Expense classification</th><th>Company</th><th>Supplier</th><th>Invoice no.</th><th>Entries</th><th>Gross amount</th></tr></thead>
+                <tbody>{submittedAccrualGroups.map((group) => (
+                  <tr key={group.controlNumber}>
+                    <td data-label="Control number"><strong className="accrualControlNumber">{group.controlNumber}</strong></td>
+                    <td data-label="Group"><span className="accrualSequenceBadge">{group.sequence}</span></td>
+                    <td data-label="Expense classification">{group.expenseClass}</td>
+                    <td data-label="Company">{group.company}</td>
+                    <td data-label="Supplier"><strong>{group.supplier}</strong>{group.supplierName !== "—" && <small>{group.supplierName}</small>}</td>
+                    <td data-label="Invoice no.">{group.invoiceNo}</td>
+                    <td data-label="Entries">{group.entryCount}</td>
+                    <td data-label="Gross amount" className="accrualSubmissionAmount">{formatAccrualCurrency(group.grossAmount)}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+            <p className="accrualSubmissionNote">You can find these records in <strong>All Accruals</strong> while they are awaiting confirmation.</p>
           </div>
-          <h2
-            style={{
-              margin: "0 0 12px 0",
-              fontSize: "24px",
-              fontWeight: "500",
-              color: "#202124",
-              fontFamily: "'Google Sans', sans-serif",
-            }}
-          >
-            Submitted for confirmation
-          </h2>
-          <p
-            style={{
-              margin: "0 0 8px 0",
-              fontSize: "14px",
-              color: "#5f6368",
-              lineHeight: "1.6",
-            }}
-          >
-            Your accrual control number:
-          </p>
-          <div
-            style={{
-              fontSize: "36px",
-              fontWeight: "bold",
-              color: "#202124",
-              margin: "16px 0 24px 0",
-              fontFamily: "'Google Sans', sans-serif",
-              letterSpacing: "2px",
-            }}
-          >
-            {modalMessage}
-          </div>
-          <p
-            style={{
-              margin: "0 0 32px 0",
-              fontSize: "13px",
-              color: "#5f6368",
-              lineHeight: "1.6",
-            }}
-          >
-            Review your accrual in All Accruals. You can edit it until it is confirmed.
-          </p>
-          <button
-            onClick={() => setShowModal(false)}
-            className="submitBtn"
-            style={{
-              width: "100%",
-              padding: "12px 24px",
-              fontSize: "15px",
-            }}
-          >
-            Close
-          </button>
-        </div>
+          <div className="dialogActions accrualSubmissionActions"><button type="button" className="submitBtn" onClick={() => setShowModal(false)}>Close</button></div>
+        </section>
       </div>
     )}
 

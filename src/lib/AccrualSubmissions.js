@@ -27,6 +27,7 @@ export async function fetchAccrualSubmissions(options = {}) {
         confirmed_by,
         cancelled_at,
         cancelled_by,
+        accrual_notes(count),
         accrual_submission_lines (
           id,
           line_number,

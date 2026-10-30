@@ -1629,7 +1629,8 @@ begin
     add column if not exists requires_vat boolean not null default true,
     add column if not exists requires_tax_code boolean not null default true;
   alter table public.expense_classes
-    add column if not exists disabled_fields text[] not null default '{}';
+    add column if not exists disabled_fields text[] not null default '{}',
+    add column if not exists not_required_fields text[] not null default '{}';
 
   -- Apply sensible starting rules only on first install; later migration reruns
   -- must preserve any settings maintained by admins.
@@ -1687,7 +1688,9 @@ begin
 
   v_supplier_code := nullif(trim(p_header->>'supplier_code'), '');
   v_supplier_name := nullif(trim(p_header->>'supplier_name'), '');
-  if not ('supplier' = any(v_expense_class.disabled_fields)) and (v_supplier_code is null or v_supplier_name is null) then
+  if not ('supplier' = any(v_expense_class.disabled_fields))
+    and not ('supplier' = any(v_expense_class.not_required_fields))
+    and (v_supplier_code is null or v_supplier_name is null) then
     raise exception 'Supplier is required for this expense classification';
   end if;
   if (v_supplier_code is null) <> (v_supplier_name is null) then
@@ -1695,7 +1698,9 @@ begin
   end if;
 
   v_invoice_no := coalesce(nullif(trim(p_header->>'invoice_no'), ''), nullif(trim(v_expense_class.default_invoice_no), ''));
-  if not ('invoice_no' = any(v_expense_class.disabled_fields)) and v_invoice_no is null then
+  if not ('invoice_no' = any(v_expense_class.disabled_fields))
+    and not ('invoice_no' = any(v_expense_class.not_required_fields))
+    and v_invoice_no is null then
     raise exception 'Invoice number is required for this expense classification';
   end if;
 
@@ -1712,13 +1717,19 @@ begin
         raise exception 'Required line field: %', v_field;
       end if;
     end loop;
-    if not ('profit_center' = any(v_expense_class.disabled_fields)) and nullif(trim(v_line->>'profitcenter_code'), '') is null then
+    if not ('profit_center' = any(v_expense_class.disabled_fields))
+      and not ('profit_center' = any(v_expense_class.not_required_fields))
+      and nullif(trim(v_line->>'profitcenter_code'), '') is null then
       raise exception 'Profit center is required for this expense classification';
     end if;
-    if not ('vat' = any(v_expense_class.disabled_fields)) and nullif(trim(v_line->>'vat'), '') is null then
+    if not ('vat' = any(v_expense_class.disabled_fields))
+      and not ('vat' = any(v_expense_class.not_required_fields))
+      and nullif(trim(v_line->>'vat'), '') is null then
       raise exception 'VAT is required for this expense classification';
     end if;
-    if not ('tax_code' = any(v_expense_class.disabled_fields)) and nullif(trim(v_line->>'tax_code'), '') is null then
+    if not ('tax_code' = any(v_expense_class.disabled_fields))
+      and not ('tax_code' = any(v_expense_class.not_required_fields))
+      and nullif(trim(v_line->>'tax_code'), '') is null then
       raise exception 'Tax code is required for this expense classification';
     end if;
     if nullif(v_line->>'gross_amount', '') is null or (v_line->>'gross_amount')::numeric::text in ('NaN', 'Infinity', '-Infinity') then

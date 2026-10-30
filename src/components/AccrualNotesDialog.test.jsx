@@ -71,10 +71,15 @@ test("shows the conversation and saves formatted note content", async () => {
     id: 2, author_name: "Sam", body: "<p>Invoice reviewed.</p>", created_at: "2026-10-28T09:00:00Z",
   });
 
-  render(<AccrualNotesDialog submission={{ id: 42, control_number: "ACT000042" }} onClose={jest.fn()} />);
+  const onCountChange = jest.fn();
+  render(<AccrualNotesDialog submission={{ id: 42, control_number: "ACT000042" }} onClose={jest.fn()} onCountChange={onCountChange} />);
   expect(await screen.findByText("Please review the invoice.")).toBeInTheDocument();
+  expect(screen.getByLabelText("1 note")).toHaveTextContent("1");
+  expect(onCountChange).toHaveBeenCalledWith(42, 1);
   fireEvent.change(screen.getByLabelText("Note text"), { target: { value: "Invoice reviewed." } });
   fireEvent.click(screen.getByRole("button", { name: "Add note" }));
   await waitFor(() => expect(addAccrualNote).toHaveBeenCalledWith(42, "<p>Invoice reviewed.</p>"));
   expect(await screen.findByText("Invoice reviewed.")).toBeInTheDocument();
+  expect(screen.getByLabelText("2 notes")).toHaveTextContent("2");
+  expect(onCountChange).toHaveBeenLastCalledWith(42, 2);
 });

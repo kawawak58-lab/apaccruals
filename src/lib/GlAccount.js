@@ -23,11 +23,12 @@ export async function getGLAccounts(company, search = "", page = 1, limit = 50) 
   let query = supabase
     .from("glaccounts")
     .select("glaccountcode, glaccountname", { count: "exact" })
-    .eq("company", company);
+    .ilike("company", String(company).trim());
 
-  if (search && search.length >= 2) {
+  const searchTerm = String(search || "").trim();
+  if (searchTerm.length >= 2) {
     query = query.or(
-      `glaccountname.ilike.%${search}%,glaccountcode.ilike.%${search}%`
+      `glaccountname.ilike.%${searchTerm}%,glaccountcode.ilike.%${searchTerm}%`
     );
   }
 

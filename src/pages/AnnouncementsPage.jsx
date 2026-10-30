@@ -4,6 +4,7 @@ import Link from "@tiptap/extension-link";
 import StarterKit from "@tiptap/starter-kit";
 import { EditorContent, useEditor } from "@tiptap/react";
 import MaintenanceSkeleton from "../components/MaintenanceSkeleton";
+import AccrualCutoffNotice from "../components/AccrualCutoffNotice";
 import { deleteRecord, fetchCollection, insertRecord, updateRecord } from "../lib/adminCrud";
 import { useToast } from "../lib/toast";
 
@@ -520,6 +521,8 @@ export default function AnnouncementsPage() {
           </button>
         </div>
       </div>
+
+      <AccrualCutoffNotice />
 
       <div className="managementPanel announcementPanel">
         {errorMessage ? <div className="inlineError">{errorMessage}</div> : null}

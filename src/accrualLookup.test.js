@@ -17,12 +17,12 @@ test("supplier codes and pasted whitespace are supported", async () => {
   expect(await findExactLookup({ ...options, search: " 1009710 ", codeKey: "supplier", rows: [{ supplier: "1009710", name: "Supplier" }], total: 1 })).toEqual({ code: "1009710", name: "Supplier" });
 });
 test("exact matches beyond the first search page are checked by company and code", async () => {
-  const query = { select: jest.fn(), eq: jest.fn(), limit: jest.fn() };
-  query.select.mockReturnValue(query); query.eq.mockReturnValue(query);
+  const query = { select: jest.fn(), eq: jest.fn(), ilike: jest.fn(), limit: jest.fn() };
+  query.select.mockReturnValue(query); query.eq.mockReturnValue(query); query.ilike.mockReturnValue(query);
   query.limit.mockResolvedValue({ data: [{ glaccountcode: "12600030", glaccountname: "Receivable" }], error: null });
   supabase.from.mockReturnValue(query);
   expect(await findExactLookup({ ...options, rows: [], total: 100 })).toEqual({ code: "12600030", name: "Receivable" });
-  expect(query.eq).toHaveBeenCalledWith("company", "Company A");
+  expect(query.ilike).toHaveBeenCalledWith("company", "Company A");
   expect(query.eq).toHaveBeenCalledWith("glaccountcode", "12600030");
 });
 test("cleared input cannot auto-select a result", async () => {

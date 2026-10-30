@@ -69,6 +69,25 @@ export function getAccrualWindowStatus(setup, today = new Date()) {
   };
 }
 
+export function getDaysUntilAccrualCutoff(cutoffDate, now = new Date()) {
+  if (!cutoffDate) return null;
+
+  const todayKey = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+  const parseDate = (value) => {
+    const [year, month, day] = String(value).slice(0, 10).split("-").map(Number);
+    return year && month && day ? Date.UTC(year, month - 1, day) : NaN;
+  };
+  const today = parseDate(todayKey);
+  const cutoff = parseDate(cutoffDate);
+  if (!Number.isFinite(today) || !Number.isFinite(cutoff)) return null;
+  return Math.round((cutoff - today) / 86400000);
+}
+
 export function formatDateInputValue(value) {
   if (!value) {
     return "";

@@ -8,6 +8,7 @@ import SuppliersPage from "./pages/SuppliersPage";
 import AllAccrualsPage from "./pages/AllAccrualsPage";
 import AccrualSetupPage from "./pages/AccrualSetupPage";
 import AnnouncementsPage from "./pages/AnnouncementsPage";
+import AccrualCutoffNotice from "./components/AccrualCutoffNotice";
 import ControlNumberSetupPage from "./pages/ControlNumberSetupPage";
 import { AppViewContext } from "./lib/appView";
 import { ToastProvider, useToast } from "./lib/toast";
@@ -753,7 +754,6 @@ function Sidebar({
           </div>
           <div className="brandText">
             <div className="brandTitle">Bounty Accrual Engine</div>
-            <div className="brandSubtitle">BAE</div>
           </div>
         </div>
         <button
@@ -920,7 +920,6 @@ function LoginShellLoader() {
               <BrandLogo />
             </div>
             <div>
-              <div className="authLoginEyebrow">BAE</div>
               <div className="authLoginBrand">Bounty Accrual Engine</div>
             </div>
           </div>
@@ -989,6 +988,7 @@ function LoginScreen({ onLogin, signingIn, announcements, onExpandAnnouncement }
     <div className="authScreen">
       <div className="authSplitShell">
         <section className="authNewsPanel">
+          <AccrualCutoffNotice />
           <div className="authNewsHeader">
             <div className="authNewsEyebrowRow">
               <div className="authNewsIcon">
@@ -1041,7 +1041,6 @@ function LoginScreen({ onLogin, signingIn, announcements, onExpandAnnouncement }
               <BrandLogo />
             </div>
             <div>
-              <div className="authLoginEyebrow">BAE</div>
               <div className="authLoginBrand">Bounty Accrual Engine</div>
             </div>
           </div>
@@ -1112,10 +1111,10 @@ function OnboardingScreen({ email, value, onChange, onSubmit, saving }) {
 }
 
 function renderActiveView(activeView, currentUser, options = {}) {
-  const { onNewAccrualFullscreenChange } = options;
+  const { onNewAccrualFullscreenChange, onEditAccrual, accrualsRefreshKey } = options;
   switch (activeView) {
     case "/accruals":
-      return <AllAccrualsPage currentUser={currentUser} />;
+      return <AllAccrualsPage key={accrualsRefreshKey} currentUser={currentUser} onEditAccrual={onEditAccrual} />;
     case "/suppliers":
       return <SuppliersPage />;
     case "/gl-accounts":
@@ -1169,6 +1168,8 @@ function AppShell() {
     const stored = window.localStorage.getItem("accrual-active-view");
     return stored || "/new-accrual";
   });
+  const [editingAccrual, setEditingAccrual] = useState(null);
+  const [accrualsRefreshKey, setAccrualsRefreshKey] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [session, setSession] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
@@ -1714,6 +1715,12 @@ function AppShell() {
   );
 
   useEffect(() => {
+    if (activeView !== "/accruals" && editingAccrual) {
+      setEditingAccrual(null);
+    }
+  }, [activeView, editingAccrual]);
+
+  useEffect(() => {
     if (!currentUser) {
       return;
     }
@@ -2135,10 +2142,30 @@ function AppShell() {
           <main className="appContent">
             {renderActiveView(activeView, currentUser, {
               onNewAccrualFullscreenChange: setNewAccrualFullscreen,
+              accrualsRefreshKey,
+              onEditAccrual: (submission) => {
+                setEditingAccrual(submission);
+              },
             })}
           </main>
         </div>
       </div>
+      {activeView === "/accruals" && editingAccrual ? (
+        <div className="accrualEditOverlay">
+          <section className="accrualEditFloatingDialog" role="dialog" aria-modal="true" aria-label={`Edit accrual ${editingAccrual.control_number}`}>
+            <button type="button" className="accrualEditDialogClose" aria-label="Close accrual editor" onClick={() => setEditingAccrual(null)}>×</button>
+            <YearEndAccrual
+              currentUser={currentUser}
+              editingSubmission={editingAccrual}
+              onEditCancel={() => setEditingAccrual(null)}
+              onEditSaved={() => {
+                setEditingAccrual(null);
+                setAccrualsRefreshKey((key) => key + 1);
+              }}
+            />
+          </section>
+        </div>
+      ) : null}
     </AppViewContext.Provider>
   );
 }

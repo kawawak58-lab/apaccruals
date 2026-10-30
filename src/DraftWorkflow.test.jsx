@@ -29,6 +29,9 @@ beforeEach(() => {
 
 test("Confirm changes a pending accrual to Confirmed and removes edit actions", async () => {
   render(<AllAccrualsPage currentUser={user} />);
+  fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+  expect(await screen.findByRole("heading", { name: "Edit Accrual" })).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Close accrual editor" }));
   fireEvent.click(await screen.findByRole("button", { name: "View" }));
   fetchAccrualSubmissions.mockResolvedValue([{ ...draft, status: 0 }]);
   const confirmButtons = screen.getAllByRole("button", { name: "Confirm" });

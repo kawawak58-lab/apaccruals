@@ -421,7 +421,7 @@ function downloadExcelFile(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
-export default function AllAccrualsPage({ currentUser }) {
+export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
   const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
@@ -443,6 +443,15 @@ export default function AllAccrualsPage({ currentUser }) {
     width: "min(1760px, calc(100vw - 20px))",
     maxWidth: "min(1760px, calc(100vw - 20px))",
   };
+
+  const updateNotesCount = useCallback((submissionId, count) => {
+    const updateCount = (submission) => submission?.id === submissionId
+      ? { ...submission, notesCount: count }
+      : submission;
+    setSubmissions((current) => current.map(updateCount));
+    setSelectedSubmission(updateCount);
+    setNotesSubmission(updateCount);
+  }, []);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -474,6 +483,7 @@ export default function AllAccrualsPage({ currentUser }) {
         ...submission,
         lineCount: lines.length,
         totalGrossAmount,
+        notesCount: Number(submission.notesCount ?? submission.accrual_notes?.[0]?.count ?? 0),
       };
     })
   ), [submissions]);
@@ -737,16 +747,16 @@ export default function AllAccrualsPage({ currentUser }) {
 
       <div className="accrualSummaryChips" role="group" aria-label="Filter accruals by status">
         <button type="button" className={`accrualSummaryChip total${!statusFilter ? " active" : ""}`} aria-pressed={!statusFilter} onClick={() => setStatusFilter("")}>
-          <span>Total</span><strong>{submissionTotals.all.toLocaleString()}</strong>
+          <span>All</span><strong>{submissionTotals.all.toLocaleString()}</strong>
+        </button>
+        <button type="button" className={`accrualSummaryChip forConfirmation${statusFilter === "for confirmation" ? " active" : ""}`} aria-pressed={statusFilter === "for confirmation"} onClick={() => setStatusFilter("for confirmation")}>
+          <span>For Confirmation</span><strong>{submissionTotals.forConfirmation.toLocaleString()}</strong>
         </button>
         <button type="button" className={`accrualSummaryChip confirmed${statusFilter === "confirmed" ? " active" : ""}`} aria-pressed={statusFilter === "confirmed"} onClick={() => setStatusFilter("confirmed")}>
           <span>Confirmed</span><strong>{submissionTotals.confirmed.toLocaleString()}</strong>
         </button>
         <button type="button" className={`accrualSummaryChip cancelled${statusFilter === "cancelled" ? " active" : ""}`} aria-pressed={statusFilter === "cancelled"} onClick={() => setStatusFilter("cancelled")}>
           <span>Cancelled</span><strong>{submissionTotals.cancelled.toLocaleString()}</strong>
-        </button>
-        <button type="button" className={`accrualSummaryChip forConfirmation${statusFilter === "for confirmation" ? " active" : ""}`} aria-pressed={statusFilter === "for confirmation"} onClick={() => setStatusFilter("for confirmation")}>
-          <span>For Confirmation</span><strong>{submissionTotals.forConfirmation.toLocaleString()}</strong>
         </button>
       </div>
 
@@ -770,13 +780,16 @@ export default function AllAccrualsPage({ currentUser }) {
                     className="accrualNotesIconButton"
                     onClick={(event) => { event.stopPropagation(); setNotesSubmission(row); }}
                     onDoubleClick={(event) => event.stopPropagation()}
-                    aria-label={`Notes for ${row.control_number}`}
-                    title={`Notes for ${row.control_number}`}
+                    aria-label={`Notes for ${row.control_number}${row.notesCount ? `, ${row.notesCount} ${row.notesCount === 1 ? "note" : "notes"}` : ""}`}
+                    title={`${row.notesCount || 0} ${row.notesCount === 1 ? "note" : "notes"}`}
                   >
-                    <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M5 4.5h14v15H5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-                      <path d="M8 8h8M8 11h8M8 14h6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-                    </svg>
+                    <span className="accrualNotesIconWrap">
+                      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M5 4.5h14v15H5z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                        <path d="M8 8h8M8 11h8M8 14h6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                      </svg>
+                      {row.notesCount > 0 ? <span className="accrualNotesTableBadge" aria-hidden="true">{row.notesCount > 99 ? "99+" : row.notesCount}</span> : null}
+                    </span>
                   </button>
                 ),
               },
@@ -806,9 +819,14 @@ export default function AllAccrualsPage({ currentUser }) {
             rowActions={(row) => (
               <div className="accrualRowActionGroup">
                 {canEditForConfirmation(row) ? (
-                  <button type="button" className="tableActionBtn" disabled={confirmingAccrual} onClick={() => handleConfirmAccrual(row)} onDoubleClick={(event) => event.stopPropagation()}>
-                    {confirmingAccrual ? "Confirming..." : "Confirm"}
-                  </button>
+                  <>
+                    <button type="button" className="tableActionBtn" disabled={confirmingAccrual} onClick={(event) => { event.stopPropagation(); if (onEditAccrual) onEditAccrual(row); else setEditingDraft(row); }} onDoubleClick={(event) => event.stopPropagation()}>
+                      Edit
+                    </button>
+                    <button type="button" className="tableActionBtn" disabled={confirmingAccrual} onClick={(event) => { event.stopPropagation(); handleConfirmAccrual(row); }} onDoubleClick={(event) => event.stopPropagation()}>
+                      {confirmingAccrual ? "Confirming..." : "Confirm"}
+                    </button>
+                  </>
                 ) : null}
                 {canCancelSubmission(row) ? (
                   <button type="button" className="tableActionBtn danger" onClick={() => openCancelDialog(row)} onDoubleClick={(event) => event.stopPropagation()}>
@@ -849,7 +867,7 @@ export default function AllAccrualsPage({ currentUser }) {
                   className="tableActionBtn accrualNotesAction"
                   onClick={() => setNotesSubmission(selectedSubmission)}
                 >
-                  Notes
+                  Notes{selectedSubmission.notesCount > 0 ? <span className="accrualNotesActionBadge">{selectedSubmission.notesCount > 99 ? "99+" : selectedSubmission.notesCount}</span> : null}
                 </button>
                 <button
                   type="button"
@@ -954,7 +972,7 @@ export default function AllAccrualsPage({ currentUser }) {
 
               <div className="dialogActions">
                 {canEditForConfirmation(selectedSubmission) ? <>
-                  <button type="button" className="tableActionBtn" disabled={confirmingAccrual} onClick={() => setEditingDraft(selectedSubmission)}>Edit</button>
+                  <button type="button" className="tableActionBtn" disabled={confirmingAccrual} onClick={() => { if (onEditAccrual) onEditAccrual(selectedSubmission); else setEditingDraft(selectedSubmission); }}>Edit</button>
                   <button type="button" className="submitBtn" disabled={confirmingAccrual} onClick={() => handleConfirmAccrual(selectedSubmission)}>{confirmingAccrual ? "Confirming..." : "Confirm"}</button>
                 </> : null}
                 {canCancelSubmission(selectedSubmission) ? (
@@ -988,6 +1006,7 @@ export default function AllAccrualsPage({ currentUser }) {
           key={notesSubmission.id}
           submission={notesSubmission}
           onClose={() => setNotesSubmission(null)}
+          onCountChange={updateNotesCount}
         />
       ) : null}
 

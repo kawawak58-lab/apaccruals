@@ -84,11 +84,17 @@ export default function DraftAccrualEditor({ submission, onClose, onSaved }) {
   const [error, setError] = useState("");
   const selectedExpenseClassRule = expenseClassRules.find((rule) => String(rule.name).trim().toLowerCase() === String(header.expense_class).trim().toLowerCase());
   const disabledFields = selectedExpenseClassRule?.disabled_fields || [];
-  const requiresSupplier = !disabledFields.includes("supplier");
-  const requiresInvoice = !disabledFields.includes("invoice_no");
-  const requiresProfitCenter = !disabledFields.includes("profit_center");
-  const requiresVat = !disabledFields.includes("vat");
-  const requiresTaxCode = !disabledFields.includes("tax_code");
+  const notRequiredFields = selectedExpenseClassRule?.not_required_fields || [];
+  const supplierDisabled = disabledFields.includes("supplier");
+  const invoiceDisabled = disabledFields.includes("invoice_no");
+  const profitCenterDisabled = disabledFields.includes("profit_center");
+  const vatDisabled = disabledFields.includes("vat");
+  const taxCodeDisabled = disabledFields.includes("tax_code");
+  const requiresSupplier = !supplierDisabled && !notRequiredFields.includes("supplier");
+  const requiresInvoice = !invoiceDisabled && !notRequiredFields.includes("invoice_no");
+  const requiresProfitCenter = !profitCenterDisabled && !notRequiredFields.includes("profit_center");
+  const requiresVat = !vatDisabled && !notRequiredFields.includes("vat");
+  const requiresTaxCode = !taxCodeDisabled && !notRequiredFields.includes("tax_code");
 
   useEffect(() => {
     Promise.all([getCompanyNames(), getExpenseClassNames(), getExpenseClassRules(), getTransactionTypeNames(), getTaxCodeNames()])
@@ -129,12 +135,12 @@ export default function DraftAccrualEditor({ submission, onClose, onSaved }) {
             <h3>General information</h3>
             <div className="dialogGrid">
               <label className="dialogField"><span className="label">Requester email *</span><input className="input" type="email" value={header.requester_email} disabled readOnly /></label>
-              <label className="dialogField"><span className="label">Expense class *</span><select className="select" value={header.expense_class} required onChange={(event) => { const nextRule = expenseClassRules.find((rule) => rule.name === event.target.value); setHeader((current) => ({ ...current, expense_class: event.target.value, invoice_no: nextRule?.default_invoice_no ? current.invoice_no || nextRule.default_invoice_no : current.invoice_no === selectedExpenseClassRule?.default_invoice_no ? "" : current.invoice_no })); }}><option value="">Choose</option>{expenseClasses.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+            <label className="dialogField"><span className="label">Expense class *</span><select className="select" value={header.expense_class} required onChange={(event) => { const nextRule = expenseClassRules.find((rule) => rule.name === event.target.value); setHeader((current) => ({ ...current, expense_class: event.target.value, invoice_no: String(nextRule?.default_invoice_no ?? "").trim() })); }}><option value="">Choose</option>{expenseClasses.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
               <label className="dialogField"><span className="label">Company *</span><select className="select" value={header.company} required onChange={(event) => { setHeader({ ...header, company: event.target.value, supplier_code: "", supplier_name: "" }); setLines((current) => current.map((line) => ({ ...line, glaccount_code: "", glaccount_name: "", profitcenter_code: "", profitcenter_name: "" }))); }}><option value="">Choose</option>{companies.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
               <div aria-hidden="true" />
-                <LookupField label="Supplier code" required={requiresSupplier} disabled={!requiresSupplier} value={header.supplier_code} company={header.company} fetchOptions={supplierFetcher} onSelect={(supplier) => setHeader((current) => ({ ...current, supplier_code: supplier?.code || "", supplier_name: supplier?.name || "" }))} />
+              <LookupField label="Supplier code" required={requiresSupplier} disabled={supplierDisabled} value={header.supplier_code} company={header.company} fetchOptions={supplierFetcher} onSelect={(supplier) => setHeader((current) => ({ ...current, supplier_code: supplier?.code || "", supplier_name: supplier?.name || "" }))} />
               <label className="dialogField"><span className="label">Supplier name</span><input className="inputDisabled" value={header.supplier_name} disabled readOnly /></label>
-              <label className="dialogField"><span className="label">Invoice number{requiresInvoice ? " *" : ""}</span><input className="input" disabled={!requiresInvoice} value={header.invoice_no} onChange={(event) => setHeader({ ...header, invoice_no: event.target.value })} /></label>
+              <label className="dialogField"><span className="label">Invoice number{requiresInvoice ? " *" : ""}</span><input className="input" disabled={invoiceDisabled} value={header.invoice_no} onChange={(event) => setHeader({ ...header, invoice_no: event.target.value })} /></label>
             </div>
             <h3>Line items</h3>
             {lines.map((line, index) => <section className="draftEditorLine" key={line.id || index}>
@@ -143,11 +149,11 @@ export default function DraftAccrualEditor({ submission, onClose, onSaved }) {
                 <label className="dialogField"><span className="label">Gross amount *</span><input className="input" type="number" step="0.01" required value={line.gross_amount ?? ""} onChange={(event) => setLineField(index, "gross_amount", event.target.value)} /></label>
                 <LookupField label="GL account code" value={line.glaccount_code} company={header.company} fetchOptions={glFetcher} onSelect={(option) => { setLineField(index, "glaccount_code", option?.code || ""); setLineField(index, "glaccount_name", option?.name || ""); }} />
                 <label className="dialogField"><span className="label">GL account name</span><input className="inputDisabled" value={line.glaccount_name || ""} disabled readOnly /></label>
-                <LookupField label="Profit center code" required={requiresProfitCenter} disabled={!requiresProfitCenter} value={line.profitcenter_code} company={header.company} fetchOptions={profitFetcher} onSelect={(option) => { setLineField(index, "profitcenter_code", option?.code || ""); setLineField(index, "profitcenter_name", option?.name || ""); }} />
+                <LookupField label="Profit center code" required={requiresProfitCenter} disabled={profitCenterDisabled} value={line.profitcenter_code} company={header.company} fetchOptions={profitFetcher} onSelect={(option) => { setLineField(index, "profitcenter_code", option?.code || ""); setLineField(index, "profitcenter_name", option?.name || ""); }} />
                 <label className="dialogField"><span className="label">Profit center name</span><input className="inputDisabled" value={line.profitcenter_name || ""} disabled readOnly /></label>
                 <label className="dialogField"><span className="label">Transaction type *</span><select className="select" required value={line.transaction_type || ""} onChange={(event) => setLineField(index, "transaction_type", event.target.value)}><option value="">Choose</option>{transactionTypes.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-                <label className="dialogField"><span className="label">VAT{requiresVat ? " *" : ""}</span><select className="select" required={requiresVat} disabled={!requiresVat} value={line.vat || ""} onChange={(event) => setLineField(index, "vat", event.target.value)}><option value="">Choose</option><option value="Vatable">Vatable</option><option value="Non-Vatable">Non-Vatable</option></select></label>
-                <label className="dialogField"><span className="label">Tax code{requiresTaxCode ? " *" : ""}</span><select className="select" required={requiresTaxCode} disabled={!requiresTaxCode} value={line.tax_code || ""} onChange={(event) => setLineField(index, "tax_code", event.target.value)}><option value="">Choose</option>{taxCodes.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+                <label className="dialogField"><span className="label">VAT{requiresVat ? " *" : ""}</span><select className="select" required={requiresVat} disabled={vatDisabled} value={line.vat || ""} onChange={(event) => setLineField(index, "vat", event.target.value)}><option value="">Choose</option><option value="Vatable">Vatable</option><option value="Non-Vatable">Non-Vatable</option></select></label>
+                <label className="dialogField"><span className="label">Tax code{requiresTaxCode ? " *" : ""}</span><select className="select" required={requiresTaxCode} disabled={taxCodeDisabled} value={line.tax_code || ""} onChange={(event) => setLineField(index, "tax_code", event.target.value)}><option value="">Choose</option>{taxCodes.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
                 <label className="dialogField spanTwo"><span className="label">Remarks *</span><input className="input" required value={line.remarks || ""} onChange={(event) => setLineField(index, "remarks", event.target.value)} /></label>
               </div>
             </section>)}

@@ -298,6 +298,576 @@
   display: block;
 }
 
+.body:not(.bodyLocked) .formWrapper {
+  width: 100%;
+  max-width: none;
+  gap: 12px;
+  box-sizing: border-box;
+  padding: 8px 16px 20px;
+}
+
+.accrualEntryTablePanel {
+  display: block;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px;
+}
+
+@media (min-width: 641px) {
+  .body:not(.bodyLocked) {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .body:not(.bodyLocked) .formWrapper {
+    height: 100%;
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    box-sizing: border-box;
+  }
+
+  .accrualEntryTablePanel {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-height: 260px;
+    overflow: hidden;
+  }
+
+  .accrualEntryTableScroll {
+    flex: 1 1 auto;
+    min-height: 220px;
+    overscroll-behavior: contain;
+  }
+
+  .accrualPageHeaderRow,
+  .deadlineReminderTop,
+  .accrualEntryFooter { flex: 0 0 auto; }
+}
+
+.accrualEntryTableHeading,
+.accrualEntryTableActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.accrualEntryTableHeading {
+  justify-content: space-between;
+  margin-bottom: 0;
+}
+
+.accrualEntryHeadingText { min-width: 0; }
+.accrualEntrySectionLabel {
+  margin: 0;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 700;
+}
+.accrualEntrySubmittingAs { margin: 2px 0 0; color: #64748b; font-size: 12px; line-height: 1.35; }
+.accrualEntrySubmittingAs strong { color: #0f172a; font-weight: 600; }
+.accrualEntryMetaDot { color: #94a3b8; }
+.accrualEntryFieldHint {
+  display: block;
+  z-index: 1200;
+  width: max-content;
+  max-width: min(260px, 80vw);
+  margin: 0;
+  padding: 5px 8px;
+  border: 1px solid #f2c66d;
+  border-radius: 5px;
+  background: #fff8e7;
+  box-shadow: 0 2px 7px rgba(120, 80, 0, .12);
+  color: #7c4a03;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.accrualEntryFieldError {
+  z-index: 1201;
+  width: max-content;
+  max-width: min(260px, 80vw);
+  margin: 0;
+  padding: 6px 9px;
+  border: 1px solid #fca5a5;
+  border-radius: 5px;
+  background: #fef2f2;
+  box-shadow: 0 2px 8px rgba(127, 29, 29, .16);
+  color: #b91c1c;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: normal;
+  pointer-events: none;
+}
+
+.accrualEntryTableActions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.accrualEntryTableScroll {
+  width: 100%;
+  overflow: auto;
+  padding-bottom: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overscroll-behavior-inline: contain;
+}
+
+.accrualEntryTable {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  background: #fff;
+}
+
+/* Keep headers and inputs on a consistent grid; give searchable fields room. */
+.accrualEntryTable th,
+.accrualEntryTable td {
+  box-sizing: border-box;
+}
+
+.accrualEntryTable th {
+  height: 38px;
+  padding: 9px 12px;
+  vertical-align: middle;
+}
+
+.accrualEntryTable td {
+  padding: 8px 10px;
+}
+
+.accrualEntryTable th:nth-child(3),
+.accrualEntryTable td:nth-child(3) { min-width: 300px; }
+.accrualEntryTable th:nth-child(4),
+.accrualEntryTable td:nth-child(4) { min-width: 280px; }
+.accrualEntryTable th:nth-child(5),
+.accrualEntryTable td:nth-child(5),
+.accrualEntryTable th:nth-child(6),
+.accrualEntryTable td:nth-child(6),
+.accrualEntryTable th:nth-child(9),
+.accrualEntryTable td:nth-child(9),
+.accrualEntryTable th:nth-child(11),
+.accrualEntryTable td:nth-child(11) { min-width: 240px; }
+
+.accrualEntryTable th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 11px 12px;
+  border-bottom: 1px solid #cbd5e1;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.accrualEntryTable td {
+  position: relative;
+  min-width: 0;
+  padding: 10px;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: top;
+  background: #fff;
+}
+
+.accrualEntryInsertSeparatorButton {
+  position: fixed;
+  z-index: 10030;
+  display: flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid #bfdbfe;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, .18);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+.accrualEntryInsertSeparatorButton span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #1d4ed8;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.accrualEntryInsertSeparatorButton:hover {
+  border-color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.accrualEntryInsertSeparatorButton:disabled {
+  cursor: not-allowed;
+}
+
+.accrualEntryInsertSeparatorButton:disabled span {
+  display: none;
+}
+
+.accrualEntryTable .accrualSharedCell {
+  vertical-align: top;
+  background: #fff;
+}
+
+.accrualEntryTable .accrualSharedEmptyCell {
+  vertical-align: top;
+  background: #fff;
+}
+
+.accrualEntryTable .accrualSequenceCell {
+  vertical-align: top;
+}
+
+.accrualEntryTable .accrualSequenceInput {
+  width: 100%;
+  min-width: 56px;
+  text-align: center;
+}
+
+.accrualEntryTable .input,
+.accrualEntryTable .inputItem,
+.accrualEntryTable .inputItemDisabled,
+.accrualEntryTable .inputDisabled,
+.accrualEntryTable .select {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 8px 10px;
+  font-size: 12px;
+  box-sizing: border-box;
+}
+
+.accrualEntryTable .select {
+  padding-right: 34px;
+  background-position: right 16px center, right 10px center;
+}
+
+.accrualEntryTable textarea.input {
+  height: 40px;
+  min-height: 40px;
+  padding: 8px 10px;
+  overflow: auto;
+  resize: none;
+}
+
+.accrualEntryTable .accrualSequenceInput {
+  padding-right: 8px;
+}
+
+.accrualEntryActionCell {
+  text-align: center;
+  width: 48px;
+  min-width: 48px;
+  padding: 8px 2px !important;
+  vertical-align: middle !important;
+}
+
+.accrualEntryTable thead .accrualEntryActionCell,
+.accrualEntryTable thead th:first-child {
+  width: 48px;
+  min-width: 48px;
+  padding: 0 2px;
+}
+
+.accrualEntryRowActions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.accrualEntryRowActions .accrualInsertRowButton,
+.accrualEntryRowActions .accrualDeleteIconButton {
+  width: 21px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+}
+
+.accrualInsertRowButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #1d4ed8;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.accrualInsertRowButton:hover:not([aria-disabled="true"]) {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.accrualInsertRowButton[aria-disabled="true"] {
+  color: #cbd5e1;
+  background: transparent;
+  border-color: transparent;
+  cursor: not-allowed;
+}
+
+.accrualInsertRowButton:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
+.accrualDeleteIconButton {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #b91c1c;
+  cursor: pointer;
+}
+
+.accrualDeleteIconButton:hover:not([aria-disabled="true"]) {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.accrualDeleteIconButton[aria-disabled="true"] {
+  color: #cbd5e1;
+  background: transparent;
+  border-color: transparent;
+  cursor: not-allowed;
+}
+
+.accrualDeleteIconButton:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
+.accrualEntryTableActions .accrualAddLineBtn {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 6px;
+  background: #1d4ed8;
+  color: #fff;
+  font-size: 12px;
+}
+
+.accrualEntryTableActions .accrualAddLineBtn:hover {
+  background: #1e40af;
+}
+
+.accrualEntryTable .accrualNewInvoiceActionCell {
+  width: 160px;
+  min-width: 160px;
+  padding: 8px 10px;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.accrualNewInvoiceButton {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.accrualNewInvoiceButton span {
+  font-size: 16px;
+  line-height: 1;
+}
+
+.accrualNewInvoiceButton:hover:not(:disabled) {
+  border-color: #1d4ed8;
+  background: #dbeafe;
+}
+
+.accrualNewInvoiceButton:focus-visible {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
+.accrualNewInvoiceButton:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.accrualEntryTable textarea.input { min-width: 220px; }
+
+.accrualEntryTable .accrualLookupCell,
+.accrualEntryTable .accrualSupplierCell {
+  position: relative;
+}
+
+.accrualEntryTable .accrualSupplierSearchWrap {
+  position: relative;
+  min-width: 0;
+}
+
+.accrualEntryTable .dropdownContainer {
+  left: 0;
+  right: auto;
+  width: max(100%, 300px);
+  min-width: 300px;
+  max-width: min(440px, 80vw);
+  max-height: 260px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  z-index: 40;
+}
+
+.accrualEntryPortalDropdown {
+  position: fixed !important;
+  top: auto;
+  right: auto !important;
+  bottom: auto;
+  left: auto;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  z-index: 1401 !important;
+  overscroll-behavior: contain;
+}
+
+.accrualEntryTable .dropdownItem {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.accrualEntryDropdownItem {
+  width: 100%;
+  border: 0;
+  background: #fff;
+  color: #1e293b;
+  text-align: left;
+  cursor: pointer;
+}
+
+.accrualEntryDropdownOption:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+  background: #eff6ff;
+}
+
+.accrualEntryLookupDropdown {
+  position: absolute;
+  top: calc(100% - 8px);
+  left: 10px;
+  right: 10px;
+  width: max(100%, 320px);
+  min-width: 320px;
+  max-width: min(460px, 80vw);
+  z-index: 30;
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid #dbe3ef;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.16);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.accrualEntryLookupDropdown.accrualEntryPortalDropdown {
+  border: 1px solid #dbe3ef;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.16);
+}
+
+.accrualEntryLookupDropdown button,
+.accrualEntryLookupDropdown span {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid #eef2f7;
+  background: #fff;
+  color: #1e293b;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.accrualEntryLookupDropdown button {
+  cursor: pointer;
+}
+
+.accrualEntryLookupDropdown button:hover {
+  background: #eff6ff;
+}
+
+.accrualEntryLookupDropdown .loadMore {
+  color: #1d4ed8;
+  font-weight: 700;
+  text-align: center;
+}
+
+.accrualEntryTable .errorText {
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+@media (max-width: 640px) {
+  .accrualEntryTablePanel {
+    padding: 14px;
+  }
+
+  .accrualEntryTableHeading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .accrualEntryTableActions {
+    justify-content: flex-start;
+  }
+}
+
 .formGroup,
 .formGroup1 {
   position: relative;
@@ -390,6 +960,34 @@ textarea.input {
 
 .select:disabled {
   background-image: none;
+}
+
+.accrualEntryTable [aria-disabled="true"] {
+  color: #64748b;
+  background-color: #f3f5fa;
+  border-color: #d5dce8;
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.accrualEntryTable .accrualInsertRowButton[aria-disabled="true"],
+.accrualEntryTable .accrualDeleteIconButton[aria-disabled="true"] {
+  color: #cbd5e1;
+  background: transparent;
+  border-color: transparent;
+}
+
+.accrualEntryTable select.accrualKeyboardDisabled {
+  background-image: none;
+}
+
+.accrualEntryTable input[aria-disabled="true"]:focus-visible,
+.accrualEntryTable select[aria-disabled="true"]:focus-visible,
+.accrualEntryTable textarea[aria-disabled="true"]:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, .16);
 }
 
 .inputError {
@@ -1180,6 +1778,48 @@ textarea.input {
 }
 .accrualEntryFooter { display: flex; justify-content: flex-end; gap: 12px; }
 .accrualEntryFooter button { min-width: 110px; min-height: 44px; margin: 0; padding: 10px 18px; border-radius: 8px; font-size: 14px; }
+.accrualPageHeaderRow { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 2px 4px; margin: 0; }
+.accrualPageHeadingText { min-width: 0; }
+.accrualPageHeadingText > p { margin: 2px 0 0; color: #64748b; font-size: 13px; }
+.accrualPageTitle { font-family: "Inter", sans-serif; font-size: 28px; font-weight: 700; line-height: 1.2; letter-spacing: -0.03em; color: #111827; }
+.accrualHeaderUploadBtn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; flex: 0 0 auto; align-self: center; min-height: 40px; background: #fff; border: 1px solid #cbd5e1; color: #0f172a; }
+.accrualHeaderUploadBtn:hover { background: #f8fafc; border-color: #94a3b8; }
+.deadlineReminderPlain { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; margin: 0; padding: 12px 2px 4px; background: transparent; border: 0; border-top: 1px solid #e2e8f0; box-shadow: none; }
+.deadlineReminderPlain .deadlineReminderLabel { margin: 0; color: #b91c1c; }
+.deadlineReminderPlain .deadlineReminderText { margin: 0; color: #7f1d1d; }
+.deadlineReminderTop { align-items: center; gap: 8px; width: 100%; box-sizing: border-box; margin: 0; padding: 6px 12px; border: 1px solid #f5d08a; border-radius: 8px; background: #fff8e8; }
+.deadlineReminderTop .deadlineReminderWarningIcon { color: #a16207; font-size: 16px; line-height: 1; }
+.deadlineReminderTop .deadlineReminderLabel,
+.deadlineReminderTop .deadlineReminderText { color: #713f12; font-size: 12px; line-height: 1.5; }
+.deadlineReminderTop .deadlineReminderLabel { font-weight: 700; }
+.accrualEntryFooter { padding: 0; margin-top: -4px; background: transparent; border: 0; box-shadow: none; }
+.accrualEntryFooter button { flex: 0 0 auto; min-width: 110px; }
+@media (max-width: 640px) {
+  .body:not(.bodyLocked) .formWrapper { padding: 8px 10px 16px; }
+  .accrualPageHeaderRow { align-items: stretch; flex-direction: column; gap: 10px; }
+  .accrualPageTitle { font-size: 24px; }
+  .accrualHeaderUploadBtn { align-self: flex-end; }
+  .deadlineReminderPlain { display: block; }
+  .deadlineReminderPlain .deadlineReminderText { margin-top: 4px; }
+  .deadlineReminderTop { display: flex; align-items: flex-start; }
+  .accrualPageHeadingText > p { max-width: 100%; }
+  .accrualEntryFooter button { flex: 0 0 auto; min-width: 110px; }
+}
+.accrualEntryTableActions .missingSupplierLink {
+  padding: 6px 4px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 600;
+}
+.accrualEntryTableActions .missingSupplierLink:hover {
+  border: 0;
+  background: transparent;
+  color: #1e40af;
+  text-decoration: underline;
+}
 @media (max-width: 640px) {
   .formHeaderActions .topUploadBtn { grid-column: 1 / -1; }
   .formHeaderActions .topSubmitBtn { min-width: 0; width: 100%; }

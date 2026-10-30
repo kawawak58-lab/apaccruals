@@ -21,7 +21,7 @@ export async function getExpenseClassNames() {
 export async function getExpenseClassRules() {
   const { data, error } = await supabase
     .from("expense_classes")
-    .select("id, name, disabled_fields, default_invoice_no");
+    .select("id, name, disabled_fields, not_required_fields, default_invoice_no");
   if (error) throw error;
   return data || [];
 }

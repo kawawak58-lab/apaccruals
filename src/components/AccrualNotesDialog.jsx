@@ -23,7 +23,16 @@ function NoteBody({ body }) {
   return <div className="accrualNoteBody"><EditorContent editor={editor} /></div>;
 }
 
-export default function AccrualNotesDialog({ submission, onClose }) {
+function authorInitials(name) {
+  return String(name || "?")
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("") || "?";
+}
+
+export default function AccrualNotesDialog({ submission, onClose, onCountChange }) {
   const [notes, setNotes] = useState([]);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
@@ -35,13 +44,15 @@ export default function AccrualNotesDialog({ submission, onClose }) {
     setLoading(true);
     setError("");
     try {
-      setNotes(await fetchAccrualNotes(submission.id));
+      const loadedNotes = await fetchAccrualNotes(submission.id);
+      setNotes(loadedNotes);
+      onCountChange?.(submission.id, loadedNotes.length);
     } catch (loadError) {
       setError(loadError.message || "Unable to load notes.");
     } finally {
       setLoading(false);
     }
-  }, [submission.id]);
+  }, [submission.id, onCountChange]);
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -85,6 +96,7 @@ export default function AccrualNotesDialog({ submission, onClose }) {
     try {
       const savedNote = await addAccrualNote(submission.id, message);
       setNotes((current) => [...current, savedNote]);
+      onCountChange?.(submission.id, notes.length + 1);
       editor.commands.clearContent();
       setBody("");
     } catch (saveError) {
@@ -99,31 +111,46 @@ export default function AccrualNotesDialog({ submission, onClose }) {
       <div className="modalContent maintenanceDialog accrualNotesDialog" role="dialog" aria-modal="true" aria-labelledby="accrualNotesTitle">
         <div className="dialogHeader accrualNotesHeader">
           <div>
-            <h2 className="modalTitle" id="accrualNotesTitle">Notes</h2>
-            <p className="accrualNotesSubtitle">Accrual {submission.control_number}</p>
+            <div className="accrualNotesTitleRow">
+              <h2 className="modalTitle" id="accrualNotesTitle">Accrual notes</h2>
+              <span className="accrualNotesCount" aria-label={`${notes.length} ${notes.length === 1 ? "note" : "notes"}`} aria-live="polite">{notes.length}</span>
+            </div>
+            <p className="accrualNotesSubtitle"><span>Control</span><strong>{submission.control_number}</strong></p>
           </div>
           <button type="button" className="dialogClose" onClick={onClose} aria-label="Close notes" disabled={saving}>×</button>
         </div>
         <div className="accrualNotesToolbar">
-          <span>{notes.length} {notes.length === 1 ? "note" : "notes"}</span>
+          <div className="accrualNotesConversationLabel">
+            <strong>Team conversation</strong>
+            <span>{loading ? "Updating notes…" : "Shared notes for this accrual"}</span>
+          </div>
           <button type="button" className="tableActionBtn" onClick={loadNotes} disabled={loading || saving}>Refresh notes</button>
         </div>
         <div className="accrualNotesList" ref={listRef} aria-live="polite">
           {loading && notes.length === 0 ? <p className="accrualNotesEmpty">Loading notes...</p> : null}
-          {!loading && notes.length === 0 ? <p className="accrualNotesEmpty">No notes yet. Start the conversation below.</p> : null}
+          {!loading && notes.length === 0 ? (
+            <div className="accrualNotesEmptyState">
+              <span className="accrualNotesEmptyIcon" aria-hidden="true">✎</span>
+              <strong>No notes yet</strong>
+              <p>Add a note below to start the conversation about this accrual.</p>
+            </div>
+          ) : null}
           {notes.map((note) => (
             <article className="accrualNote" key={note.id}>
+              <div className="accrualNoteAvatar" aria-hidden="true">{authorInitials(note.author_name || note.author_email)}</div>
               <div className="accrualNoteMeta">
-                <strong>{note.author_name || note.author_email}</strong>
-                <time dateTime={note.created_at}>{new Date(note.created_at).toLocaleString()}</time>
+                <div><strong>{note.author_name || note.author_email}</strong><time dateTime={note.created_at}>{new Date(note.created_at).toLocaleString()}</time></div>
+                <NoteBody body={note.body} />
               </div>
-              <NoteBody body={note.body} />
             </article>
           ))}
         </div>
         <form className="accrualNotesComposer" onSubmit={handleAddNote}>
           {error ? <div className="inlineError" role="alert">{error}</div> : null}
-          <label>Add a note</label>
+          <div className="accrualNotesComposerHeading">
+            <label>Add a note</label>
+            <span>Share an update or context with your team.</span>
+          </div>
           <div className="accrualNoteEditorShell">
             <div className="accrualNoteEditorToolbar" aria-label="Note formatting">
               <button type="button" onClick={() => runCommand((chain) => chain.toggleBold())} aria-label="Bold" title="Bold"><strong>B</strong></button>

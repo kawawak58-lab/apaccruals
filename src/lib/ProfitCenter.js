@@ -23,11 +23,12 @@ export async function getProfitCenters(company, search = "", page = 1, limit = 5
   let query = supabase
     .from("profitcenters")
     .select("profitcentercode, profitcentername", { count: "exact" })
-    .eq("company", company);
+    .ilike("company", String(company).trim());
 
-  if (search && search.length >= 2) {
+  const searchTerm = String(search || "").trim();
+  if (searchTerm.length >= 2) {
     query = query.or(
-      `profitcentername.ilike.%${search}%,profitcentercode.ilike.%${search}%`
+      `profitcentername.ilike.%${searchTerm}%,profitcentercode.ilike.%${searchTerm}%`
     );
   }
 

@@ -47,9 +47,22 @@ export const categoryConfigs = {
         ],
         span: 2,
       },
+      {
+        name: "not_required_fields",
+        label: "Fields that are not required (remain enabled)",
+        type: "checkboxGroup",
+        options: [
+          { value: "supplier", label: "Supplier" },
+          { value: "invoice_no", label: "Invoice number" },
+          { value: "profit_center", label: "Profit center" },
+          { value: "vat", label: "VAT" },
+          { value: "tax_code", label: "Tax code" },
+        ],
+        span: 2,
+      },
       { name: "default_invoice_no", label: "Default invoice number", required: false },
     ],
-    defaults: { disabled_fields: [], default_invoice_no: "" },
+    defaults: { disabled_fields: [], not_required_fields: [], default_invoice_no: "" },
     columns: [
       { key: "name", label: "Expense Classification" },
       {
@@ -58,6 +71,14 @@ export const categoryConfigs = {
         render: (row) => {
           const labels = { supplier: "Supplier", invoice_no: "Invoice number", profit_center: "Profit center", vat: "VAT", tax_code: "Tax code" };
           return (row.disabled_fields || []).map((field) => labels[field] || field).join(", ") || "None";
+        },
+      },
+      {
+        key: "not_required_fields",
+        label: "Not Required",
+        render: (row) => {
+          const labels = { supplier: "Supplier", invoice_no: "Invoice number", profit_center: "Profit center", vat: "VAT", tax_code: "Tax code" };
+          return (row.not_required_fields || []).map((field) => labels[field] || field).join(", ") || "None";
         },
       },
       { key: "default_invoice_no", label: "Default Invoice", render: (row) => row.default_invoice_no || "—" },
@@ -295,7 +316,18 @@ export default function CategoriesPage({ categoryKey = "companies" }) {
         title={formValues.id ? `Edit ${config.singular}` : `Add ${config.singular}`}
         fields={config.fields}
         values={formValues}
-        onChange={(name, value) => setFormValues((current) => ({ ...current, [name]: value }))}
+        onChange={(name, value) => setFormValues((current) => {
+          if (categoryKey === "expense_classes" && ["disabled_fields", "not_required_fields"].includes(name)) {
+            const otherField = name === "disabled_fields" ? "not_required_fields" : "disabled_fields";
+            const selected = new Set(Array.isArray(value) ? value : []);
+            return {
+              ...current,
+              [name]: value,
+              [otherField]: (Array.isArray(current[otherField]) ? current[otherField] : []).filter((field) => !selected.has(field)),
+            };
+          }
+          return { ...current, [name]: value };
+        })}
         onClose={() => {
           setDialogOpen(false);
           setFormValues(resetFormValues());

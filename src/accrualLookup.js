@@ -9,7 +9,7 @@ export async function findExactLookup({ rows, total, search, company, table, cod
     return matches.length === 1 ? { code: matches[0][codeKey], name: matches[0].name } : null;
   }
   const { data, error } = await supabase.from(table).select(`${codeColumn}, ${nameColumn}`)
-    .eq("company", company).eq(codeColumn, code).limit(2);
+    .ilike("company", String(company || "").trim()).eq(codeColumn, code).limit(2);
   if (error) throw error;
   return data?.length === 1 ? { code: data[0][codeColumn], name: data[0][nameColumn] } : null;
 }
