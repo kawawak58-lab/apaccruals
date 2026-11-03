@@ -155,7 +155,7 @@ export default function MaintenanceTable({
 
                   return (
                     <th key={column.key} className={column.className} aria-label={column.hideHeader ? column.label : undefined}>
-                      {column.hideHeader ? null : (
+                      {column.renderHeader ? column.renderHeader() : column.hideHeader ? null : (
                       <button
                         type="button"
                         className={`columnSortButton${column.sortable === false ? " disabled" : ""}`}

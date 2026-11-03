@@ -761,6 +761,7 @@ function Sidebar({
           className="sidebarCollapseBtn"
           onClick={onToggleCollapse}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
           <Icon name={collapsed ? "expand" : "collapse"} />
         </button>

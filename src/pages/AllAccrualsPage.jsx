@@ -640,6 +640,12 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
   );
 
   const canEditForConfirmation = (submission) => Number(submission?.status) === 2 && canCancelSubmission(submission);
+  const selectableConfirmationIds = statusFilter === "for confirmation"
+    ? filteredSubmissions.filter(canEditForConfirmation).map(({ id }) => id)
+    : [];
+  const allVisibleConfirmationsSelected = selectableConfirmationIds.length > 0
+    && selectableConfirmationIds.every((id) => selectedConfirmationIds.includes(id));
+  const someVisibleConfirmationsSelected = selectableConfirmationIds.some((id) => selectedConfirmationIds.includes(id));
   const selectedConfirmationSubmissions = filteredSubmissions.filter((submission) =>
     selectedConfirmationIds.includes(submission.id) && canEditForConfirmation(submission)
   );
@@ -648,6 +654,16 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
     setSelectedConfirmationIds((current) => current.includes(submissionId)
       ? current.filter((id) => id !== submissionId)
       : [...current, submissionId]);
+  };
+
+  const toggleAllConfirmationSelection = () => {
+    if (!selectableConfirmationIds.length || confirmingAccrual) return;
+    setSelectedConfirmationIds((current) => {
+      if (selectableConfirmationIds.every((id) => current.includes(id))) {
+        return current.filter((id) => !selectableConfirmationIds.includes(id));
+      }
+      return Array.from(new Set([...current, ...selectableConfirmationIds]));
+    });
   };
 
   const openConfirmationPreview = (selectedRows) => {
@@ -821,8 +837,22 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
                 key: "notes",
                 label: "Notes",
                 sortable: false,
-                hideHeader: true,
+                hideHeader: statusFilter !== "for confirmation",
                 className: `accrualNotesColumn${statusFilter === "for confirmation" ? " accrualSelectableNotesColumn" : ""}`,
+                renderHeader: statusFilter === "for confirmation" ? () => (
+                  <label className="accrualSelectionControl accrualSelectAllControl" onClick={(event) => event.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      className="accrualConfirmCheckbox accrualSelectAllCheckbox"
+                      checked={allVisibleConfirmationsSelected}
+                      ref={(element) => { if (element) element.indeterminate = someVisibleConfirmationsSelected && !allVisibleConfirmationsSelected; }}
+                      onChange={toggleAllConfirmationSelection}
+                      aria-label="Select all eligible accruals for confirmation"
+                      title="Select all eligible accruals"
+                      disabled={!selectableConfirmationIds.length || confirmingAccrual}
+                    />
+                  </label>
+                ) : null,
                 render: (row) => (
                   <div className="accrualNotesCellActions">
                     {statusFilter === "for confirmation" && canEditForConfirmation(row) ? (
