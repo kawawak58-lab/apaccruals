@@ -7285,6 +7285,10 @@ a {
   gap: 3px;
 }
 
+.accrualSelectionControl { display: inline-flex; align-items: center; }
+.accrualSelectionControl > span,
+.accrualNotesButtonLabel { display: none; }
+
 .accrualConfirmCheckbox {
   width: 16px;
   height: 16px;
@@ -7814,12 +7818,82 @@ a {
 }
 
 @media (max-width: 640px) {
+  .modalContent.maintenanceDialog.accrualNotesDialog {
+    width: calc(100vw - 24px);
+    max-width: calc(100vw - 24px);
+    height: min(700px, calc(100dvh - 32px));
+    max-height: calc(100dvh - 32px);
+    border-radius: 16px;
+  }
+
   .accrualNotesHeader,
   .accrualNotesToolbar,
   .accrualNotesList,
   .accrualNotesComposer {
-    padding-left: 16px;
-    padding-right: 16px;
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .accrualNotesHeader {
+    align-items: flex-start;
+    gap: 12px;
+    padding-top: 18px;
+    padding-bottom: 14px;
+  }
+
+  .accrualNotesHeader > div { min-width: 0; }
+  .accrualNotesHeader .modalTitle { font-size: 18px; }
+  .accrualNotesSubtitle { flex-wrap: wrap; font-size: 12px; }
+  .accrualNotesHeader .dialogClose { flex: 0 0 34px; }
+
+  .accrualNotesToolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+    min-height: 0;
+  }
+
+  .accrualNotesConversationLabel {
+    min-width: 0;
+  }
+
+  .accrualNotesToolbar > button {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 36px;
+    padding: 0 10px;
+    white-space: normal;
+  }
+
+  .accrualNotesList { padding-top: 12px; padding-bottom: 12px; }
+
+  .accrualNotesComposer {
+    gap: 9px;
+    padding-top: 14px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom));
+  }
+
+  .accrualNoteEditorToolbar { gap: 3px; padding: 6px; }
+  .accrualNoteEditorToolbar button {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 5px 7px;
+    font-size: 12px;
+  }
+
+  .accrualNotesActions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .accrualNotesActions > span { line-height: 1.4; }
+  .accrualNotesActions > button { width: 100%; min-height: 42px; }
+
+  .accrualNoteEditor .ProseMirror {
+    min-height: 84px;
+    max-height: 150px;
   }
 
   .accrualNote {
@@ -7834,6 +7908,72 @@ a {
   .accrualNoteEditor .ProseMirror {
     font-size: 16px;
   }
+}
+
+/* Give the stacked workspace messenger panes deliberate proportions on phones. */
+@media (max-width: 640px) {
+  .messageCenterOverlay {
+    align-items: center;
+    padding: 8px;
+  }
+
+  .messageCenterDialog,
+  .messageCenterDialog.fullscreen {
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 16px);
+    max-height: calc(100dvh - 16px);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 190px) minmax(0, 1fr);
+    border-radius: 18px;
+  }
+
+  .messageCenterSidebar {
+    min-height: 0;
+    max-height: none;
+  }
+
+  .messageCenterSidebarHeader {
+    flex: 0 0 auto;
+    gap: 8px;
+    padding: 12px 14px 10px;
+  }
+
+  .messageCenterEyebrow { margin-bottom: 2px; font-size: 9px; }
+  .messageCenterSidebarHeader h2 { font-size: 21px; }
+  .messageCenterComposeBtn { min-height: 34px; }
+
+  .messageThreadList {
+    min-height: 0;
+    padding: 8px 10px;
+    gap: 7px;
+  }
+
+  .messageThreadItem { flex: 0 0 auto; padding: 9px 11px; border-radius: 13px; }
+  .messageThreadMeta { margin-top: 5px; gap: 8px; }
+  .messageThreadStatus { margin-top: 3px; font-size: 9px; }
+  .messageThreadPreview { font-size: 11px; }
+  .messageThreadTime { font-size: 10px; }
+
+  .messageCenterContent {
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .messageCenterTopbar { gap: 8px; padding: 12px 14px; }
+  .messageCenterTitle { font-size: 17px; line-height: 1.2; overflow-wrap: anywhere; }
+  .messageCenterSubtitle { gap: 6px; margin-top: 3px; font-size: 11px; }
+  .messageCenterHeaderActions { flex: 0 0 auto; gap: 6px; }
+  .messageCenterHeaderActions .messageCenterClose { width: 34px; min-width: 34px; min-height: 34px; }
+
+  .messageCenterConversation { min-height: 0; padding: 14px 12px; }
+  .messageBubble { max-width: 90%; padding: 12px 13px; border-radius: 16px 16px 16px 7px; }
+  .messageBubbleText { font-size: 14px; line-height: 1.5; overflow-wrap: anywhere; }
+  .messageBubbleTime { font-size: 10px; }
+
+  .messageComposer { padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); }
+  .messageTextarea { min-height: 72px; max-height: 110px; padding: 10px 11px; border-radius: 11px; font-size: 16px; }
+  .messageComposerActions { margin-top: 8px; }
+  .messageSendBtn { min-height: 38px; padding: 0 18px; }
 }
 
 @media (min-width: 1181px) {
@@ -7950,13 +8090,461 @@ a {
   background: #dceaff;
 }
 
+/* Keep the accrual detail dialog full-width on phones; its header must not squeeze the copy. */
 @media (max-width: 640px) {
-  .allAccrualsPage .maintenanceTable td.accrualSelectableNotesColumn {
+  .maintenanceOverlay:has(.accrualDetailDialog) {
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+  }
+
+  .accrualDetailDialog {
+    box-sizing: border-box;
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    height: min(820px, calc(100dvh - 24px));
+    max-height: calc(100dvh - 24px);
+    min-width: 0;
+    padding: 16px;
+    border-radius: 14px;
+  }
+
+  .accrualDetailDialog .dialogHeader {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+    padding: 0 0 12px;
+  }
+
+  .accrualDetailDialog .uploadDialogHeaderCopy {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .accrualDetailDialog .modalTitle {
+    font-size: 20px;
+    line-height: 1.25;
+    overflow-wrap: normal;
+  }
+
+  .accrualDetailDialog .uploadDialogHeaderText {
+    width: 100%;
+    max-width: none;
+    margin-top: 5px;
+    font-size: 12px;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+  }
+
+  .accrualDetailHeaderActions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .accrualDetailHeaderActions .tableActionBtn,
+  .accrualDetailHeaderActions .dialogClose {
+    flex: 0 0 auto;
+    min-height: 40px;
+    height: 40px;
+  }
+
+  .accrualDetailDialog .dialogForm {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .accrualDetailDialog .accrualDetailGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "control status"
+      "submitted submitted"
+      "requester requester"
+      "expense expense"
+      "company invoice"
+      "supplier supplier"
+      "cancel cancel";
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .accrualDetailDialog .accrualDetailCard {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    padding: 10px 11px;
+    border-radius: 9px;
+    background: #fff;
+  }
+
+  .accrualDetailDialog .accrualDetailCard:nth-child(1) { grid-area: control; }
+  .accrualDetailDialog .accrualDetailCard:nth-child(2) { grid-area: submitted; }
+  .accrualDetailDialog .accrualDetailCard:nth-child(3) { grid-area: requester; }
+  .accrualDetailDialog .accrualDetailCard:nth-child(4) { grid-area: status; }
+  .accrualDetailDialog .accrualDetailCard:nth-child(5) { grid-area: expense; }
+  .accrualDetailDialog .accrualDetailCard:nth-child(6) { grid-area: company; }
+  .accrualDetailDialog .accrualDetailCard:nth-child(7) { grid-area: supplier; }
+  .accrualDetailDialog .accrualDetailCard:nth-child(8) { grid-area: invoice; }
+  .accrualDetailDialog .accrualDetailCard:nth-child(9) { grid-area: cancel; }
+
+  .accrualDetailDialog .accrualDetailCard .summaryLabel {
+    color: #718096;
+    font-size: 9px;
+    letter-spacing: .06em;
+    text-align: left;
+  }
+
+  .accrualDetailDialog .accrualDetailValue {
+    margin-top: 5px;
+    color: #24344d;
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.45;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .accrualDetailDialog .accrualDetailCard:nth-child(4) .accrualDetailValue { margin-top: 3px; }
+  .accrualDetailDialog .accrualDetailCard:nth-child(4) .statusPill { align-self: flex-start; }
+  .accrualDetailDialog .accrualDetailCard:nth-child(1) .accrualDetailValue { color: #1d4ed8; font-variant-numeric: tabular-nums; }
+
+  .accrualDetailDialog .accrualLinesHeader { flex: 0 0 auto; width: 100%; margin-top: 14px; }
+  .accrualDetailDialog .accrualLinesTableWrap {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    max-height: none;
+    margin-top: 8px;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .accrualDetailDialog .accrualLinesTable,
+  .accrualDetailDialog .accrualLinesTable tbody,
+  .accrualDetailDialog .accrualLinesTable tr,
+  .accrualDetailDialog .accrualLinesTable td { box-sizing: border-box; }
+  .accrualDetailDialog .accrualLinesTable { width: 100%; min-width: 0; }
+  .accrualDetailDialog .accrualLinesTable tbody { padding: 0; }
+  .accrualDetailDialog .accrualLinesTable tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "line amount"
+      "gl glname"
+      "profit profitname"
+      "transaction transaction"
+      "vat tax"
+      "remarks remarks";
+    gap: 0 12px;
+    margin-bottom: 12px;
+    padding: 0 12px;
+    border-color: #dbe4f0;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .045);
+  }
+  .accrualDetailDialog .accrualLinesTable td {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 4px;
+    min-width: 0;
+    padding: 9px 0;
+    border-bottom: 1px solid #edf1f6;
+    color: #24344d;
+    font-size: 12px;
+    line-height: 1.35;
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+  .accrualDetailDialog .accrualLinesTable td::before {
+    flex: 0 0 auto;
+    color: #718096;
+    font-size: 9px;
+    letter-spacing: .05em;
+  }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(1) { grid-area: line; }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(2) { grid-area: amount; text-align: right; }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(3) { grid-area: gl; }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(4) { grid-area: glname; }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(5) { grid-area: profit; }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(6) { grid-area: profitname; }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(7) { grid-area: transaction; }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(8) { grid-area: vat; }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(9) { grid-area: tax; }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(10) { grid-area: remarks; border-bottom: 0; }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(1),
+  .accrualDetailDialog .accrualLinesTable td:nth-child(2) {
+    padding-top: 11px;
+    padding-bottom: 11px;
+    background: #f8fafc;
+    font-weight: 700;
+  }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(2) { align-items: flex-end; color: #1d4ed8; font-variant-numeric: tabular-nums; }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(1)::before { content: "Line item"; }
+  .accrualDetailDialog .accrualLinesTable td:nth-child(2)::before { content: "Gross amount"; }
+  .accrualDetailDialog .dialogActions { flex: 0 0 auto; width: 100%; }
+}
+
+@media (max-width: 640px) {
+  .allAccrualsPage .maintenanceTable td.accrualNotesColumn {
     width: 68px !important;
     min-width: 68px;
     max-width: 68px;
     padding: 8px 2px 8px 6px;
   }
+}
+
+/* Keep the mobile accrual list compact, legible, and easy to operate. */
+@media (max-width: 640px) {
+  .allAccrualsPage {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px 44px;
+    grid-template-areas:
+      "title title export"
+      "summary summary summary"
+      "search filters refresh"
+      "list list list"
+      "bulk bulk bulk";
+    align-content: start;
+    gap: 10px;
+  }
+  .allAccrualsPage > .pageIntro,
+  .allAccrualsPage > .pageIntro > .headerActions,
+  .allAccrualsPage .headerButtonGroup { display: contents; }
+  .allAccrualsPage > .pageIntro > div:first-child { grid-area: title; align-self: center; }
+  .allAccrualsPage .pageTitle { margin: 0; font-size: 24px; line-height: 1.2; }
+  .allAccrualsPage .searchFieldGroup { grid-area: search; min-width: 0; width: 100%; }
+  .allAccrualsPage .headerSearch { width: 100%; min-width: 0; }
+  .allAccrualsPage .headerButtonGroup > :first-child { grid-area: filters; }
+  .allAccrualsPage .headerButtonGroup > :nth-child(2) { grid-area: refresh; }
+  .allAccrualsPage .headerButtonGroup > :nth-child(3) { grid-area: export; }
+  .allAccrualsPage .headerButtonGroup .filtersMenu,
+  .allAccrualsPage .headerButtonGroup .filtersMenuButton { width: 44px; min-width: 44px; }
+  .allAccrualsPage .headerButtonGroup .filtersMenu { position: relative; }
+  .allAccrualsPage .headerButtonGroup .filtersMenuPopover {
+    left: auto;
+    right: 0;
+    width: min(320px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+    box-sizing: border-box;
+  }
+  .allAccrualsPage .headerButtonGroup .filtersMenuButton {
+    justify-content: center;
+    gap: 0;
+    padding: 0;
+    font-size: 0;
+  }
+  .allAccrualsPage .headerButtonGroup .filtersMenuCount {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    z-index: 1;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border: 2px solid #fff;
+    font-size: 10px;
+  }
+  .allAccrualsPage .headerButtonGroup .filtersMenuButton > span:not(.filtersMenuButtonIcon):not(.filtersMenuCount) { display: none; }
+  .allAccrualsPage .headerButtonGroup .tableActionBtn,
+  .allAccrualsPage .headerButtonGroup .submitBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    height: 44px;
+    padding: 0;
+    gap: 0;
+    border-radius: 10px;
+    font-size: 0;
+  }
+  .allAccrualsPage .headerButtonGroup .actionBtnIcon { width: 17px; height: 17px; flex-basis: 17px; }
+  .allAccrualsPage .headerButtonGroup .actionBtnLabel { display: none; }
+  .allAccrualsPage .accrualSummaryChips { grid-area: summary; }
+  .allAccrualsPage > .managementPanel { grid-area: list; min-width: 0; }
+  .allAccrualsPage > .accrualBulkConfirmBar { grid-area: bulk; }
+  .allAccrualsPage:has(.accrualBulkConfirmBar) { padding-bottom: 76px; }
+
+  .allAccrualsPage .accrualSummaryChips { gap: 8px; margin: 0; }
+  .allAccrualsPage .accrualSummaryChip {
+    flex: 1 1 calc(50% - 8px);
+    min-height: 52px;
+    padding: 8px 10px;
+    border-radius: 10px;
+  }
+  .allAccrualsPage .accrualSummaryChip span { font-size: 10px; }
+  .allAccrualsPage .accrualSummaryChip strong { font-size: 17px; }
+
+  .allAccrualsPage .maintenanceTable tbody { display: grid; gap: 12px; }
+  .allAccrualsPage .maintenanceTable tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+      "notes notes"
+      "control status"
+      "timestamp timestamp"
+      "company company"
+      "supplier supplier"
+      "invoice amount"
+      "actions actions";
+    column-gap: 14px;
+    padding: 12px 14px 10px;
+    border-color: #d8e1ee;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .045);
+    transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease;
+  }
+  .allAccrualsPage .maintenanceTable tbody tr > td {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    min-width: 0;
+    padding: 8px 0;
+    border: 0;
+    font-size: 13px;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+  }
+  .allAccrualsPage .maintenanceTable tbody tr > td::before {
+    color: #718096;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .045em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+  .allAccrualsPage .maintenanceTable tbody tr > td:nth-child(1) { grid-area: notes; }
+  .allAccrualsPage .maintenanceTable tbody tr > td:nth-child(2) { grid-area: control; }
+  .allAccrualsPage .maintenanceTable tbody tr > td:nth-child(3) { grid-area: timestamp; }
+  .allAccrualsPage .maintenanceTable tbody tr > td:nth-child(4) { grid-area: status; }
+  .allAccrualsPage .maintenanceTable tbody tr > td:nth-child(5) { grid-area: company; }
+  .allAccrualsPage .maintenanceTable tbody tr > td:nth-child(6) { grid-area: supplier; }
+  .allAccrualsPage .maintenanceTable tbody tr > td:nth-child(7) { grid-area: invoice; }
+  .allAccrualsPage .maintenanceTable tbody tr > td:nth-child(8) { grid-area: amount; }
+  .allAccrualsPage .maintenanceTable tbody tr > td:nth-child(9) { grid-area: actions; }
+  .allAccrualsPage .maintenanceTable tbody tr.confirmationSelectedRow {
+    border-color: #7da8f8;
+    background: #edf4ff;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, .12), 0 3px 10px rgba(37, 99, 235, .08);
+  }
+  .allAccrualsPage .maintenanceTable td.accrualNotesColumn {
+    display: flex;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start;
+    width: auto !important;
+    min-width: 0;
+    max-width: none;
+    min-height: 38px;
+    padding: 0 0 8px !important;
+    border-bottom: 1px solid #e8edf5 !important;
+  }
+  .allAccrualsPage .maintenanceTable td.accrualNotesColumn::before { display: none; }
+  .allAccrualsPage .accrualNotesCellActions {
+    display: inline-flex;
+    width: auto;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  .allAccrualsPage .accrualConfirmCheckbox { width: 18px; height: 18px; }
+  .allAccrualsPage .accrualSelectionControl {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+  }
+  .allAccrualsPage .accrualSelectionControl:has(.accrualConfirmCheckbox:checked) { background: #eaf2ff; }
+  .allAccrualsPage .accrualSelectionControl > span { display: none; }
+  .allAccrualsPage .accrualSelectionControl .accrualConfirmCheckbox {
+    flex: 0 0 16px;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+  }
+  .allAccrualsPage .accrualNotesIconButton {
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+    gap: 0;
+    padding: 0;
+    border-color: transparent;
+    background: transparent;
+    color: #d97706;
+  }
+  .allAccrualsPage .accrualNotesIconButton:hover,
+  .allAccrualsPage .accrualNotesIconButton:focus-visible { border-color: #f5c77e; background: #fffaf0; color: #b45309; }
+  .allAccrualsPage .accrualNotesIconButton svg { width: 17px; height: 17px; }
+  .allAccrualsPage .accrualNotesButtonLabel { display: none; }
+  .allAccrualsPage .maintenanceTable tbody td:nth-child(2) { color: #10234a; font-size: 14px; font-weight: 700; }
+  .allAccrualsPage .maintenanceTable tbody td:nth-child(2) .accrualControlNumber { color: #1d4ed8; font-size: 14px; font-weight: 750; }
+  .allAccrualsPage .maintenanceTable tbody td:nth-child(4) { align-items: flex-start; }
+  .allAccrualsPage .maintenanceTable tbody td:nth-child(7),
+  .allAccrualsPage .maintenanceTable tbody td:nth-child(8) { justify-content: center; }
+  .allAccrualsPage .maintenanceTable tbody td:nth-child(8) { align-items: flex-end; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .allAccrualsPage .maintenanceTable td.tableActions {
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    margin-top: 3px;
+    padding: 10px 0 0 !important;
+    border-top: 1px solid #e8edf5 !important;
+  }
+  .allAccrualsPage .accrualRowActionGroup { width: 100%; gap: 8px; }
+  .allAccrualsPage .accrualRowActionGroup .tableActionBtn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 42px;
+    padding: 8px 10px;
+    border-radius: 8px;
+  }
+  .allAccrualsPage .accrualBulkConfirmBar {
+    position: fixed;
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    left: max(12px, env(safe-area-inset-left));
+    z-index: 100;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 0;
+    padding: 10px 12px;
+    border-color: #bfdbfe;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .97);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .16);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+  .allAccrualsPage .accrualBulkConfirmBar > span { align-self: center; font-size: 12px; }
+  .allAccrualsPage .accrualBulkConfirmBar .submitBtn { min-height: 42px; padding: 0 13px; white-space: nowrap; }
 }
 
 .modalContent.maintenanceDialog.accrualConfirmPreviewDialog {
@@ -8093,4 +8681,119 @@ a {
   .accrualConfirmPreviewActions { padding: 12px 16px 16px; gap: 8px; }
   .accrualConfirmPreviewActions button { flex: 1 1 0; min-width: 0; padding: 0 7px; font-size: 11px; }
   .accrualConfirmPreviewLineDetails { grid-template-columns: 1fr; }
+}
+
+/* Give the mobile accrual editor a focused, full-width form and a persistent action footer. */
+@media (max-width: 767px) {
+  .maintenanceOverlay:has(.draftEditorDialog) {
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+  }
+
+  .draftEditorDialog {
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    height: min(900px, calc(100dvh - 24px));
+    max-height: calc(100dvh - 24px);
+    min-width: 0;
+    padding: 0;
+    overflow: hidden;
+    border-radius: 16px;
+  }
+
+  .draftEditorDialog > .dialogHeader {
+    flex: 0 0 auto;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 18px 16px 14px;
+  }
+
+  .draftEditorDialog > .dialogHeader > div:first-child { flex: 1 1 auto; min-width: 0; }
+  .draftEditorDialog .modalTitle { font-size: 21px; line-height: 1.25; }
+  .draftEditorDialog .dialogDescription { max-width: none; margin-top: 5px; font-size: 12px; line-height: 1.45; }
+  .draftEditorDialog > .dialogHeader .dialogClose { flex: 0 0 38px; width: 38px; height: 38px; }
+
+  .draftEditorDialog form {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .draftEditorDialog .draftEditorFields {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+    padding: 0 16px 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .draftEditorDialog .draftEditorFields h3 {
+    margin: 12px 0 9px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e8edf4;
+    color: #34445d;
+    font-size: 13px;
+    font-weight: 750;
+  }
+
+  .draftEditorDialog .dialogGrid,
+  .draftEditorDialog .draftEditorLineGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+
+  .draftEditorDialog .dialogField { min-width: 0; }
+  .draftEditorDialog .dialogField .label { margin-bottom: 5px; color: #4b5d76; font-size: 12px; font-weight: 650; }
+  .draftEditorDialog input,
+  .draftEditorDialog select {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 46px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    font-size: 16px;
+  }
+
+  .draftEditorDialog .draftEditorLine {
+    margin: 0 0 12px;
+    padding: 12px;
+    border-color: #dbe4f0;
+    border-radius: 12px;
+    background: #f8fafc;
+  }
+
+  .draftEditorDialog .draftEditorLineHeading { margin-bottom: 12px; }
+  .draftEditorDialog .draftEditorLineHeading h4 { color: #1e293b; font-size: 14px; }
+  .draftEditorDialog .draftEditorLineHeading .tableActionBtn { min-height: 36px; padding: 0 10px; border-radius: 8px; }
+  .draftEditorDialog .draftLookupDropdown { max-height: min(40dvh, 320px); overflow-y: auto; }
+  .draftEditorDialog .draftEditorFields > .tableActionBtn { width: 100%; min-height: 44px; margin-top: 2px; }
+
+  .draftEditorDialog form > .dialogActions {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+    padding: 11px 16px max(11px, env(safe-area-inset-bottom));
+    border-top: 1px solid #e5eaf2;
+    background: #fff;
+  }
+
+  .draftEditorDialog form > .dialogActions button {
+    width: 100%;
+    min-width: 0;
+    min-height: 46px;
+    border-radius: 9px;
+    font-size: 14px;
+  }
 }

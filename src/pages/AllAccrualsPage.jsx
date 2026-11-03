@@ -784,11 +784,11 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
               </span>
               Refresh
             </button>
-            <button type="button" className="submitBtn actionIconBtn" onClick={handleExport}>
+            <button type="button" className="submitBtn actionIconBtn" onClick={handleExport} aria-label="Export Excel" title="Export Excel">
               <span className="actionBtnIcon" aria-hidden="true">
                 <DownloadIcon />
               </span>
-              Export Excel
+              <span className="actionBtnLabel">Export Excel</span>
             </button>
           </div>
         </div>
@@ -826,15 +826,17 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
                 render: (row) => (
                   <div className="accrualNotesCellActions">
                     {statusFilter === "for confirmation" && canEditForConfirmation(row) ? (
-                      <input
-                        type="checkbox"
-                        className="accrualConfirmCheckbox"
-                        checked={selectedConfirmationIds.includes(row.id)}
-                        onChange={() => toggleConfirmationSelection(row.id)}
-                        onClick={(event) => event.stopPropagation()}
-                        aria-label={`Select ${row.control_number} for confirmation`}
-                        disabled={confirmingAccrual}
-                      />
+                      <label className="accrualSelectionControl" onClick={(event) => event.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="accrualConfirmCheckbox"
+                          checked={selectedConfirmationIds.includes(row.id)}
+                          onChange={() => toggleConfirmationSelection(row.id)}
+                          aria-label={`Select ${row.control_number} for confirmation`}
+                          disabled={confirmingAccrual}
+                        />
+                        <span>Select</span>
+                      </label>
                     ) : null}
                     <button
                       type="button"
@@ -851,6 +853,7 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
                         </svg>
                         {row.notesCount > 0 ? <span className="accrualNotesTableBadge" aria-hidden="true">{row.notesCount > 99 ? "99+" : row.notesCount}</span> : null}
                       </span>
+                      <span className="accrualNotesButtonLabel" aria-hidden="true">Notes</span>
                     </button>
                   </div>
                 ),

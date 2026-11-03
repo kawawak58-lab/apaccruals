@@ -1825,6 +1825,136 @@ textarea.input {
   .formHeaderActions .topSubmitBtn { min-width: 0; width: 100%; }
   .accrualEntryFooter button { flex: 1; min-width: 0; }
 }
+
+/* On phones, turn each entry into a readable form card instead of a clipped table. */
+@media (max-width: 640px) {
+  .accrualEntryTablePanel {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .accrualEntryTableHeading { gap: 10px; }
+  .accrualEntryHeadingText { width: 100%; }
+  .accrualEntrySubmittingAs { font-size: 12px; line-height: 1.5; }
+
+  .accrualEntryTableActions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .accrualEntryTableActions .missingSupplierLink {
+    justify-self: end;
+    min-height: 36px;
+  }
+
+  .accrualEntryTableActions .accrualAddLineBtn {
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+  }
+
+  .accrualEntryTableScroll {
+    overflow: visible;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .accrualEntryTable {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    table-layout: auto;
+    background: transparent;
+  }
+
+  .accrualEntryTable colgroup,
+  .accrualEntryTable thead { display: none; }
+
+  .accrualEntryTable tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .accrualEntryTable tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 10px;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid #dbe3ef;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, .04);
+  }
+
+  .accrualEntryTable tbody td {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    width: auto !important;
+    min-width: 0;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: visible;
+    font-size: 12px;
+    vertical-align: top;
+  }
+
+  .accrualEntryTable tbody tr > td { min-width: 0 !important; }
+
+  .accrualEntryTable tbody td::before {
+    display: block;
+    color: #53647d;
+    font-size: 11px;
+    font-weight: 650;
+    line-height: 1.25;
+    letter-spacing: .01em;
+  }
+
+  .accrualEntryTable tbody td:nth-child(1) { grid-column: 1 / -1; }
+  .accrualEntryTable tbody td:nth-child(1)::before { display: none; }
+  .accrualEntryTable tbody td:nth-child(2)::before { content: "Sequence"; }
+  .accrualEntryTable tbody td:nth-child(3)::before { content: "Expense classification"; }
+  .accrualEntryTable tbody td:nth-child(4)::before { content: "Company charging"; }
+  .accrualEntryTable tbody td:nth-child(5)::before { content: "Supplier"; }
+  .accrualEntryTable tbody td:nth-child(6)::before { content: "Supplier name"; }
+  .accrualEntryTable tbody td:nth-child(7)::before { content: "Invoice number"; }
+  .accrualEntryTable tbody td:nth-child(8)::before { content: "Gross amount"; }
+  .accrualEntryTable tbody td:nth-child(9)::before { content: "GL account"; }
+  .accrualEntryTable tbody td:nth-child(10)::before { content: "GL account name"; }
+  .accrualEntryTable tbody td:nth-child(11)::before { content: "Profit center code"; }
+  .accrualEntryTable tbody td:nth-child(12)::before { content: "Profit center name"; }
+  .accrualEntryTable tbody td:nth-child(13)::before { content: "Transaction type"; }
+  .accrualEntryTable tbody td:nth-child(14)::before { content: "VAT"; }
+  .accrualEntryTable tbody td:nth-child(15)::before { content: "Tax code"; }
+  .accrualEntryTable tbody td:nth-child(16)::before { content: "Remarks"; }
+  .accrualEntryTable tbody td:nth-child(17) { grid-column: 1 / -1; }
+  .accrualEntryTable tbody td:nth-child(17)::before { content: "Add another line"; }
+
+  .accrualEntryTable tbody td input,
+  .accrualEntryTable tbody td select,
+  .accrualEntryTable tbody td textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding: 9px 10px;
+    border-radius: 8px;
+    font-size: 16px;
+  }
+
+  .accrualEntryTable tbody td textarea { min-height: 68px; }
+  .accrualEntryTable tbody td .accrualSequenceInput { min-height: 42px; }
+  .accrualEntryTable tbody td .accrualEntryFieldError,
+  .accrualEntryTable tbody td .accrualEntryFieldHint { box-sizing: border-box; width: 100%; max-width: 100%; }
+
+  .accrualEntryRowActions { justify-content: flex-end; }
+  .accrualEntryTable tbody td:nth-child(17) .accrualNewInvoiceButton { width: 100%; min-height: 40px; }
+}
 /* Distinguish import and final Add actions. */
 .formHeaderActions .topUploadBtn {
   background: #ccfbf1;
@@ -1845,4 +1975,61 @@ textarea.input {
 .optionalFieldLabel { margin-left: 4px; color: #64748b; font-size: 11px; font-weight: 500; }
 @media (max-width: 640px) {
   .supplierSectionHeading { flex-direction: column; align-items: stretch; gap: 12px; }
+}
+
+/* Keep the mobile edit dialog scrollable and its form fields readable. */
+@media (max-width: 700px) {
+  .accrualEditOverlay .accrualEditFloatingDialog {
+    height: calc(100dvh - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+
+  .accrualEditOverlay .accrualEditFloatingDialog > .body {
+    height: 100%;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .accrualEditOverlay .accrualEditFloatingDialog .formWrapper {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+    flex: 0 0 auto;
+    padding: 12px 12px calc(76px + env(safe-area-inset-bottom));
+  }
+
+  .accrualEditOverlay .accrualEditFloatingDialog .accrualEntryTablePanel {
+    display: block;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .accrualEditOverlay .accrualEditFloatingDialog .accrualEntryTableScroll {
+    overflow: visible;
+  }
+
+  .accrualEditOverlay .accrualEditFloatingDialog .accrualEntryTable tbody tr {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .accrualEditOverlay .accrualEditFloatingDialog .accrualEntryFooter {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin: 0 -12px calc(-76px - env(safe-area-inset-bottom));
+    padding: 12px;
+    border-top: 1px solid #dbe3ef;
+    background: rgba(255, 255, 255, .97);
+    box-shadow: 0 -8px 20px rgba(15, 23, 42, .08);
+    backdrop-filter: blur(10px);
+  }
+
+  .accrualEditOverlay .accrualEditFloatingDialog .accrualEntryFooter button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
 }

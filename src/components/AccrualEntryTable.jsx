@@ -291,7 +291,7 @@ export default function AccrualEntryTable({
           <colgroup>
             {[
               48, 72, 300, 280, 240, 240, 180, 160, 250, 240, 220, 240, 230, 220, 160, 180,
-              ...(!isEditingExistingAccrual ? [160] : []),
+              160,
             ].map((width, index) => (
               <col key={index} style={{ width }} />
             ))}
@@ -314,7 +314,7 @@ export default function AccrualEntryTable({
               <th>VAT</th>
               <th>Tax Code</th>
               <th>Remarks</th>
-              {!isEditingExistingAccrual ? <th className="accrualNewInvoiceActionCell">Actions</th> : null}
+              <th className="accrualNewInvoiceActionCell">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -377,7 +377,7 @@ export default function AccrualEntryTable({
                     separatorHideTimer.current = window.setTimeout(() => setHoveredSeparator(null), 500);
                   }}
                 >
-                  <td className="accrualEntryActionCell">
+                  <td className="accrualEntryActionCell" data-label="Entry actions">
                     <div className="accrualEntryRowActions">
                       {!isEditingExistingAccrual ? (
                         <button
@@ -398,7 +398,7 @@ export default function AccrualEntryTable({
                       </button>
                     </div>
                   </td>
-                  <td className="accrualSequenceCell">
+                  <td className="accrualSequenceCell" data-label="Seq.">
                     <input id={`sequence-${item.id}`} className={`input accrualSequenceInput ${errors.sequence ? "inputError" : ""}`} type="number" min="1" step="1" aria-label={`Sequence number for entry ${index + 1}`} value={item.sequence ?? index + 1} readOnly={sequenceReadOnly} aria-disabled={sequenceReadOnly || undefined} onClick={showHint("sequence", isEditingExistingAccrual ? "This edit keeps the existing control number, so all entries stay in one Seq. group" : sequenceReadOnly ? "Entry is locked" : "")} onDoubleClick={showHint("sequence", isEditingExistingAccrual ? "This edit keeps the existing control number, so all entries stay in one Seq. group" : sequenceReadOnly ? "Entry is locked" : "")} onKeyDown={(event) => { if (event.key === "Enter" && sequenceReadOnly) showFieldHint(`${item.id}:sequence`, isEditingExistingAccrual ? "This edit keeps the existing control number, so all entries stay in one Seq. group" : "Entry is locked"); }} onChange={(event) => { handleSequenceChange(item.id, event.target.value); }} />
                     <FieldHint anchorId={`sequence-${item.id}`}>{fieldHint("sequence")}</FieldHint>
                     <FieldError anchorId={`sequence-${item.id}`}>{errors.sequence ? "Use an existing Seq. or the next number in order" : ""}</FieldError>
@@ -423,7 +423,7 @@ export default function AccrualEntryTable({
                     <FieldHint anchorId={`company-${item.id}`}>{fieldHint("company")}</FieldHint>
                     <FieldError>{errors.company ? "Required" : ""}</FieldError>
                   </td>
-                  <td className="accrualSupplierCell">
+                  <td className="accrualSupplierCell" data-label="Supplier">
                     <div className="accrualSupplierSearchWrap">
                     <input id={`supplier-search-${item.id}`} className={`input ${errors.supplier ? "inputError" : ""}`} type="text" role="combobox" aria-autocomplete="list" placeholder="Search supplier" value={item.supplierSearch} readOnly={supplierReadOnly} aria-disabled={supplierReadOnly || undefined} aria-controls={`supplier-dropdown-${item.id}`} aria-expanded={Boolean(item.showSupplierDropdown && item.supplierSearch?.length >= 2 && requiresSupplier && !supplierReadOnly)} onClick={showHint("supplier", supplierHint)} onDoubleClick={showHint("supplier", supplierHint)} onKeyDown={(event) => { if (focusLookupOption(event, `supplier-dropdown-${item.id}`)) return; if (event.key === "Enter") showFieldHint(`${item.id}:supplier`, supplierHint); }} onChange={(event) => { handleSupplierSearchChange(item.id, event.target.value); clearError(index, "supplier"); }} onFocus={() => setLineItems((rows) => rows.map((row) => row.id === item.id ? { ...row, showSupplierDropdown: !supplierReadOnly && !(row.supplier && row.supplierSearch === row.supplier) && (row.supplierSearch || "").length >= 2 } : row))} />
                       <FieldHint anchorId={`supplier-search-${item.id}`}>{fieldHint("supplier")}</FieldHint>
@@ -498,20 +498,18 @@ export default function AccrualEntryTable({
                     <FieldHint anchorId={`remarks-${item.id}`}>{fieldHint("remarks")}</FieldHint>
                     <FieldError>{errors.remarks ? "Required" : ""}</FieldError>
                   </td>
-                  {!isEditingExistingAccrual ? (
-                    <td className="accrualNewInvoiceActionCell">
-                      <button
-                        type="button"
-                        className="accrualNewInvoiceButton"
-                        aria-label={`Add line item after entry ${index + 1} with Seq. ${item.sequence}`}
-                        title={`Add a new line item with Seq. ${item.sequence}`}
-                        disabled={isDisabled}
-                        onClick={() => insertAndScrollToRow(() => addLineItemAfter(item.id))}
-                      >
-                        <span aria-hidden="true">+</span> Add Line Item
-                      </button>
-                    </td>
-                  ) : null}
+                  <td className="accrualNewInvoiceActionCell">
+                    <button
+                      type="button"
+                      className="accrualNewInvoiceButton"
+                      aria-label={`Add line item after entry ${index + 1} with Seq. ${item.sequence}`}
+                      title={`Add a new line item with Seq. ${item.sequence}`}
+                      disabled={isDisabled}
+                      onClick={() => insertAndScrollToRow(() => addLineItemAfter(item.id))}
+                    >
+                      <span aria-hidden="true">+</span> Add Line Item
+                    </button>
+                  </td>
                 </tr>
                 </React.Fragment>
               );
