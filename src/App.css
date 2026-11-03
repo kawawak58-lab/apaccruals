@@ -6891,11 +6891,14 @@ a {
   .topbarMenuTrigger > span:nth-child(2) { display: none; }
 }
 /* Sidebar navigation: readable desktop layout and balanced icon rail. */
-:root { --sidebar-width: 248px; --sidebar-collapsed-width: 72px; }
+:root { --sidebar-width: 256px; --sidebar-collapsed-width: 72px; }
 .appSidebar { box-sizing: border-box; padding: 20px 12px 16px; gap: 24px; background: #151e2f; border-right-color: #263247; }
 .sidebarTop { gap: 14px; }
 .sidebarTop .brandBlock { gap: 12px; }
 .sidebarTop .brandMark { width: 38px; height: 38px; flex-basis: 38px; border-radius: 8px; border: 0; background: transparent; box-shadow: none; overflow: hidden; }
+.sidebarTop .brandMarkExpand { padding: 0; color: inherit; cursor: pointer; }
+.sidebarTop .brandMarkExpand:hover { background: #263650; box-shadow: 0 0 0 4px #263650; }
+.sidebarTop .brandMarkExpand:focus-visible { outline: 2px solid #93c5fd; outline-offset: 3px; }
 .sidebarTop .brandLogoSvg { width: 38px; height: 38px; object-fit: cover; transform: none; }
 .sidebarTop .brandTitle { font-size: 12px; line-height: 1.2; letter-spacing: -0.02em; white-space: nowrap; }
 .sidebarTop .brandSubtitle { font-size: 10px; color: #cbd5e1; font-weight: 600; margin-top: 3px; }
@@ -6911,15 +6914,25 @@ a {
   background: #263650;
   color: #f8fafc;
   box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
+  transition: width .3s cubic-bezier(.2, .8, .2, 1), height .3s cubic-bezier(.2, .8, .2, 1), flex-basis .3s cubic-bezier(.2, .8, .2, 1), opacity .22s cubic-bezier(.2, .8, .2, 1), visibility 0s linear 0s, margin .3s cubic-bezier(.2, .8, .2, 1), padding .3s cubic-bezier(.2, .8, .2, 1), border-width .3s cubic-bezier(.2, .8, .2, 1), background-color .15s ease;
 }
 .sidebarCollapseBtn:hover { color: #fff; background: #344967; border-color: #8193ad; }
 .sidebarCollapseBtn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 3px; }
 .sidebarNav { gap: 24px; padding-right: 0; scrollbar-width: thin; }
 .navGroup { gap: 4px; }
-.navGroup.withDivider { border-top: 0; padding-top: 0; }
+.navGroup.withDivider { border-top: 1px solid #2a3548; padding-top: 0; }
 .navHeading { margin: 0 12px 8px; color: #94a3b8; font-size: 10px; letter-spacing: 0.1em; }
-.navItem { min-height: 44px; padding: 9px 12px; gap: 10px; border-radius: 8px; font-size: 13px; line-height: 1.4; color: #cbd5e1; }
-.navText { white-space: normal; }
+.navItem { min-height: 44px; padding: 9px 12px; gap: 10px; border-radius: 8px; font-size: 13px; line-height: 1.4; color: #cbd5e1; overflow: hidden; }
+.navText {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  left: 42px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
 .navIcon { width: 20px; height: 20px; flex: 0 0 20px; }
 .navIcon svg { display: block; }
 .navItem:hover { background: #263247; color: #fff; }
@@ -6930,13 +6943,98 @@ a {
 .sidebarProfile .profileAvatar { width: 34px; height: 34px; flex-basis: 34px; font-size: 11px; background: #263650; border-color: #40516c; }
 .profileName, .profileRole { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .profileRole { margin-top: 4px; font-size: 11px; color: #94a3b8; }
+.appSidebar,
+.appMain {
+  transition-timing-function: cubic-bezier(.2, .8, .2, 1);
+  transition-duration: .3s;
+}
+.sidebarTop,
+.brandBlock,
+.sidebarNav,
+.navGroup,
+.sidebarProfile {
+  transition: gap .3s cubic-bezier(.2, .8, .2, 1), padding .3s cubic-bezier(.2, .8, .2, 1);
+}
+.navItem { transition: width .3s cubic-bezier(.2, .8, .2, 1), min-height .3s cubic-bezier(.2, .8, .2, 1), padding .3s cubic-bezier(.2, .8, .2, 1), gap .3s cubic-bezier(.2, .8, .2, 1), background-color .18s ease, color .18s ease, border-color .18s ease; }
 .appSidebar.collapsed { padding: 20px 12px 16px; gap: 24px; }
 .appSidebar.collapsed .brandText,
-.appSidebar.collapsed .navText,
-.appSidebar.collapsed .navHeading,
-.appSidebar.collapsed .profileCopy { display: none; }
-.appSidebar.collapsed .sidebarTop { gap: 16px; }
-.appSidebar.collapsed .brandBlock { gap: 0; }
+.appSidebar.collapsed .profileCopy {
+  width: 0;
+  max-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  overflow: hidden;
+  transform: translateX(-6px);
+  transition: none;
+}
+.appSidebar.collapsed .navText {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-50%) translateX(-6px);
+  transition: none;
+}
+.appSidebar.collapsed .navHeading {
+  max-height: 0;
+  margin: 0;
+  opacity: 0;
+  visibility: hidden;
+  overflow: hidden;
+  transform: translateX(-6px);
+  transition: none;
+}
+.appSidebar:not(.collapsed) .brandText,
+.appSidebar:not(.collapsed) .navText,
+.appSidebar:not(.collapsed) .navHeading,
+.appSidebar:not(.collapsed) .profileCopy {
+  visibility: visible;
+  pointer-events: auto;
+}
+.appSidebar:not(.collapsed) .brandText,
+.appSidebar:not(.collapsed) .profileCopy {
+  width: auto;
+  max-width: 180px;
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 220ms cubic-bezier(.2, .8, .2, 1) 120ms,
+    transform 220ms cubic-bezier(.2, .8, .2, 1) 120ms,
+    visibility 0s linear 0s;
+}
+.appSidebar:not(.collapsed) .brandText { white-space: nowrap; }
+.appSidebar:not(.collapsed) .profileCopy { flex: 1 1 auto; }
+.appSidebar:not(.collapsed) .navText {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+  transition: opacity 220ms cubic-bezier(.2, .8, .2, 1) 120ms,
+    transform 220ms cubic-bezier(.2, .8, .2, 1) 120ms,
+    visibility 0s linear 0s;
+}
+.appSidebar:not(.collapsed) .navHeading {
+  max-height: 24px;
+  opacity: 1;
+  transform: translateX(0);
+  transition: opacity 220ms cubic-bezier(.2, .8, .2, 1) 120ms,
+    transform 220ms cubic-bezier(.2, .8, .2, 1) 120ms,
+    visibility 0s linear 0s;
+}
+.appSidebar.collapsed .sidebarTop { gap: 0; flex-direction: row; align-items: center; justify-content: center; }
+.appSidebar.collapsed .brandBlock { flex: 1 1 auto; gap: 0; justify-content: center; }
+.appSidebar.collapsed .sidebarCollapseBtn {
+  width: 0;
+  height: 0;
+  flex-basis: 0;
+  margin: 0;
+  padding: 0;
+  border-width: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  overflow: hidden;
+  box-shadow: none;
+  transition: width .3s cubic-bezier(.2, .8, .2, 1), height .3s cubic-bezier(.2, .8, .2, 1), flex-basis .3s cubic-bezier(.2, .8, .2, 1), opacity .22s cubic-bezier(.2, .8, .2, 1), visibility 0s linear .3s, margin .3s cubic-bezier(.2, .8, .2, 1), padding .3s cubic-bezier(.2, .8, .2, 1), border-width .3s cubic-bezier(.2, .8, .2, 1), background-color .15s ease;
+}
+.appSidebar:not(.collapsed) .sidebarCollapseBtn { opacity: 1; visibility: visible; transition-delay: 0s; }
 .appSidebar.collapsed .navItem { width: 44px; min-height: 44px; padding: 0; gap: 0; margin: 0 auto; }
 .appSidebar.collapsed .sidebarNav { gap: 16px; }
 .appSidebar.collapsed .navGroup { gap: 4px; }

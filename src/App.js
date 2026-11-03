@@ -749,9 +749,19 @@ function Sidebar({
     >
       <div className="sidebarTop">
         <div className="brandBlock">
-          <div className="brandMark">
-            <BrandLogo />
-          </div>
+          {collapsed && !isMobile ? (
+            <button
+              type="button"
+              className="brandMark brandMarkExpand"
+              onClick={onToggleCollapse}
+              aria-label="Expand sidebar"
+              title="Expand sidebar"
+            >
+              <BrandLogo />
+            </button>
+          ) : (
+            <div className="brandMark"><BrandLogo /></div>
+          )}
           <div className="brandText">
             <div className="brandTitle">Bounty Accrual Engine</div>
           </div>
