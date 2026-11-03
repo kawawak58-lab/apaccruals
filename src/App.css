@@ -8529,6 +8529,71 @@ a {
   .allAccrualsPage .accrualSummaryChip span { font-size: 10px; }
   .allAccrualsPage .accrualSummaryChip strong { font-size: 17px; }
 
+  .allAccrualsPage .mobileAccrualTools {
+    grid-area: listTools;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-width: 0;
+  }
+  .allAccrualsPage .mobileViewToggle {
+    display: inline-flex;
+    flex: 0 0 auto;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid #d9e2ef;
+    border-radius: 10px;
+    background: #edf2f8;
+  }
+  .allAccrualsPage .mobileViewToggle button {
+    min-width: 62px;
+    min-height: 34px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #596b84;
+    font-size: 12px;
+    font-weight: 650;
+  }
+  .allAccrualsPage .mobileViewToggle button.active {
+    background: #fff;
+    color: #1d4ed8;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, .14);
+  }
+  .allAccrualsPage .mobileSelectAllControl {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 40px;
+    min-width: 0;
+    padding: 0 10px;
+    border: 1px solid #d9e2ef;
+    border-radius: 9px;
+    background: #fff;
+    color: #334155;
+    font-size: 11px;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+  .allAccrualsPage .mobileSelectAllControl input { width: 16px; height: 16px; margin: 0; accent-color: #1d4ed8; }
+  .allAccrualsPage .mobileSelectAllCount {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-size: 10px;
+    font-weight: 750;
+  }
+  .allAccrualsPage .maintenanceTable thead { display: none; }
+  .allAccrualsPage .mobileAccrualTools { display: flex; }
+
   .allAccrualsPage .maintenanceTable tbody { display: grid; gap: 12px; }
   .allAccrualsPage .maintenanceTable tbody tr {
     display: grid;
@@ -8682,6 +8747,94 @@ a {
   }
   .allAccrualsPage .accrualBulkConfirmBar > span { align-self: center; font-size: 12px; }
   .allAccrualsPage .accrualBulkConfirmBar .submitBtn { min-height: 42px; padding: 0 13px; white-space: nowrap; }
+}
+
+@media (max-width: 640px) {
+  .allAccrualsPage { grid-template-areas: "title title export" "summary summary summary" "search filters refresh" "listTools listTools listTools" "list list list" "bulk bulk bulk"; }
+  .allAccrualsPage .accrualSummaryChips {
+    flex-wrap: nowrap;
+    gap: 7px;
+    margin: 0;
+    padding: 2px 2px 7px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+  .allAccrualsPage .accrualSummaryChip {
+    flex: 0 0 auto;
+    justify-content: center;
+    gap: 7px;
+    min-width: 0;
+    min-height: 40px;
+    padding: 0 12px;
+    border-radius: 999px;
+    box-shadow: none;
+  }
+  .allAccrualsPage .accrualSummaryChip span {
+    font-size: 11px;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: nowrap;
+  }
+  .allAccrualsPage .accrualSummaryChip strong { font-size: 12px; }
+  .allAccrualsPage .accrualSummaryChip.active { transform: none; box-shadow: 0 0 0 1px rgba(37, 99, 235, .12); }
+  .allAccrualsPage .mobileAccrualTools { display: flex; }
+  .allAccrualsPage.mobileAccrualView-list > .managementPanel .maintenanceTableShell { overflow: hidden; }
+  .allAccrualsPage.mobileAccrualView-list > .managementPanel .maintenanceTableWrap {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable { min-width: 710px; width: 710px; table-layout: fixed; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable thead { display: table-header-group; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable thead th { width: auto !important; padding: 10px 8px; font-size: 10px; white-space: nowrap; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable thead th:first-child { width: 52px !important; visibility: hidden; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable thead th:nth-child(2) { width: 115px !important; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable thead th:nth-child(3),
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable thead th:nth-child(5),
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable thead th:nth-child(7) { display: none; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable thead th:nth-child(4) { width: 112px !important; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable thead th:nth-child(6) { width: 170px !important; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable thead th:nth-child(8) { width: 100px !important; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable thead th.actionsCol { width: 160px !important; text-align: left; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody { display: table-row-group; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody tr {
+    display: table-row;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody tr > td {
+    display: table-cell;
+    padding: 10px 8px !important;
+    vertical-align: middle;
+    font-size: 11px;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody tr > td::before { display: none; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody tr > td:nth-child(1) { width: 52px !important; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody tr > td:nth-child(2) { width: 115px !important; font-size: 11px; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody tr > td:nth-child(3),
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody tr > td:nth-child(5),
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody tr > td:nth-child(7) { display: none; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody tr > td:nth-child(4) { width: 112px !important; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody tr > td:nth-child(6) { width: 170px !important; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody tr > td:nth-child(8) { width: 100px !important; text-align: right; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody tr > td:nth-child(9) { width: 160px !important; padding: 6px !important; }
+  .allAccrualsPage.mobileAccrualView-list .accrualNotesCellActions { gap: 2px; }
+  .allAccrualsPage.mobileAccrualView-list .accrualSelectionControl { width: 28px; min-height: 32px; }
+  .allAccrualsPage.mobileAccrualView-list .accrualNotesIconButton { width: 28px; height: 32px; flex-basis: 28px; }
+  .allAccrualsPage.mobileAccrualView-list .accrualRowActionGroup { min-height: 32px; justify-content: flex-end; gap: 4px; }
+  .allAccrualsPage.mobileAccrualView-list .accrualRowActionGroup .tableActionBtn { min-width: 44px; min-height: 30px; padding: 0 6px; font-size: 10px; }
+  .allAccrualsPage.mobileAccrualView-list .maintenanceTable tbody tr.confirmationSelectedRow { background: #edf4ff; box-shadow: inset 3px 0 #3b82f6; }
+}
+
+@media (min-width: 641px) {
+  .allAccrualsPage .mobileAccrualTools { display: none; }
 }
 
 .modalContent.maintenanceDialog.accrualConfirmPreviewDialog {

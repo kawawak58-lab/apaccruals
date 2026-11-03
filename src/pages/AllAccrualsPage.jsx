@@ -426,6 +426,10 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
   const [search, setSearch] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
   const [statusFilter, setStatusFilter] = useState("for confirmation");
+  const [mobileView, setMobileView] = useState(() => {
+    try { return window.localStorage.getItem("allAccrualsMobileView") === "list" ? "list" : "cards"; }
+    catch { return "cards"; }
+  });
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [loading, setLoading] = useState(true);
@@ -479,6 +483,10 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
   useEffect(() => {
     setSelectedConfirmationIds([]);
   }, [dateFrom, dateTo, search, statusFilter]);
+
+  useEffect(() => {
+    try { window.localStorage.setItem("allAccrualsMobileView", mobileView); } catch { /* Storage can be unavailable in private browsing. */ }
+  }, [mobileView]);
 
   const enrichedSubmissions = useMemo(() => (
     submissions.map((submission) => {
@@ -761,7 +769,7 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
   };
 
   return (
-    <div className="contentPage managementPage allAccrualsPage">
+    <div className={`contentPage managementPage allAccrualsPage mobileAccrualView-${mobileView}`}>
       <div className="pageIntro">
         <div>
           <h1 className="pageTitle">All Accruals</h1>
@@ -823,6 +831,28 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
         <button type="button" className={`accrualSummaryChip cancelled${statusFilter === "cancelled" ? " active" : ""}`} aria-pressed={statusFilter === "cancelled"} onClick={() => setStatusFilter("cancelled")}>
           <span>Cancelled</span><strong>{submissionTotals.cancelled.toLocaleString()}</strong>
         </button>
+      </div>
+
+      <div className="mobileAccrualTools">
+        <div className="mobileViewToggle" role="group" aria-label="Choose accrual view">
+          <button type="button" className={mobileView === "cards" ? "active" : ""} aria-pressed={mobileView === "cards"} onClick={() => setMobileView("cards")}>Cards</button>
+          <button type="button" className={mobileView === "list" ? "active" : ""} aria-pressed={mobileView === "list"} onClick={() => setMobileView("list")}>List</button>
+        </div>
+        {statusFilter === "for confirmation" ? (
+          <label className="mobileSelectAllControl">
+            <input
+              type="checkbox"
+              className="accrualConfirmCheckbox"
+              checked={allVisibleConfirmationsSelected}
+              ref={(element) => { if (element) element.indeterminate = someVisibleConfirmationsSelected && !allVisibleConfirmationsSelected; }}
+              onChange={toggleAllConfirmationSelection}
+              aria-label="Select all eligible accruals for confirmation"
+              disabled={!selectableConfirmationIds.length || confirmingAccrual}
+            />
+            <span>Select all</span>
+            <span className="mobileSelectAllCount">{selectableConfirmationIds.length}</span>
+          </label>
+        ) : null}
       </div>
 
       <div className="managementPanel">
@@ -910,7 +940,6 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
             showRowCount
             emptyText="No accrual submissions found."
             emptyHelperText="New and uploaded accruals appear as For Confirmation. Review the details, then confirm them individually or select at least two to confirm together."
-            onRowClick={(row) => setSelectedSubmission(row)}
             onRowDoubleClick={(row) => setSelectedSubmission(row)}
             rowActions={(row) => (
               <div className="accrualRowActionGroup">
