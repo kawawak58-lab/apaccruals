@@ -2039,9 +2039,17 @@ textarea.input {
 .accrualEntryTableActions .accrualUndoButton:disabled { opacity: .45; cursor: default; }
 .accrualUndoCount { padding: 1px 5px; border-radius: 4px; background: #e2e8f0; font-size: 10px; line-height: 1.4; }
 .excelPastePreview { width: min(1100px, 95vw); max-width: 95vw; max-height: 85vh; overflow: auto; }
+.excelPastePreview.excelPasteLoading { width: min(380px, 95vw); box-sizing: border-box; }
+.excelPasteLoading h2 { margin: 0 0 16px; font-size: 18px; }
+.excelPasteLoadingStatus { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.excelPasteLoadingStatus p { margin: 0; font-size: 13px; }
+.excelPasteSpinner { width: 28px; height: 28px; border: 3px solid #dbeafe; border-top-color: #2563eb; border-radius: 50%; animation: excelPasteSpin .8s linear infinite; }
+.excelPasteLoading .excelPasteActions { justify-content: center; }
+@keyframes excelPasteSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .excelPasteSpinner { animation: none; } }
 .excelPasteScroll { overflow: auto; max-height: 45vh; margin: 16px 0; }
-.excelPasteScroll table { border-collapse: collapse; font-size: 13px; }
-.excelPasteScroll th, .excelPasteScroll td { border: 1px solid #cbd5e1; padding: 8px; min-width: 120px; white-space: pre-wrap; }
+.excelPasteScroll table { width: max-content; table-layout: auto; border-collapse: collapse; font-size: 13px; }
+.excelPasteScroll th, .excelPasteScroll td { border: 1px solid #cbd5e1; padding: 8px; min-width: 120px; white-space: nowrap; }
 .excelPasteScroll th { background: #eff6ff; position: sticky; top: 0; }
 .excelPasteActions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
 .filingSetupPage .actionsCol, .filingSetupPage .tableActions { width: 200px; min-width: 200px; }

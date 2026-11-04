@@ -2299,7 +2299,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
 
     <div className="accrualEntryFooter">
       {editingSubmission ? <button type="button" className="tableActionBtn" disabled={isSubmitting} onClick={onEditCancel}>Cancel</button> : null}
-      <button type="button" className="submitBtn" disabled={isSubmitting || isAccrualWindowLocked} onClick={openSubmissionPreview}>{editingSubmission ? "Save Changes" : "Add"}</button>
+      <button type="button" className="submitBtn" disabled={isSubmitting || isAccrualWindowLocked} onClick={openSubmissionPreview}>{editingSubmission ? "Update" : "Add"}</button>
     </div>
           </>
         )}

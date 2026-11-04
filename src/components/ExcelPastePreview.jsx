@@ -37,7 +37,7 @@ export default function ExcelPastePreview({ preview, onCancel, onApply }) {
   }, []);
   return createPortal(
     <div className="modalOverlay maintenanceOverlay">
-      <section ref={ref} tabIndex={-1} className="modalContent maintenanceDialog excelPastePreview" role="dialog" aria-modal="true" aria-labelledby="excel-paste-title" onKeyDown={(event) => {
+      <section ref={ref} tabIndex={-1} className={`modalContent maintenanceDialog excelPastePreview${preview.loading ? ' excelPasteLoading' : ''}`} role="dialog" aria-modal="true" aria-labelledby="excel-paste-title" onKeyDown={(event) => {
         if (event.key === 'Escape') { event.preventDefault(); onCancel(); }
         if (event.key === 'Tab') {
           const controls = Array.from(ref.current.querySelectorAll('button:not(:disabled), [tabindex="0"]'));
@@ -46,8 +46,8 @@ export default function ExcelPastePreview({ preview, onCancel, onApply }) {
           controls[(next + controls.length) % controls.length]?.focus();
         }
       }}>
-        <h2 id="excel-paste-title">Preview Excel paste</h2>
-        {preview.loading ? <p role="status">Checking copied cells and account codes…</p> : <>
+        <h2 id="excel-paste-title">{preview.loading ? 'Checking Excel paste' : 'Preview Excel paste'}</h2>
+        {preview.loading ? <div className="excelPasteLoadingStatus" role="status"><span className="excelPasteSpinner" aria-hidden="true" /><p>Checking copied cells and account codes…</p></div> : <>
           <p>{preview.rowCount || 0} copied rows. Existing values in the pasted range will be replaced. Invoice details apply to all lines with the same Seq. Required fields are checked again when you submit.</p>
           {preview.errors?.length > 0 && <div key={attention} ref={errorsRef} tabIndex={-1} className={`excelPasteErrors${attention ? ' excelPasteErrorsAttention' : ''}`} role="alert" aria-label="Paste issues">
             <div className="excelPasteErrorsHeading">
@@ -61,7 +61,7 @@ export default function ExcelPastePreview({ preview, onCancel, onApply }) {
           </div>}
           {preview.changes?.length > 0 && <div className="excelPasteScroll" tabIndex={0} aria-label="Pasted entries preview"><table><thead><tr><th>Row</th>{PASTE_COLUMNS.map(([key, label]) => <th key={key}>{label}</th>)}</tr></thead><tbody>{preview.changes.slice(0, 50).map(({ index }) => <tr key={index}><td>{index + 1}</td>{PASTE_COLUMNS.map(([key]) => <td key={key}>{preview.items[index][key]}</td>)}</tr>)}</tbody></table>{preview.changes.length > 50 && <p>Showing the first 50 copied rows.</p>}</div>}
         </>}
-        <div className="excelPasteActions"><button type="button" className="tableActionBtn" onClick={onCancel}>Cancel</button><button type="button" className="submitBtn" disabled={preview.loading} onClick={handleApply}>Apply paste</button></div>
+        <div className="excelPasteActions"><button type="button" className="tableActionBtn" onClick={onCancel}>Cancel</button>{!preview.loading && <button type="button" className="submitBtn" onClick={handleApply}>Apply paste</button>}</div>
       </section>
     </div>, document.body
   );
