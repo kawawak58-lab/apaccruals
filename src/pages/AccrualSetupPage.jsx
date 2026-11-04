@@ -1,196 +1,85 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useToast } from "../lib/toast";
-import {
-  formatDisplayDate,
-  formatDateInputValue,
-  getAccrualSetup,
-  getAccrualWindowStatus,
-  saveAccrualSetup,
-} from "../lib/AccrualSetup";
-
-const defaultFormValues = {
-  start_date: "",
-  cutoff_date: "",
-};
+import React, { useCallback, useEffect, useState } from 'react';
+import MaintenanceTable from '../components/MaintenanceTable';
+import FilingSetupDialog from '../components/FilingSetupDialog';
+import FilingSetupConfirmation from '../components/FilingSetupConfirmation';
+import { useToast } from '../lib/toast';
+import { canManageAccrualSetup } from '../lib/access';
+import { archiveAccrualSetup, unarchiveAccrualSetup, setAccrualSetupLocked, deleteAccrualSetup, formatDisplayDate, getAccrualWindowStatus, listAccrualSetups, saveAccrualSetup, setAccrualSetupActive } from '../lib/AccrualSetup';
 
 export default function AccrualSetupPage({ currentUser }) {
   const { showToast } = useToast();
-  const [formValues, setFormValues] = useState(defaultFormValues);
+  const [setups, setSetups] = useState([]);
+  const [form, setForm] = useState({ name: '', start_date: '', cutoff_date: '' });
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [updatedAt, setUpdatedAt] = useState(null);
-  const hasAccess = Boolean(currentUser?.can_update_setup);
-
-  const loadSetup = useCallback(async () => {
+  const [error, setError] = useState('');
+  const [archiveTarget, setArchiveTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const hasAccess = canManageAccrualSetup(currentUser);
+  const load = useCallback(async () => {
+    if (!hasAccess) { setLoading(false); return; }
     setLoading(true);
-    setErrorMessage("");
-
-    try {
-      const setup = await getAccrualSetup();
-      setFormValues({
-        start_date: setup.start_date || "",
-        cutoff_date: setup.cutoff_date || "",
-      });
-      setUpdatedAt(setup.updated_at || null);
-    } catch (error) {
-      setErrorMessage(error.message || "Unable to load accrual setup.");
-      showToast(error.message || "Unable to load accrual setup.", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [showToast]);
-
-  useEffect(() => {
-    if (!hasAccess) {
-      setLoading(false);
-      return;
-    }
-    loadSetup();
-  }, [hasAccess, loadSetup]);
-
-  const windowStatus = useMemo(
-    () => getAccrualWindowStatus(formValues, new Date()),
-    [formValues]
-  );
-
-  const statusTone = windowStatus.isConfigured
-    ? windowStatus.isOpen
-      ? "success"
-      : "warning"
-    : "neutral";
-
-  const handleSubmit = async () => {
-    if (!hasAccess) {
-      showToast("You do not have access to update the accrual setup.", "error");
-      return;
-    }
-
-    if (!formValues.start_date || !formValues.cutoff_date) {
-      showToast("Start date and cutoff date are required.", "error");
-      return;
-    }
-
-    if (formValues.cutoff_date < formValues.start_date) {
-      showToast("Cutoff date cannot be earlier than the start date.", "error");
-      return;
-    }
-
+    try { setSetups(await listAccrualSetups()); setError(''); }
+    catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  }, [hasAccess]);
+  useEffect(() => { load(); }, [load]);
+  const run = async (action, message, keepEditor = false) => {
+    if (!hasAccess || saving) return;
     setSaving(true);
-    setErrorMessage("");
-
     try {
-      const savedSetup = await saveAccrualSetup(formValues);
-      setFormValues({
-        start_date: savedSetup.start_date || "",
-        cutoff_date: savedSetup.cutoff_date || "",
-      });
-      setUpdatedAt(savedSetup.updated_at || null);
-      showToast("Accrual setup saved successfully.", "success");
-    } catch (error) {
-      setErrorMessage(error.message || "Unable to save accrual setup.");
-      showToast(error.message || "Unable to save accrual setup.", "error");
-    } finally {
-      setSaving(false);
-    }
+      await action(); setArchiveTarget(null); setDeleteTarget(null); if (!keepEditor) setDialogOpen(false); showToast(message, 'success');
+      window.dispatchEvent(new Event('accrual-setup-updated')); await load();
+    } catch (err) { setError(err.message); showToast(err.message, 'error'); }
+    finally { setSaving(false); }
   };
-
-  return (
-    <div className="contentPage">
-      <div className="pageIntro">
-        <div>
-          <h1 className="pageTitle">Accrual Setup</h1>
-          <p className="pageSubtitle">
-            Define the accrual filing window. New accrual creation is only available within the configured dates.
-          </p>
-        </div>
-      </div>
-
-      <div className="accrualSetupLayout">
-        <section className="accrualSetupCard">
-          <div className="accrualSetupCardHeader">
-            <div>
-              <h2 className="panelTitle">Accrual Filing Window</h2>
-              <p className="pageSubtitle accrualSetupSubtitle">
-                Users can create new accrual entries only when the current date is within this range.
-              </p>
-            </div>
-            <div className={`accrualSetupStatusBadge ${statusTone}`}>
-              {windowStatus.isConfigured
-                ? windowStatus.isOpen
-                  ? "Window Open"
-                  : "Window Closed"
-                : "Setup Required"}
-            </div>
-          </div>
-
-          {errorMessage ? <div className="inlineError">{errorMessage}</div> : null}
-          {!hasAccess ? <div className="inlineError">You do not have access to update the accrual setup.</div> : null}
-
-          <div className="accrualSetupGrid">
-            <label className="headerFieldGroup accrualSetupField">
-              <span className="headerFieldLabel">Start Date</span>
-              <input
-                type="date"
-                className="input"
-                value={formValues.start_date}
-                disabled={!hasAccess || loading || saving}
-                onChange={(event) =>
-                  setFormValues((current) => ({ ...current, start_date: event.target.value }))
-                }
-              />
-            </label>
-
-            <label className="headerFieldGroup accrualSetupField">
-              <span className="headerFieldLabel">Cutoff Date</span>
-              <input
-                type="date"
-                className="input"
-                value={formValues.cutoff_date}
-                disabled={!hasAccess || loading || saving}
-                onChange={(event) =>
-                  setFormValues((current) => ({ ...current, cutoff_date: event.target.value }))
-                }
-              />
-            </label>
-          </div>
-
-          <div className="accrualSetupCallout">
-            <div className="accrualSetupCalloutLabel">Current Rule</div>
-            <div className="accrualSetupCalloutText">{windowStatus.reason}</div>
-          </div>
-
-          <div className="accrualSetupMeta">
-            <span>
-              Today: <strong>{formatDisplayDate(formatDateInputValue(new Date()))}</strong>
-            </span>
-            <span>
-              Last updated: <strong>{updatedAt ? new Date(updatedAt).toLocaleString() : "Not yet saved"}</strong>
-            </span>
-          </div>
-
-          {hasAccess ? (
-            <div className="accrualSetupActions">
-              <button
-                type="button"
-                className="tableActionBtn"
-                onClick={loadSetup}
-                disabled={loading || saving}
-              >
-                Refresh
-              </button>
-              <button
-                type="button"
-                className={`submitBtn${saving ? " isLoading" : ""}`}
-                onClick={handleSubmit}
-                disabled={loading || saving}
-              >
-                {saving ? "Saving..." : "Save Setup"}
-              </button>
-            </div>
-          ) : null}
-        </section>
-      </div>
-    </div>
-  );
+  const create = () => {
+    const setup = setups.find((row) => row.id === form.id);
+    if (setup?.is_locked || setup?.is_archived) return;
+    if (!form.name.trim() || !form.start_date || !form.cutoff_date || form.cutoff_date < form.start_date) {
+      showToast('Enter a setup name and valid start and cutoff dates.', 'error'); return;
+    }
+    run(() => saveAccrualSetup(form), form.id ? 'Filing setup updated.' : 'Setup created. Activate it from the list when ready.');
+  };
+  const openEditor = (row) => {
+    if (saving) return;
+    setError('');
+    setForm(row ? { id: row.id, name: row.name, start_date: row.start_date || '', cutoff_date: row.cutoff_date || '' } : { name: '', start_date: '', cutoff_date: '' });
+    setDialogOpen(true);
+  };
+  const editorSetup = setups.find((row) => row.id === form.id);
+  const changeLock = () => {
+    if (!editorSetup) return;
+    setForm({ id: editorSetup.id, name: editorSetup.name, start_date: editorSetup.start_date || '', cutoff_date: editorSetup.cutoff_date || '' });
+    run(() => setAccrualSetupLocked(editorSetup.id, !editorSetup.is_locked), editorSetup.is_locked ? 'Setup unlocked. It remains inactive.' : 'Setup locked. Filing is closed.', true);
+  };
+  const reviewArchive = (restore) => {
+    setError(''); setDialogOpen(false); setArchiveTarget({ ...editorSetup, restore });
+  };
+  if (!hasAccess) return <div className="contentPage"><div className="inlineError">You do not have access to Accrual Setup.</div></div>;
+  return <div className="contentPage managementPage filingSetupPage">
+    <div className="pageIntro"><div><h1 className="pageTitle">Accrual Setup</h1><p className="pageSubtitle">Manage filing windows. Only one setup can be active at a time.</p></div><div className="headerActions"><button type="button" className="tableActionBtn" onClick={load} disabled={loading || saving}>Refresh</button><button type="button" className="submitBtn" disabled={loading || saving} onClick={() => openEditor()}>+ Add setup</button></div></div>
+    {error && !dialogOpen && !archiveTarget && !deleteTarget && <div className="inlineError" role="alert">{error}</div>}
+    {dialogOpen && <FilingSetupDialog values={form} onChange={setForm} saving={saving} error={error} locked={Boolean(editorSetup?.is_locked)} archived={Boolean(editorSetup?.is_archived)} onToggleLock={changeLock} onClose={() => { if (!saving) setDialogOpen(false); }} onSubmit={create} onArchive={() => reviewArchive(false)} onUnarchive={() => reviewArchive(true)} />}
+    <MaintenanceTable loading={loading} rows={setups} emptyText="No filing windows yet." onRowDoubleClick={openEditor} columns={[
+      { key: 'name', label: 'Accrual Setup', render: (row) => <strong>{row.name}</strong> },
+      { key: 'start_date', label: 'Start date', render: (row) => formatDisplayDate(row.start_date) },
+      { key: 'cutoff_date', label: 'Cutoff date', render: (row) => formatDisplayDate(row.cutoff_date) },
+      { key: 'is_active', label: 'Status', render: (row) => <span className="statusPill">{row.is_archived ? 'Archived' : row.is_active ? 'Active' : 'Inactive'}</span> },
+      { key: 'is_locked', label: 'Lock', render: (row) => <span className={`filingSetupLockBadge${row.is_locked ? ' locked' : ''}`}>{row.is_locked ? 'Locked' : 'Unlocked'}</span> },
+      { key: 'window', label: 'Filing window', render: (row) => getAccrualWindowStatus(row).isOpen ? 'Open' : 'Closed' },
+    ]} rowActions={(row) => <div className="filingSetupActions" onDoubleClick={(event) => { if (event.target.closest('button')) event.stopPropagation(); }}>
+      {row.is_archived || row.is_locked ? <span className="filingSetupArchived">Double-click to {row.is_locked ? 'unlock' : 'unarchive'}</span> : <>
+        <button type="button" className="tableActionBtn" disabled={saving} onClick={() => run(() => setAccrualSetupActive(row.id, !row.is_active), row.is_active ? 'Setup deactivated.' : 'Setup activated.')}>{row.is_active ? 'Deactivate' : 'Activate'}</button>
+        <button type="button" className="tableActionBtn danger" disabled={saving} onClick={() => { setError(''); setDeleteTarget(row); }}>Delete</button>
+      </>}
+    </div>} />
+    {archiveTarget && <FilingSetupConfirmation setup={archiveTarget} action={archiveTarget.restore ? 'unarchive' : 'archive'} error={error} saving={saving}
+      onCancel={() => { setArchiveTarget(null); setDialogOpen(true); }}
+      onConfirm={() => run(() => archiveTarget.restore ? unarchiveAccrualSetup(archiveTarget.id) : archiveAccrualSetup(archiveTarget.id), archiveTarget.restore ? 'Setup and its accruals restored. The setup remains inactive.' : 'Setup and its accruals archived.')} />}
+    {deleteTarget && <FilingSetupConfirmation setup={deleteTarget} action="delete" error={error} saving={saving}
+      onCancel={() => { setDeleteTarget(null); setError(''); }}
+      onConfirm={() => run(() => deleteAccrualSetup(deleteTarget.id), 'Setup deleted.')} />}
+  </div>;
 }

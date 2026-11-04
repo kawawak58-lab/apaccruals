@@ -7,6 +7,7 @@ import GLAccountsPage from "./pages/GLAccountsPage";
 import SuppliersPage from "./pages/SuppliersPage";
 import AllAccrualsPage from "./pages/AllAccrualsPage";
 import AccrualSetupPage from "./pages/AccrualSetupPage";
+import ArchiveListPage from './pages/ArchiveListPage';
 import AnnouncementsPage from "./pages/AnnouncementsPage";
 import AccrualCutoffNotice from "./components/AccrualCutoffNotice";
 import ControlNumberSetupPage from "./pages/ControlNumberSetupPage";
@@ -187,25 +188,26 @@ const navigation = [
   {
     section: "Accruals",
     items: [
-      { label: "All Accruals", view: "/accruals", icon: "accruals", roles: ["sysadmin", "accrual_user"] },
-      { label: "New Accrual", view: "/new-accrual", icon: "plus", roles: ["sysadmin", "accrual_user"] },
+      { label: "All Accruals", view: "/accruals", icon: "accruals", roles: ["sysadmin", "accrual_admin", "accrual_user"] },
+      { label: "New Accrual", view: "/new-accrual", icon: "plus", roles: ["sysadmin", "accrual_admin", "accrual_user"] },
     ],
   },
   {
     section: "Master Data",
     items: [
-      { label: "Suppliers", view: "/suppliers", icon: "suppliers", roles: ["sysadmin"] },
-      { label: "GL Accounts", view: "/gl-accounts", icon: "glaccounts", roles: ["sysadmin"] },
-      { label: "Profit Centers", view: "/draft-centers", icon: "profitcenters", roles: ["sysadmin"] },
-      { label: "Companies", view: "/companies", icon: "companies", roles: ["sysadmin"] },
-      { label: "Expense Classifications", view: "/expense-classifications", icon: "expense", roles: ["sysadmin"] },
-      { label: "Transaction Types", view: "/transaction-types", icon: "transaction", roles: ["sysadmin"] },
-      { label: "Tax Codes", view: "/tax-codes", icon: "tax", roles: ["sysadmin"] },
+      { label: "Suppliers", view: "/suppliers", icon: "suppliers", roles: ["sysadmin", "accrual_admin"] },
+      { label: "GL Accounts", view: "/gl-accounts", icon: "glaccounts", roles: ["sysadmin", "accrual_admin"] },
+      { label: "Profit Centers", view: "/draft-centers", icon: "profitcenters", roles: ["sysadmin", "accrual_admin"] },
+      { label: "Companies", view: "/companies", icon: "companies", roles: ["sysadmin", "accrual_admin"] },
+      { label: "Expense Classifications", view: "/expense-classifications", icon: "expense", roles: ["sysadmin", "accrual_admin"] },
+      { label: "Transaction Types", view: "/transaction-types", icon: "transaction", roles: ["sysadmin", "accrual_admin"] },
+      { label: "Tax Codes", view: "/tax-codes", icon: "tax", roles: ["sysadmin", "accrual_admin"] },
     ],
   },
   {
     section: "Administration",
     items: [
+      { label: 'Archive List', view: '/archives', icon: 'accruals', roles: ['sysadmin'] },
       { label: "Users", view: "/admin-users", icon: "users", roles: ["sysadmin"] },
       { label: "Accrual Setup", view: "/accrual-setup", icon: "companies", roles: ["sysadmin"], allowSetupEditors: true },
       { label: "Announcement", view: "/announcements", icon: "announcement", roles: ["sysadmin"] },
@@ -231,6 +233,7 @@ const titles = {
   "/tax-codes": "Tax Code Management",
   "/admin-users": "User Administration",
   "/accrual-setup": "Accrual Setup",
+  '/archives': 'Archive List',
   "/announcements": "Announcements",
   "/control-number-setup": "Control Number Setup",
 };
@@ -1124,6 +1127,8 @@ function OnboardingScreen({ email, value, onChange, onSubmit, saving }) {
 function renderActiveView(activeView, currentUser, options = {}) {
   const { onNewAccrualFullscreenChange, onEditAccrual, accrualsRefreshKey } = options;
   switch (activeView) {
+    case '/archives':
+      return <ArchiveListPage currentUser={currentUser} />;
     case "/accruals":
       return <AllAccrualsPage key={accrualsRefreshKey} currentUser={currentUser} onEditAccrual={onEditAccrual} />;
     case "/suppliers":
@@ -1180,6 +1185,7 @@ function AppShell() {
     return stored || "/new-accrual";
   });
   const [editingAccrual, setEditingAccrual] = useState(null);
+  const [pendingAccrualControlNumber, setPendingAccrualControlNumber] = useState(null);
   const [accrualsRefreshKey, setAccrualsRefreshKey] = useState(0);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [session, setSession] = useState(null);
@@ -1713,8 +1719,8 @@ function AppShell() {
           (item) =>
             !item.roles ||
             item.roles.includes(role) ||
-            (item.allowControlNumberEditors && currentUser?.can_update_control_number) ||
-            (item.allowSetupEditors && currentUser?.can_update_setup)
+            (role !== 'accrual_admin' && item.allowControlNumberEditors && currentUser?.can_update_control_number) ||
+            (role !== 'accrual_admin' && item.allowSetupEditors && currentUser?.can_update_setup)
         ),
       }))
       .filter((group) => group.items.length > 0);
@@ -1902,7 +1908,13 @@ function AppShell() {
     }
   };
 
-  const contextValue = useMemo(() => ({ activeView, setActiveView }), [activeView]);
+  const contextValue = useMemo(() => ({
+    activeView, setActiveView, pendingAccrualControlNumber, setPendingAccrualControlNumber,
+    openAccrualDetails: (controlNumber) => {
+      setPendingAccrualControlNumber(controlNumber);
+      setActiveView('/accruals');
+    },
+  }), [activeView, pendingAccrualControlNumber]);
 
   if (authLoading || (session && !currentUser && !profileResolved && profileLoading)) {
     return (

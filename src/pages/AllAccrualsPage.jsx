@@ -5,6 +5,8 @@ import DraftAccrualEditor from "../DraftAccrualEditor";
 import AccrualNotesDialog from "../components/AccrualNotesDialog";
 import { cancelAccrual, confirmAccrualSubmission, fetchAccrualSubmissions } from "../lib/AccrualSubmissions";
 import { useToast } from "../lib/toast";
+import { useAppView } from "../lib/appView";
+import { isAccrualAdmin } from '../lib/access';
 
 function formatDateTime(value) {
   if (!value) {
@@ -421,11 +423,12 @@ function downloadExcelFile(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
-export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
+export default function AllAccrualsPage({ currentUser, onEditAccrual, archived = false, setupId, beforeFilters }) {
+  const { pendingAccrualControlNumber, setPendingAccrualControlNumber } = useAppView();
   const { showToast } = useToast();
   const [search, setSearch] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("for confirmation");
+  const [statusFilter, setStatusFilter] = useState(archived ? '' : "for confirmation");
   const [mobileView, setMobileView] = useState(() => {
     try { return window.localStorage.getItem("allAccrualsMobileView") === "list" ? "list" : "cards"; }
     catch { return "cards"; }
@@ -464,7 +467,7 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
     setErrorMessage("");
 
     try {
-      const rows = await fetchAccrualSubmissions({ currentUser });
+      const rows = await fetchAccrualSubmissions({ currentUser, archived, setupId });
       setSubmissions(rows);
       return rows;
     } catch (error) {
@@ -474,7 +477,7 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
     } finally {
       setLoading(false);
     }
-  }, [currentUser, showToast]);
+  }, [currentUser, showToast, archived, setupId]);
 
   useEffect(() => {
     loadData();
@@ -501,6 +504,14 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
       };
     })
   ), [submissions]);
+
+  useEffect(() => {
+    if (!pendingAccrualControlNumber || loading || errorMessage) return;
+    const submission = enrichedSubmissions.find((row) => row.control_number === pendingAccrualControlNumber);
+    if (submission) setSelectedSubmission(submission);
+    else showToast('Unable to find this accrual in the records you can access.', 'error');
+    setPendingAccrualControlNumber(null);
+  }, [pendingAccrualControlNumber, loading, errorMessage, enrichedSubmissions, setPendingAccrualControlNumber, showToast]);
 
   const filteredSubmissions = useMemo(() => {
     const keyword = search.trim().toLowerCase();
@@ -631,11 +642,11 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
 
   const canCancelSubmission = useCallback(
     (submission) => {
-      if (!submission || Number(submission.status) === 1) {
+      if (archived || submission?.is_archived || submission?.setup_locked || !submission || Number(submission.status) === 1) {
         return false;
       }
 
-      if (currentUser?.usergroup === "sysadmin") {
+      if (isAccrualAdmin(currentUser)) {
         return true;
       }
 
@@ -644,7 +655,7 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
         String(submission.maker || "").toLowerCase() === String(currentUser.email || "").toLowerCase()
       );
     },
-    [currentUser]
+    [currentUser, archived]
   );
 
   const canEditForConfirmation = (submission) => Number(submission?.status) === 2 && canCancelSubmission(submission);
@@ -772,7 +783,8 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
     <div className={`contentPage managementPage allAccrualsPage mobileAccrualView-${mobileView}`}>
       <div className="pageIntro">
         <div>
-          <h1 className="pageTitle">All Accruals</h1>
+          <h1 className="pageTitle">{archived ? 'Archive List' : 'All Accruals'}</h1>
+          {archived && <p className="pageSubtitle">Archived accruals are read only. Select a filing setup to view its records.</p>}
         </div>
         <div className="headerActions">
           <label className={`headerFieldGroup searchFieldGroup${searchFocused ? " focused" : ""}`}>
@@ -787,6 +799,7 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
             />
           </label>
           <div className="headerButtonGroup">
+            {beforeFilters}
             <FiltersMenu
               dateFrom={dateFrom}
               dateTo={dateTo}
@@ -838,7 +851,7 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
           <button type="button" className={mobileView === "cards" ? "active" : ""} aria-pressed={mobileView === "cards"} onClick={() => setMobileView("cards")}>Cards</button>
           <button type="button" className={mobileView === "list" ? "active" : ""} aria-pressed={mobileView === "list"} onClick={() => setMobileView("list")}>List</button>
         </div>
-        {statusFilter === "for confirmation" ? (
+        {!archived && statusFilter === "for confirmation" ? (
           <label className="mobileSelectAllControl">
             <input
               type="checkbox"
@@ -869,7 +882,7 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
                 sortable: false,
                 hideHeader: statusFilter !== "for confirmation",
                 className: `accrualNotesColumn${statusFilter === "for confirmation" ? " accrualSelectableNotesColumn" : ""}`,
-                renderHeader: statusFilter === "for confirmation" ? () => (
+                renderHeader: !archived && statusFilter === "for confirmation" ? () => (
                   <label className="accrualSelectionControl accrualSelectAllControl" onClick={(event) => event.stopPropagation()}>
                     <input
                       type="checkbox"
@@ -938,8 +951,8 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
             initialSort={{ key: "created_at", direction: "desc" }}
             rowClassName={(row) => selectedConfirmationIds.includes(row.id) ? "confirmationSelectedRow" : ""}
             showRowCount
-            emptyText="No accrual submissions found."
-            emptyHelperText="New and uploaded accruals appear as For Confirmation. Review the details, then confirm them individually or select at least two to confirm together."
+            emptyText={archived ? 'No archived accruals found for this setup.' : 'No accrual submissions found.'}
+            emptyHelperText={archived ? 'Records appear here after their filing setup is archived.' : 'New and uploaded accruals appear as For Confirmation. Review the details, then confirm them individually or select at least two to confirm together.'}
             onRowDoubleClick={(row) => setSelectedSubmission(row)}
             rowActions={(row) => (
               <div className="accrualRowActionGroup">
@@ -1200,6 +1213,7 @@ export default function AllAccrualsPage({ currentUser, onEditAccrual }) {
       /> : null}
       {notesSubmission ? (
         <AccrualNotesDialog
+          readOnly={archived || notesSubmission.is_archived || notesSubmission.setup_locked}
           key={notesSubmission.id}
           submission={notesSubmission}
           onClose={() => setNotesSubmission(null)}

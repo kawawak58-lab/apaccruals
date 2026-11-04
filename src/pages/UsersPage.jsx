@@ -13,7 +13,7 @@ const userFields = [
     label: "User Group",
     type: "select",
     required: true,
-    options: ["accrual_user", "sysadmin"],
+    options: ["accrual_user", "accrual_admin", "sysadmin"],
   },
   {
     name: "can_update_control_number",
@@ -122,8 +122,8 @@ export default function UsersPage() {
       const updatedUser = await updateUser(formValues.id, {
         display_name: formValues.display_name.trim(),
         usergroup: formValues.usergroup,
-        can_update_control_number: formValues.can_update_control_number === "true",
-        can_update_setup: formValues.can_update_setup === "true",
+        can_update_control_number: formValues.usergroup !== 'accrual_admin' && formValues.can_update_control_number === "true",
+        can_update_setup: formValues.usergroup !== 'accrual_admin' && formValues.can_update_setup === "true",
       });
       window.dispatchEvent(
         new CustomEvent("app-user-updated", {

@@ -32,7 +32,7 @@ function authorInitials(name) {
     .join("") || "?";
 }
 
-export default function AccrualNotesDialog({ submission, onClose, onCountChange }) {
+export default function AccrualNotesDialog({ submission, onClose, onCountChange, readOnly = false }) {
   const [notes, setNotes] = useState([]);
   const [body, setBody] = useState("");
   const [loading, setLoading] = useState(true);
@@ -85,7 +85,7 @@ export default function AccrualNotesDialog({ submission, onClose, onCountChange 
 
   const handleAddNote = async (event) => {
     event.preventDefault();
-    if (!editor || editor.isEmpty || saving) return;
+    if (readOnly || !editor || editor.isEmpty || saving) return;
     const message = editor.getHTML();
     if (message.length > 20000) {
       setError("This note is too long. Remove some content before adding it.");
@@ -126,13 +126,14 @@ export default function AccrualNotesDialog({ submission, onClose, onCountChange 
           </div>
           <button type="button" className="tableActionBtn" onClick={loadNotes} disabled={loading || saving}>Refresh notes</button>
         </div>
+        {error ? <div className="inlineError" role="alert">{error}</div> : null}
         <div className="accrualNotesList" ref={listRef} aria-live="polite">
           {loading && notes.length === 0 ? <p className="accrualNotesEmpty">Loading notes...</p> : null}
           {!loading && notes.length === 0 ? (
             <div className="accrualNotesEmptyState">
               <span className="accrualNotesEmptyIcon" aria-hidden="true">✎</span>
               <strong>No notes yet</strong>
-              <p>Add a note below to start the conversation about this accrual.</p>
+              <p>{readOnly ? 'No notes were added before this accrual was archived.' : 'Add a note below to start the conversation about this accrual.'}</p>
             </div>
           ) : null}
           {notes.map((note) => (
@@ -145,8 +146,7 @@ export default function AccrualNotesDialog({ submission, onClose, onCountChange 
             </article>
           ))}
         </div>
-        <form className="accrualNotesComposer" onSubmit={handleAddNote}>
-          {error ? <div className="inlineError" role="alert">{error}</div> : null}
+        {!readOnly && <form className="accrualNotesComposer" onSubmit={handleAddNote}>
           <div className="accrualNotesComposerHeading">
             <label>Add a note</label>
             <span>Share an update or context with your team.</span>
@@ -169,7 +169,7 @@ export default function AccrualNotesDialog({ submission, onClose, onCountChange 
               {saving ? "Adding..." : "Add note"}
             </button>
           </div>
-        </form>
+        </form>}
       </div>
     </div>
   );

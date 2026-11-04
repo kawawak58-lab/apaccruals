@@ -9,10 +9,13 @@ import { getProfitCenters } from "./lib/ProfitCenter";
 import { getGLAccounts } from "./lib/GlAccount";
 import { useToast } from "./lib/toast";
 import { useAppView } from "./lib/appView";
+import { canManageAccrualSetup } from './lib/access';
 import { findExactLookup } from "./accrualLookup";
 import { submitAccrual, updateAccrualDraft } from "./lib/AccrualSubmissions";
 import UploadDataDialog from "./components/UploadDataDialog";
 import AccrualEntryTable from "./components/AccrualEntryTable";
+import ExcelPastePreview from "./components/ExcelPastePreview";
+import { prepareExcelPaste, restoreDeletedEntry } from "./lib/accrualClipboard";
 import AccrualCutoffNotice from "./components/AccrualCutoffNotice";
 import { fetchCollection } from "./lib/adminCrud";
 import { supabase } from "./lib/supabase";
@@ -496,7 +499,7 @@ function formatAccrualCurrency(value) {
 }
 
 export default function YearEndAccrualForm({ currentUser, onFullscreenChange, editingSubmission, onEditCancel, onEditSaved }) {
-  const { setActiveView } = useAppView();
+  const { setActiveView, openAccrualDetails } = useAppView();
   const { showToast } = useToast();
   const savedDraftRef = useRef(readAccrualDraft());
   // Each table row is an independent accrual submission.
@@ -504,6 +507,9 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
     () => editingSubmission ? lineItemsFromSubmission(editingSubmission) : savedDraftRef.current?.lineItems || [createEmptyLineItem(1)]
   );
   const [lineItemErrors, setLineItemErrors] = useState(() => editingSubmission ? lineItemsFromSubmission(editingSubmission).map(() => ({})) : [{}]);
+  const [deletedEntries, setDeletedEntries] = useState([]);
+  const [pastePreview, setPastePreview] = useState(null);
+  const pasteRequest = useRef(0);
   const [lineItemCounter, setLineItemCounter] = useState(
     () => editingSubmission ? Math.max(1, editingSubmission.accrual_submission_lines?.length || 1) : savedDraftRef.current?.lineItemCounter || 1
   );
@@ -672,10 +678,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
 
     try {
       const setup = await getAccrualSetup();
-      setAccrualSetup({
-        start_date: setup.start_date || "",
-        cutoff_date: setup.cutoff_date || "",
-      });
+      setAccrualSetup(setup);
     } catch (error) {
       console.error("Failed to load accrual setup:", error);
       setAccrualSetupError(error.message || "Unable to load accrual setup.");
@@ -698,10 +701,14 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
     };
 
     window.addEventListener("focus", refreshSetupIfVisible);
+    window.addEventListener('accrual-setup-updated', refreshSetupIfVisible);
+    const setupRefreshTimer = window.setInterval(refreshSetupIfVisible, 30000);
     document.addEventListener("visibilitychange", refreshSetupIfVisible);
 
     return () => {
       window.removeEventListener("focus", refreshSetupIfVisible);
+      window.removeEventListener('accrual-setup-updated', refreshSetupIfVisible);
+      window.clearInterval(setupRefreshTimer);
       document.removeEventListener("visibilitychange", refreshSetupIfVisible);
     };
   }, [loadAccrualSetup]);
@@ -714,21 +721,10 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
         {
           event: "*",
           schema: "public",
-          table: "accrual_setup",
+          table: "accrual_filing_setups",
         },
-        (payload) => {
-          const nextRow = payload?.new || payload?.old;
-          if (!nextRow) {
-            void loadAccrualSetup({ silent: true });
-            return;
-          }
-
-          setAccrualSetup({
-            start_date: nextRow.start_date || "",
-            cutoff_date: nextRow.cutoff_date || "",
-          });
-          setAccrualSetupError("");
-          setAccrualSetupLoading(false);
+        () => {
+          void loadAccrualSetup({ silent: true });
         }
       )
       .subscribe();
@@ -1212,8 +1208,13 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
   };
 
   const removeLineItem = (id) => {
-    if (lineItems.length > 1) {
+    if (!isDisabled && !showModal && !pastePreview && lineItems.length > 1) {
       const removedIndex = lineItems.findIndex((item) => item.id === id);
+      if (removedIndex < 0) return;
+      setDeletedEntries((entries) => [...entries, {
+        item: lineItems[removedIndex], index: removedIndex,
+        previousId: lineItems[removedIndex - 1]?.id, nextId: lineItems[removedIndex + 1]?.id,
+      }]);
       setLineItems((prev) => prev.filter((item) => item.id !== id));
       setLineItemErrors((prev) => prev.filter((_, index) => index !== removedIndex));
       delete prevSupplierSearchRef.current[id];
@@ -1478,6 +1479,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
         try {
           const controlNumber = await submitAccrual({
             header: {
+              setup_id: accrualSetup.id,
               maker: currentUser.email,
               requester_email: currentUser.email,
               expense_class: item.expenseclass,
@@ -1514,6 +1516,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
       }
 
       if (controlNumbers.length) {
+        setDeletedEntries([]);
         const submittedIds = new Set(controlNumbers.flatMap((entry) => entry.ids));
         const remainingItems = lineItems.filter((item) => !submittedIds.has(item.id));
         const remainingErrors = newLineItemErrors.filter((_, index) => !submittedIds.has(lineItems[index]?.id));
@@ -1554,6 +1557,58 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
   const accrualWindowStatus = getAccrualWindowStatus(accrualSetup, new Date());
   const isAccrualWindowLocked = !editingSubmission && (accrualSetupLoading || !accrualWindowStatus.isOpen);
   const isDisabled = !currentUser?.email || staticDataLoading || isAccrualWindowLocked;
+
+  const undoDelete = () => {
+    if (isDisabled || showModal || pastePreview || !deletedEntries.length) return;
+    const restored = restoreDeletedEntry(lineItems, lineItemErrors, deletedEntries[deletedEntries.length - 1]);
+    setLineItems(restored.items);
+    setLineItemErrors(restored.errors);
+    setDeletedEntries((entries) => entries.slice(0, -1));
+  };
+
+  const cancelPaste = () => { pasteRequest.current += 1; setPastePreview(null); };
+  const handleExcelPaste = async (text, startRow, startColumn) => {
+    if (isDisabled || showModal || pastePreview) return;
+    const request = ++pasteRequest.current;
+    const snapshot = lineItems;
+    setPastePreview({ loading: true });
+    try {
+      const preview = await prepareExcelPaste({
+        text, startRow, startColumn, items: snapshot, counter: lineItemCounter,
+        createRow: createEmptyLineItem, editing: Boolean(editingSubmission), rules: expenseClassRules,
+        lists: { expenseclass: expenseClass, company: companies, transType: transactionTypes, taxCode: taxCodes, vat: ['Vatable', 'Non-Vatable'] },
+        lookup: (field, company, code) => {
+          const config = {
+            supplier: ['suppliers', 'suppliercode', 'suppliername'],
+            glaccount: ['glaccounts', 'glaccountcode', 'glaccountname'],
+            profitcenter: ['profitcenters', 'profitcentercode', 'profitcentername'],
+          }[field];
+          return findExactLookup({ rows: [], total: 1, search: code, company, table: config[0], codeColumn: config[1], nameColumn: config[2] });
+        },
+      });
+      if (pasteRequest.current === request) setPastePreview({ ...preview, snapshot });
+    } catch (error) {
+      if (pasteRequest.current === request) setPastePreview({ errors: [error.message || 'Unable to validate copied cells.'] });
+    }
+  };
+
+  const applyExcelPaste = () => {
+    if (isDisabled || showModal || pastePreview?.loading || pastePreview?.errors?.length || !pastePreview?.items) return;
+    // Lookup responses may refresh dropdown metadata while the preview is open.
+    const dataOnly = (rows) => rows.map(({ suppliers, glAccounts, profitCenters, supplierTotal, glTotal, profitTotal, supplierPage, glPage, profitPage, showSupplierDropdown, showGLDropdown, showProfitDropdown, ...row }) => row);
+    if (JSON.stringify(dataOnly(lineItems)) !== JSON.stringify(dataOnly(pastePreview.snapshot))) {
+      setPastePreview({ errors: ['Entries changed while checking the paste. Cancel and paste again.'] });
+      return;
+    }
+    setLineItems(pastePreview.items);
+    setLineItemCounter(pastePreview.counter);
+    setLineItemErrors(pastePreview.items.map(() => ({})));
+    // A new paste starts a new deletion history; older rows must not be
+    // restored into the newly pasted entries.
+    setDeletedEntries([]);
+    showToast(`${pastePreview.rowCount} rows pasted.`, 'success');
+    cancelPaste();
+  };
   useEffect(() => {
     if (!onFullscreenChange) {
       return undefined;
@@ -1995,6 +2050,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
             ...payloadGroup,
             header: {
               ...payloadGroup.header,
+              setup_id: accrualSetup.id,
               maker: currentUser?.email || payloadGroup.header.requester_email,
             },
           });
@@ -2046,7 +2102,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
         setUploadSaving(false);
       }
     },
-    [accrualSetupLoading, accrualWindowStatus.isOpen, accrualWindowStatus.reason, currentUser]
+    [accrualSetupLoading, accrualSetup.id, accrualWindowStatus.isOpen, accrualWindowStatus.reason, currentUser]
   );
 
   const handleAccrualTemplateDownload = useCallback((includeSampleRows = false) => {
@@ -2171,11 +2227,11 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
                   </dl>
                 ) : null}
                 <div className="filingStatusActions">
-                  {currentUser?.can_update_setup ? <button type="button" className="submitBtn" onClick={() => setActiveView("/accrual-setup")}>Configure accrual period</button> : null}
+                  {canManageAccrualSetup(currentUser) ? <button type="button" className="submitBtn" onClick={() => setActiveView("/accrual-setup")}>Configure accrual period</button> : null}
                   <button type="button" className="tableActionBtn" onClick={() => setActiveView("/accruals")}>View submissions</button>
                   {accrualSetupError ? <button type="button" className="tableActionBtn" onClick={() => loadAccrualSetup()}>Retry</button> : null}
                 </div>
-                {!currentUser?.can_update_setup && !accrualSetupLoading ? <p className="filingStatusHelp">Contact your administrator for changes to the filing period.</p> : null}
+                {!canManageAccrualSetup(currentUser) && !accrualSetupLoading ? <p className="filingStatusHelp">Contact your administrator for changes to the filing period.</p> : null}
               </div>
               <div className="filingStatusArt" aria-hidden="true"><ClosedChickenIllustration /></div>
             </div>
@@ -2202,6 +2258,9 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
         </div>
 
         <AccrualEntryTable
+          onExcelPaste={handleExcelPaste}
+          undoDelete={undoDelete}
+          deletedEntryCount={deletedEntries.length}
           lineItems={lineItems}
           isEditingExistingAccrual={Boolean(editingSubmission)}
           currentUser={currentUser}
@@ -2211,7 +2270,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
           transactionTypes={transactionTypes}
           taxCodes={taxCodes}
           lineItemErrors={lineItemErrors}
-          isDisabled={isDisabled}
+          isDisabled={isDisabled || Boolean(pastePreview) || showModal || addConfirmOpen}
           isAccrualWindowLocked={isAccrualWindowLocked}
           handleSupplierSearchChange={handleSupplierSearchChange}
           selectSupplier={selectSupplier}
@@ -2234,6 +2293,7 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
           addNextSequenceLineItem={addNextSequenceLineItem}
           removeLineItem={removeLineItem}
         />
+        {pastePreview && <ExcelPastePreview preview={pastePreview} onCancel={cancelPaste} onApply={applyExcelPaste} />}
 
 
 
@@ -2457,17 +2517,12 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
             <div><span className="accrualSubmissionEyebrow">Submission complete</span><h2 id="accrualSubmittedTitle">Submitted for confirmation</h2><p>{submittedAccrualGroups.length} accrual{submittedAccrualGroups.length === 1 ? " was" : "s were"} created and can be edited until confirmed.</p></div>
           </header>
           <div className="accrualSubmissionBody">
-            <div className="accrualSubmissionStats" aria-label="Submitted totals">
-              <div><span>Control numbers</span><strong>{submittedAccrualGroups.length}</strong></div>
-              <div><span>Entries</span><strong>{submittedAccrualGroups.reduce((total, group) => total + group.entryCount, 0)}</strong></div>
-              <div><span>Total gross amount</span><strong>{formatAccrualCurrency(submittedAccrualGroups.reduce((total, group) => total + group.grossAmount, 0))}</strong></div>
-            </div>
             <div className="accrualSubmissionTableWrap">
               <table className="accrualSubmissionTable accrualSubmittedTable">
                 <thead><tr><th>Control number</th><th>Group</th><th>Expense classification</th><th>Company</th><th>Supplier</th><th>Invoice no.</th><th>Entries</th><th>Gross amount</th></tr></thead>
                 <tbody>{submittedAccrualGroups.map((group) => (
                   <tr key={group.controlNumber}>
-                    <td data-label="Control number"><strong className="accrualControlNumber">{group.controlNumber}</strong></td>
+                    <td data-label="Control number"><button type="button" className="accrualControlNumber accrualSubmittedControlLink" onClick={() => { setShowModal(false); openAccrualDetails(group.controlNumber); }}>{group.controlNumber}</button></td>
                     <td data-label="Group"><span className="accrualSequenceBadge">{group.sequence}</span></td>
                     <td data-label="Expense classification">{group.expenseClass}</td>
                     <td data-label="Company">{group.company}</td>

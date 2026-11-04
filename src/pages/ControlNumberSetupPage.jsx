@@ -16,7 +16,7 @@ export default function ControlNumberSetupPage({ currentUser }) {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [updatedAt, setUpdatedAt] = useState(null);
-  const hasAccess = Boolean(currentUser?.can_update_control_number);
+  const hasAccess = currentUser?.usergroup !== 'accrual_admin' && Boolean(currentUser?.can_update_control_number);
 
   const loadCurrentControlNumber = useCallback(async () => {
     setLoading(true);

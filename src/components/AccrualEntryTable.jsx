@@ -1,5 +1,6 @@
 import React from "react";
 import { createPortal } from "react-dom";
+import { PASTE_COLUMNS } from '../lib/accrualClipboard';
 
 function FloatingFieldMessage({ anchorId, children, className, role }) {
   const [position, setPosition] = React.useState(null);
@@ -111,6 +112,9 @@ export default function AccrualEntryTable({
   addLineItemAfter,
   addNextSequenceLineItem,
   removeLineItem,
+  onExcelPaste,
+  undoDelete,
+  deletedEntryCount = 0,
 }) {
   const [hoveredSeparator, setHoveredSeparator] = React.useState(null);
   const [activeFieldHint, setActiveFieldHint] = React.useState(null);
@@ -270,6 +274,10 @@ export default function AccrualEntryTable({
           </p>
         </div>
         <div className="accrualEntryTableActions">
+          {deletedEntryCount > 0 && <button type="button" className="accrualUndoButton" aria-label="Undo delete" title={`Undo last deleted entry (${deletedEntryCount} available)`} disabled={isDisabled} onClick={undoDelete}>
+            <svg aria-hidden="true" viewBox="0 0 20 20" width="14" height="14" fill="none"><path d="M7 4 3 8l4 4M3 8h8a5 5 0 0 1 0 10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            Undo delete{deletedEntryCount > 1 && <span className="accrualUndoCount">{deletedEntryCount}</span>}
+          </button>}
           <button type="button" className="missingSupplierLink" onClick={handleManageSuppliers} disabled={isAccrualWindowLocked}>
             Request Supplier Enrollment
           </button>
@@ -286,7 +294,19 @@ export default function AccrualEntryTable({
         </div>
       </div>
 
-      <div ref={tableScrollRef} className="accrualEntryTableScroll" role="region" aria-label="Accrual entries table" tabIndex={0} onKeyDown={handleTableKeyDown}>
+      <div ref={tableScrollRef} className="accrualEntryTableScroll" role="region" aria-label="Accrual entries table" tabIndex={0} onKeyDown={handleTableKeyDown} onPaste={(event) => {
+        const text = event.clipboardData.getData('text/plain');
+        if (!onExcelPaste || !/[\t\r\n]/.test(text)) return;
+        const control = event.target;
+        const row = control.closest?.('tr[data-entry-id]');
+        const cell = control.closest?.('td');
+        if (!row || !cell) return;
+        event.preventDefault();
+        if (isDisabled || control.readOnly || control.disabled || control.getAttribute('aria-disabled') === 'true') return;
+        const column = cell.cellIndex - 1;
+        if (column < 0 || column >= PASTE_COLUMNS.length) return;
+        onExcelPaste(text, lineItems.findIndex((item) => String(item.id) === row.dataset.entryId), column);
+      }}>
         <table className="accrualEntryTable">
           <colgroup>
             {[
@@ -349,7 +369,7 @@ export default function AccrualEntryTable({
               const taxCodeHint = isDisabled ? "Entry is locked" : !requiresTaxCode ? "Not required for this expense type" : "";
               const fieldHint = (field) => activeFieldHint?.key === `${item.id}:${field}` ? activeFieldHint.message : "";
               const showHint = (field, message) => () => showFieldHint(`${item.id}:${field}`, message);
-              const rowDeleteDisabled = lineItems.length <= 1;
+              const rowDeleteDisabled = isDisabled || lineItems.length <= 1;
               const currentSequence = Number(item.sequence);
               const highestSequence = Math.max(0, ...lineItems
                 .map((entry) => Number(entry.sequence))

@@ -83,3 +83,11 @@ test("shows the conversation and saves formatted note content", async () => {
   expect(screen.getByLabelText("2 notes")).toHaveTextContent("2");
   expect(onCountChange).toHaveBeenLastCalledWith(42, 2);
 });
+
+test('archived conversations can be read but have no note composer', async () => {
+  fetchAccrualNotes.mockResolvedValue([{ id: 1, author_name: 'Alex', body: 'Archived note', created_at: '2026-10-28T08:00:00Z' }]);
+  render(<AccrualNotesDialog submission={{ id: 42, control_number: 'ACT000042' }} onClose={jest.fn()} readOnly />);
+  expect(await screen.findByText('Archived note')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Add note' })).not.toBeInTheDocument();
+  expect(screen.queryByLabelText('Note text')).not.toBeInTheDocument();
+});

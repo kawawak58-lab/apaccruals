@@ -1,14 +1,18 @@
 import { supabase } from "./supabase";
+import { isAccrualAdmin, canViewArchives } from './access';
 
 export async function fetchAccrualSubmissions(options = {}) {
-  const { currentUser } = options;
-  const isSysadmin = currentUser?.usergroup === "sysadmin";
+  const { currentUser, archived = false, setupId } = options;
+  if (archived && !canViewArchives(currentUser)) throw new Error('Only sysadmins can access archived accruals.');
 
   let query = supabase
     .from("accrual_submissions")
     .select(
       `
         id,
+        setup_id,
+        is_archived,
+        accrual_filing_setups(is_locked),
         control_number,
         requester_email,
         maker,
@@ -43,9 +47,12 @@ export async function fetchAccrualSubmissions(options = {}) {
         )
       `
     )
+    .eq('is_archived', archived)
     .order("submitted_at", { ascending: false });
 
-  if (!isSysadmin && currentUser?.email) {
+  if (setupId) query = query.eq('setup_id', setupId);
+
+  if (!isAccrualAdmin(currentUser) && currentUser?.email) {
     query = query.eq("maker", currentUser.email);
   }
 
@@ -55,7 +62,7 @@ export async function fetchAccrualSubmissions(options = {}) {
     throw error;
   }
 
-  return data || [];
+  return (data || []).map((row) => ({ ...row, setup_locked: Boolean(row.accrual_filing_setups?.is_locked) }));
 }
 
 export async function submitAccrual({ header, lineItems }) {
