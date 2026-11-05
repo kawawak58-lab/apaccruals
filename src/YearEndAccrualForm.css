@@ -1744,6 +1744,31 @@ textarea.input {
   background: #fff;
   box-shadow: 0 4px 16px rgba(15, 23, 42, 0.03);
 }
+.masterDataCard { max-width: 720px; overflow: hidden; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; box-shadow: 0 3px 12px rgba(15, 23, 42, 0.03); }
+.masterDataCardHeading { display: flex; align-items: center; gap: 16px; padding: 28px 28px 0; }
+.masterDataIcon { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 48px; height: 48px; border: 1px solid #fde6ba; border-radius: 12px; color: #a16207; background: #fffbeb; }
+.masterDataIcon svg { width: 25px; height: 25px; }
+.masterDataEyebrow { color: #94621c; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; }
+.masterDataCardHeading h2 { margin: 5px 0 0; color: #0f172a; font-size: 20px; line-height: 1.4; font-weight: 650; letter-spacing: -0.025em; }
+.masterDataDescription { margin: 20px 28px; color: #64748b; font-size: 14px; line-height: 1.7; }
+.masterDataList { list-style: none; margin: 0 28px 28px; padding: 0; border: 1px solid #e8edf4; border-radius: 8px; overflow: hidden; }
+.masterDataList li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 16px; color: #334155; font-size: 14px; font-weight: 500; }
+.masterDataList li + li { border-top: 1px solid #e8edf4; }
+.masterDataTag { flex-shrink: 0; padding: 4px 8px; border-radius: 5px; background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 500; }
+.masterDataCardFooter { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 20px 28px; border-top: 1px solid #e8edf4; background: #fafbfc; }
+.masterDataCardFooter p { max-width: 44ch; margin: 0; color: #64748b; font-size: 12px; line-height: 1.7; }
+.masterDataCardFooter .masterDataReload { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; gap: 8px; min-height: 40px; width: auto; height: auto; margin: 0; padding: 10px 16px; border: 1px solid #1d4ed8; border-radius: 7px; background: #1d4ed8; color: #fff; font: inherit; font-size: 13px; font-weight: 600; line-height: 1.4; cursor: pointer; transition: background 150ms ease; }
+.masterDataReload svg { width: 16px; height: 16px; }
+.masterDataCardFooter .masterDataReload:hover { background: #1e40af; }
+.masterDataReload:focus-visible { outline: 3px solid #93c5fd; outline-offset: 3px; }
+@media (max-width: 600px) {
+  .masterDataCardHeading { padding: 20px 20px 0; gap: 12px; }
+  .masterDataCardHeading h2 { font-size: 18px; }
+  .masterDataDescription { margin: 18px 20px; }
+  .masterDataList { margin: 0 20px 20px; }
+  .masterDataCardFooter { align-items: stretch; flex-direction: column; gap: 16px; padding: 20px; }
+  .masterDataCardFooter p { max-width: none; }
+}
 .filingStatusBadge { display: inline-flex; padding: 6px 10px; border: 1px solid #fde68a; border-radius: 6px; background: #fffbeb; color: #92400e; font-size: 12px; font-weight: 600; }
 .filingStatusContent h2 { margin: 18px 0 12px; color: #0f172a; font-size: clamp(22px, 3vw, 28px); line-height: 1.3; letter-spacing: -0.025em; }
 .filingStatusContent > p { max-width: 58ch; margin: 0; font-size: 14px; color: #64748b; line-height: 1.75; }

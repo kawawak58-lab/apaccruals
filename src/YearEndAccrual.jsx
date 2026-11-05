@@ -616,15 +616,8 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
             getCompanyNames()
           ]);
 
-          if (
-            !companiesList.length ||
-            !expenseList.length ||
-            !transactionList.length ||
-            !taxList.length
-          ) {
-            throw new Error("Empty data received from one or more sources");
-          }
-
+          // Empty tables are a valid response on a new database, not a request
+          // failure. Show setup guidance below instead of retrying these reads.
           cacheRef.current = {
             companies: companiesList,
             expenseClass: expenseList,
@@ -2179,6 +2172,60 @@ export default function YearEndAccrualForm({ currentUser, onFullscreenChange, ed
         retryCount={staticDataRetryRef.current}
         maxRetries={maxStaticDataRetries}
       />
+    );
+  }
+
+  const missingMasterData = [
+    ["Companies", companies],
+    ["Expense classifications", expenseClass],
+    ["Transaction types", transactionTypes],
+    ["Tax codes", taxCodes],
+  ].filter(([, values]) => !values.length).map(([label]) => label);
+
+  if (!staticDataError && missingMasterData.length > 0) {
+    return (
+      <div className="body">
+        <div className="formWrapper">
+          <section className="masterDataPage" aria-labelledby="masterDataPageTitle">
+            <div className="filingPageHeading">
+              <h1 id="masterDataPageTitle">New Accrual</h1>
+              <p>Create and submit an accrual for the current filing period.</p>
+            </div>
+            <div className="masterDataCard" role="status">
+              <div className="masterDataCardHeading">
+                <span className="masterDataIcon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="4" y="5" width="16" height="15" rx="2" />
+                    <path d="M9 5V3h6v2M8 10h8M8 14h5" />
+                  </svg>
+                </span>
+                <div>
+                  <span className="masterDataEyebrow">SETUP REQUIRED</span>
+                  <h2>A few details are needed first</h2>
+                </div>
+              </div>
+              <p className="masterDataDescription">The accrual form will be available once the following master data has been added.</p>
+              <ul className="masterDataList" aria-label="Missing master data">
+                {missingMasterData.map((label) => (
+                  <li key={label}>
+                    <span>{label}</span>
+                    <span className="masterDataTag">No records</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="masterDataCardFooter">
+                <p>Ask your administrator to add these in Maintenance, then reload the data.</p>
+                <button type="button" onClick={retryStaticData} className="masterDataReload">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 7v5h-5M4 17v-5h5M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17" />
+                  </svg>
+                  Reload data
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
     );
   }
 
