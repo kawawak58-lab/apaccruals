@@ -538,7 +538,7 @@ function AnnouncementPreviewModal({ announcement, open, onClose }) {
 }
 
 const ALLOWED_EMAIL_DOMAIN = "bounty.com.ph";
-const ALLOWED_EMAIL_EXCEPTIONS = new Set(["baldonado0514@gmail.com"]);
+const ALLOWED_EMAIL_EXCEPTIONS = new Set(["kawawak58@gmail.com"]);
 
 function isAllowedBountyEmail(email) {
   const normalized = String(email || "").trim().toLowerCase();
